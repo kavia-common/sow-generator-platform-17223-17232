@@ -130,6 +130,24 @@ function App() {
 
         {/* Hero on first load or always as brand intro */}
         <Hero onPrimary={startNew} onSecondary={gotoTemplates} />
+        <div style={{ textAlign: "center", marginTop: -8, marginBottom: 8, zIndex: 2, position: "relative" }}>
+          <a
+            href="#login"
+            className="btn"
+            style={{
+              display: "inline-block",
+              marginTop: 8,
+              borderRadius: 999,
+              padding: "8px 12px",
+              background: "var(--ui-fill)",
+              border: "1px solid var(--ui-border)",
+              color: "var(--text-primary)"
+            }}
+            title="Open Login page with AI Prompt"
+          >
+            Open Login + AI Prompt
+          </a>
+        </div>
 
         <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
           <SideNav current={current} onNavigate={setCurrent} />

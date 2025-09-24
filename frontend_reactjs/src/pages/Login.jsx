@@ -6,6 +6,7 @@ import { generateSOWFromPrompt } from "../services/aiClient";
  * PUBLIC_INTERFACE
  * Login page styled with the Ocean Professional (Elegant) theme.
  * Left side: Login form. Right side: AI prompt input panel for SOW generation.
+ * After generation, shows a Download PDF button (local-only; no cloud upload).
  */
 export default function Login() {
   useEffect(() => {
@@ -14,14 +15,16 @@ export default function Login() {
   }, []);
 
   // AI Prompt state and UI flags
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(localStorage.getItem("sowPrompt") || "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
+  const [downloadReady, setDownloadReady] = useState(false);
 
   const onGenerate = async () => {
     setError("");
     setResult("");
+    setDownloadReady(false);
     if (!prompt.trim()) {
       setError("Please enter a prompt before generating a SOW.");
       return;
@@ -30,10 +33,98 @@ export default function Login() {
     const resp = await generateSOWFromPrompt(prompt);
     if (resp.ok) {
       setResult(resp.content);
+      setDownloadReady(true);
     } else {
       setError(resp.error || "Failed to generate SOW.");
     }
     setLoading(false);
+  };
+
+  // Create a simple PDF client-side without external libs using a data URL technique
+  // For high fidelity PDFs consider pdf-lib or jsPDF; here we keep zero deps as requested.
+  const downloadPDF = () => {
+    try {
+      const title = "SOW_Document";
+      // Wrap plain text content into a minimal PDF. This approach encodes the text and places it in a simple PDF object.
+      // Note: This is a simplified generator suitable for plain text; complex layout requires a PDF library.
+      const escapePdfText = (t) =>
+        String(t)
+          .replace(/\\/g, "\\\\")
+          .replace(/\(/g, "\\(")
+          .replace(/\)/g, "\\)")
+          .replace(/\r/g, "")
+          .replace(/\t/g, "    ");
+
+      const lines = escapePdfText(result || "").split("\n");
+      const contentStream = [
+        "BT",
+        "/F1 10 Tf",
+        "36 806 Td", // start near top-left
+        ...lines.map((ln, i) => {
+          const yShift = i === 0 ? 0 : -14;
+          return `${i === 0 ? "" : "T*"} (${ln || " "}) Tj`;
+        }),
+        "ET",
+      ].join("\n");
+
+      // Build a bare-bones PDF with one page and a single text stream
+      const objects = [];
+      const addObject = (str) => {
+        objects.push(str);
+        return objects.length;
+      };
+
+      const fontObjNum = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+      const contentsStream = `${contentStream}`;
+      const contentsBytes = new TextEncoder().encode(contentsStream);
+      const contentsLen = contentsBytes.length;
+      const contentObjNum = addObject(`<< /Length ${contentsLen} >>\nstream\n${contentsStream}\nendstream`);
+      const resourcesObjNum = addObject(`<< /Font << /F1 ${fontObjNum} 0 R >> >>`);
+      const pageObjNum = addObject(
+        `<< /Type /Page /Parent 4 0 R /Resources ${resourcesObjNum} 0 R /Contents ${contentObjNum} 0 R /MediaBox [0 0 612 792] >>`
+      );
+      const pagesObjNum = addObject(`<< /Type /Pages /Kids [ ${pageObjNum} 0 R ] /Count 1 >>`);
+      const catalogObjNum = addObject(`<< /Type /Catalog /Pages ${pagesObjNum} 0 R >>`);
+
+      // Assemble xref
+      let pdf = "%PDF-1.4\n";
+      const offsets = [];
+      const writeObj = (num, body) => {
+        offsets[num] = pdf.length;
+        pdf += `${num} 0 obj\n${body}\nendobj\n`;
+      };
+
+      // Write in numeric order
+      writeObj(1, objects[0]); // font
+      writeObj(2, objects[1]); // contents
+      writeObj(3, objects[2]); // resources
+      writeObj(4, objects[3]); // page
+      writeObj(5, objects[4]); // pages
+      writeObj(6, objects[5]); // catalog
+
+      const xrefPos = pdf.length;
+      pdf += "xref\n0 7\n";
+      pdf += "0000000000 65535 f \n";
+      for (let i = 1; i <= 6; i++) {
+        const off = String(offsets[i] || 0).padStart(10, "0");
+        pdf += `${off} 00000 n \n`;
+      }
+      pdf += `trailer\n<< /Size 7 /Root 6 0 R >>\nstartxref\n${xrefPos}\n%%EOF`;
+
+      const blob = new Blob([pdf], { type: "application/pdf" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${title}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      requestAnimationFrame(() => {
+        URL.revokeObjectURL(link.href);
+        link.remove();
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-alert
+      alert(`Failed to generate PDF: ${e?.message || e}`);
+    }
   };
 
   return (
@@ -87,6 +178,9 @@ export default function Login() {
           >
             Sign in to manage your projects and generate SOW drafts with AI-assisted prompts.
           </p>
+          <div style={{ marginTop: 8, fontSize: 12, color: "#6B7280" }}>
+            Tip: In preview, open the AI Prompt by navigating to this URL with <code>#login</code> suffix.
+          </div>
         </div>
 
         {/* Content: Grid with left login form and right AI prompt panel */}
@@ -277,7 +371,7 @@ export default function Login() {
                   background: "#FFFFFF",
                 }}
               />
-              <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   className="btn"
                   type="button"
@@ -312,6 +406,25 @@ export default function Login() {
                 >
                   {loading ? "Generating..." : "Generate SOW"}
                 </button>
+
+                {/* Download PDF appears only after a successful generation */}
+                {downloadReady ? (
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={downloadPDF}
+                    style={{
+                      borderRadius: 999,
+                      padding: "10px 14px",
+                      color: "#fff",
+                    }}
+                    aria-label="Download generated SOW as PDF"
+                    title="Download PDF"
+                  >
+                    Download PDF
+                  </button>
+                ) : null}
+
                 <span style={{ color: "#6B7280", fontSize: 12 }}>
                   {loading ? "Contacting AI service..." : "Uses configured AI service"}
                 </span>
