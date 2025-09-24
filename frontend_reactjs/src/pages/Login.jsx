@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { applyThemeToRoot, oceanTheme } from "../theme";
+import { generateSOWFromPrompt } from "../services/aiClient";
 
 /**
  * PUBLIC_INTERFACE
@@ -11,6 +12,29 @@ export default function Login() {
     // Ensure Ocean Professional theme tokens are applied (light Elegant palette)
     applyThemeToRoot(oceanTheme);
   }, []);
+
+  // AI Prompt state and UI flags
+  const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState("");
+  const [error, setError] = useState("");
+
+  const onGenerate = async () => {
+    setError("");
+    setResult("");
+    if (!prompt.trim()) {
+      setError("Please enter a prompt before generating a SOW.");
+      return;
+    }
+    setLoading(true);
+    const resp = await generateSOWFromPrompt(prompt);
+    if (resp.ok) {
+      setResult(resp.content);
+    } else {
+      setError(resp.error || "Failed to generate SOW.");
+    }
+    setLoading(false);
+  };
 
   return (
     <div
@@ -234,11 +258,13 @@ export default function Login() {
                 AI Prompt for SOW
               </div>
               <p style={{ margin: "0 0 12px", color: "#6B7280", fontSize: 14 }}>
-                Describe your project requirements. After sign-in, you’ll be able to generate a draft Statement of Work from this prompt.
+                Describe your project requirements, then generate a draft Statement of Work using AI.
               </p>
               <textarea
                 className="textarea"
                 placeholder="e.g., Build a responsive web app with user authentication, dashboard analytics, and export features..."
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
                 style={{
                   width: "100%",
                   minHeight: 160,
@@ -250,18 +276,12 @@ export default function Login() {
                   color: "#374151",
                   background: "#FFFFFF",
                 }}
-                onChange={() => {
-                  // Placeholder only; value would be persisted to state or storage once authenticated
-                }}
               />
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
                 <button
                   className="btn"
                   type="button"
-                  onClick={() => {
-                    // eslint-disable-next-line no-alert
-                    alert("Prompt saved locally (placeholder).");
-                  }}
+                  onClick={() => localStorage.setItem("sowPrompt", prompt || "")}
                   style={{
                     borderRadius: 999,
                     padding: "10px 14px",
@@ -277,10 +297,8 @@ export default function Login() {
                 <button
                   className="btn"
                   type="button"
-                  onClick={() => {
-                    // eslint-disable-next-line no-alert
-                    alert("This will generate a SOW draft after login (placeholder).");
-                  }}
+                  onClick={onGenerate}
+                  disabled={loading}
                   style={{
                     borderRadius: 999,
                     padding: "10px 14px",
@@ -288,12 +306,63 @@ export default function Login() {
                     border: "1px solid rgba(244,114,182,0.55)",
                     color: "#374151",
                     fontWeight: 700,
-                    cursor: "pointer",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.8 : 1,
                   }}
                 >
-                  Preview Draft (UI only)
+                  {loading ? "Generating..." : "Generate SOW"}
                 </button>
+                <span style={{ color: "#6B7280", fontSize: 12 }}>
+                  {loading ? "Contacting AI service..." : "Uses configured AI service"}
+                </span>
               </div>
+
+              {/* Error state */}
+              {error ? (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 12,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    background: "rgba(254,226,226,0.6)",
+                    color: "#7F1D1D",
+                    fontSize: 14,
+                  }}
+                >
+                  {error}
+                </div>
+              ) : null}
+
+              {/* Result panel */}
+              <div
+                className="preview"
+                style={{
+                  marginTop: 12,
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.75))",
+                  borderRadius: 16,
+                  border: "1px solid rgba(111,63,255,.25)",
+                  boxShadow: "0 0 24px rgba(111,63,255,0.15)",
+                  padding: 12,
+                  color: "#1F2937",
+                }}
+                aria-live="polite"
+              >
+                <pre
+                  style={{
+                    margin: 0,
+                    whiteSpace: "pre-wrap",
+                    fontFamily:
+                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {result || "Your generated SOW will appear here."}
+                </pre>
+              </div>
+
               <div
                 style={{
                   marginTop: 10,
