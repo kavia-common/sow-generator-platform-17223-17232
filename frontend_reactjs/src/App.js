@@ -11,6 +11,7 @@ import GenerateDraft from "./pages/GenerateDraft";
 import ReviewEdit from "./pages/ReviewEdit";
 import ExportPDF from "./pages/ExportPDF";
 import Hero from "./components/Hero";
+import Login from "./pages/Login";
 import { applyThemeToRoot, oceanTheme } from "./theme";
 
 // PUBLIC_INTERFACE
@@ -24,25 +25,39 @@ function App() {
    */
   const [current, setCurrent] = useState("company");
 
-  // selections
+  // Selections
   const [projects, setProjects] = useState([{ id: "p1", name: "New Project" }]);
-  const [templates] = useState([{ id: "FP", name: "Fixed Price" }, { id: "TM", name: "Time & Material" }]);
+  const [templates] = useState([
+    { id: "FP", name: "Fixed Price" },
+    { id: "TM", name: "Time & Material" },
+  ]);
   const [selectedProject, setSelectedProject] = useState("p1");
   const [selectedTemplate, setSelectedTemplate] = useState("");
 
-  // data models
+  // Data models
   const [company, setCompany] = useState({});
   const [project, setProject] = useState({});
   const [draft, setDraft] = useState("");
+
+  // Simple hash-based toggle to view Login page: add #login to URL
+  const [showLogin, setShowLogin] = useState(() => window.location.hash === "#login");
+  useEffect(() => {
+    const onHash = () => setShowLogin(window.location.hash === "#login");
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   useEffect(() => {
     applyThemeToRoot(oceanTheme);
   }, []);
 
-  const meta = useMemo(() => ({
-    title: project?.overview?.slice(0, 30) || "Statement of Work",
-    template: selectedTemplate
-  }), [project?.overview, selectedTemplate]);
+  const meta = useMemo(
+    () => ({
+      title: project?.overview?.slice(0, 30) || "Statement of Work",
+      template: selectedTemplate,
+    }),
+    [project?.overview, selectedTemplate]
+  );
 
   const onNewProject = () => {
     const id = `p${projects.length + 1}`;
@@ -69,9 +84,21 @@ function App() {
       case "project":
         return <ProjectDetails data={project} onChange={setProject} />;
       case "template":
-        return <TemplateSelect selected={selectedTemplate} onChange={setSelectedTemplate} />;
+        return (
+          <TemplateSelect
+            selected={selectedTemplate}
+            onChange={setSelectedTemplate}
+          />
+        );
       case "generate":
-        return <GenerateDraft company={company} project={project} template={selectedTemplate} onDraft={setDraft} />;
+        return (
+          <GenerateDraft
+            company={company}
+            project={project}
+            template={selectedTemplate}
+            onDraft={setDraft}
+          />
+        );
       case "review":
         return <ReviewEdit draft={draft} onChange={setDraft} />;
       case "export":
@@ -80,6 +107,11 @@ function App() {
         return null;
     }
   };
+
+  if (showLogin) {
+    // Render the new Login page in Ocean Professional style
+    return <Login />;
+  }
 
   return (
     <>
