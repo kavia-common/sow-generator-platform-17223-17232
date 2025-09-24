@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./styles.css";
-import TopNav from "./components/TopNav";
+import "./theme.css";
+import BackgroundWaves from "./components/BackgroundWaves";
+import GlassHeader from "./components/GlassHeader";
 import SideNav from "./components/SideNav";
 import CompanyDetails from "./pages/CompanyDetails";
 import ProjectDetails from "./pages/ProjectDetails";
@@ -8,14 +10,16 @@ import TemplateSelect from "./pages/TemplateSelect";
 import GenerateDraft from "./pages/GenerateDraft";
 import ReviewEdit from "./pages/ReviewEdit";
 import ExportPDF from "./pages/ExportPDF";
+import Hero from "./components/Hero";
 import { applyThemeToRoot, oceanTheme } from "./theme";
 
 // PUBLIC_INTERFACE
 function App() {
   /**
    * SOW Generator App Shell
-   * - Top navigation for project/template selection
-   * - Side navigation for SOW actions/steps
+   * - Glassmorphic top navigation with pill/blur
+   * - Neon full-bleed background
+   * - Side navigation for SOW steps
    * - Main workspace for forms and review
    */
   const [current, setCurrent] = useState("company");
@@ -52,6 +56,12 @@ function App() {
     alert("Draft saved locally. Use Export to save to Supabase.");
   };
 
+  const gotoTemplates = () => setCurrent("template");
+  const startNew = () => {
+    onNewProject();
+    setCurrent("company");
+  };
+
   const renderStep = () => {
     switch (current) {
       case "company":
@@ -72,25 +82,31 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
-      <TopNav
-        projects={projects}
-        templates={templates}
-        selectedProject={selectedProject}
-        selectedTemplate={selectedTemplate}
-        onProjectChange={setSelectedProject}
-        onTemplateChange={setSelectedTemplate}
-        onNewProject={onNewProject}
-        onSaveDraft={onSaveDraft}
-      />
+    <>
+      <BackgroundWaves />
+      <div className="app-shell">
+        <GlassHeader
+          projects={projects}
+          templates={templates}
+          selectedProject={selectedProject}
+          selectedTemplate={selectedTemplate}
+          onProjectChange={setSelectedProject}
+          onTemplateChange={setSelectedTemplate}
+          onNewProject={onNewProject}
+          onSaveDraft={onSaveDraft}
+        />
 
-      <div className="body-grid">
-        <SideNav current={current} onNavigate={setCurrent} />
-        <main className="workspace" role="main" aria-live="polite">
-          {renderStep()}
-        </main>
+        {/* Hero on first load or always as brand intro */}
+        <Hero onPrimary={startNew} onSecondary={gotoTemplates} />
+
+        <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
+          <SideNav current={current} onNavigate={setCurrent} />
+          <main className="workspace" role="main" aria-live="polite">
+            {renderStep()}
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

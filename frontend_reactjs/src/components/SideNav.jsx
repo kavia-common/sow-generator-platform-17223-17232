@@ -16,17 +16,28 @@ export default function SideNav({ current, onNavigate }) {
     <aside className="sidebar" aria-label="SOW Actions">
       <div className="nav-group">
         <div className="nav-title">Actions</div>
-        {items.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onNavigate?.(item.id)}
-            className="nav-item"
-            aria-current={current === item.id ? "page" : undefined}
-            style={current === item.id ? { borderColor: "var(--ocn-primary)", background: "#fff0f7" } : undefined}
-          >
-            {item.label}
-          </button>
-        ))}
+        {items.map((item) => {
+          const active = current === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onNavigate?.(item.id)}
+              className="nav-item"
+              aria-current={active ? "page" : undefined}
+              style={
+                active
+                  ? {
+                      borderColor: "var(--accent-purple)",
+                      background: "rgba(111,63,255,0.15)",
+                      boxShadow: "var(--glow-purple)"
+                    }
+                  : undefined
+              }
+            >
+              {item.label}
+            </button>
+          );
+        })}
       </div>
       <div className="nav-group">
         <div className="nav-title">Templates</div>

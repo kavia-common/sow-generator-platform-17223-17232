@@ -36,9 +36,9 @@ export default function ExportPDF({ draft, meta }) {
       <div className="panel-title">Export</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <button className="btn" onClick={downloadText}>Download Draft (txt)</button>
-        <button className="btn primary" onClick={saveToSupabase}>Save to Supabase</button>
+        <button className="btn btn-primary" onClick={saveToSupabase}>Save to Supabase</button>
       </div>
-      <div style={{ color: "#6b7280" }}>{status || "Export your SOW as PDF (future) or save to Supabase."}</div>
+      <div style={{ color: "var(--text-secondary)" }}>{status || "Export your SOW as PDF (future) or save to Supabase."}</div>
     </div>
   );
 }

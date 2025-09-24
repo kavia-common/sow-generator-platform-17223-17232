@@ -1,0 +1,92 @@
+:root {
+  /* Dark Canvas and Surfaces */
+  --bg-canvas: #0b0b10;
+  --bg-elevated: #12121a;
+  --bg-glass: rgba(255,255,255,0.06);
+
+  /* Text */
+  --text-primary: #F3F5F7;
+  --text-secondary: #C9CDD2;
+  --text-muted: #9AA0A6;
+
+  /* Accents (neon) */
+  --accent-purple: #6F3FFF;
+  --accent-magenta: #C026D3;
+  --accent-pink: #FF3FA4;
+  --accent-blue: #14B8FF;
+
+  /* UI neutrals */
+  --ui-border: rgba(255,255,255,0.12);
+  --ui-border-strong: rgba(255,255,255,0.2);
+  --ui-fill: rgba(255,255,255,0.04);
+  --ui-fill-hover: rgba(255,255,255,0.08);
+
+  /* Buttons */
+  --btn-primary-bg: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+  --btn-primary-text: #111217;
+  --btn-ghost-text: #E7E9EC;
+  --btn-ghost-bg: rgba(255,255,255,0.06);
+  --btn-ghost-hover: rgba(255,255,255,0.1);
+
+  /* Glow & Shadows */
+  --glow-purple: 0 0 24px rgba(111,63,255,0.45);
+  --glow-pink: 0 0 28px rgba(255,63,164,0.35);
+  --shadow-elev-1: 0 6px 20px rgba(0,0,0,0.35);
+  --shadow-elev-2: 0 12px 36px rgba(0,0,0,0.45);
+
+  /* Radii */
+  --radius-card: 18px;
+  --radius-input: 14px;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: "Inter","SF Pro Text","Helvetica Neue", Arial, sans-serif;
+}
+
+/* Generic pill/button styles */
+.btn {
+  border-radius: 999px;
+  border: 1px solid var(--ui-border);
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--ui-fill);
+  padding: 10px 14px;
+  transition: all .2s ease;
+}
+.btn:hover { background: var(--ui-fill-hover); }
+.btn:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
+
+.btn-primary {
+  background: var(--btn-primary-bg);
+  color: var(--text-primary);
+  box-shadow: var(--glow-purple), var(--shadow-elev-1);
+  border-color: var(--ui-border);
+}
+.btn-primary:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+.btn-ghost {
+  background: var(--btn-ghost-bg);
+  color: var(--btn-ghost-text);
+  border: 1px solid var(--ui-border);
+}
+.btn-ghost:hover {
+  background: var(--btn-ghost-hover);
+  border-color: var(--ui-border-strong);
+}
+
+/* Form elements, rounded and dark */
+.input, .textarea, .select {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--radius-input);
+  padding: 10px 12px;
+  outline: none;
+}
+.label { color: var(--text-secondary); font-size: 12px; font-weight: 600; }

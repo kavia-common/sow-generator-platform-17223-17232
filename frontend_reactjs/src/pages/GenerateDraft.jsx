@@ -39,13 +39,13 @@ ${project?.acceptance || "-"}
     <div className="panel">
       <div className="panel-title">Generate Draft</div>
       <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
-        <button className="btn primary" onClick={simulateGenerate} disabled={loading}>
+        <button className="btn btn-primary" onClick={simulateGenerate} disabled={loading}>
           {loading ? "Generating..." : "Generate Draft"}
         </button>
-        <span style={{ color: "#6b7280" }}>Uses AI and your selected template to produce a first draft.</span>
+        <span style={{ color: "var(--text-secondary)" }}>Uses AI and your selected template to produce a first draft.</span>
       </div>
       <div className="preview" aria-live="polite">
-        <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{preview || "No draft yet."}</pre>
+        <pre style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--text-primary)" }}>{preview || "No draft yet."}</pre>
       </div>
     </div>
   );

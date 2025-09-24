@@ -11,22 +11,26 @@ export default function TemplateSelect({ selected, onChange }) {
     <div className="panel">
       <div className="panel-title">Choose Template</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {opts.map((o) => (
-          <button
-            key={o.id}
-            onClick={() => onChange(o.id)}
-            className="panel"
-            style={{
-              borderStyle: "solid",
-              borderColor: selected === o.id ? "var(--ocn-primary)" : "rgba(55,65,81,0.08)",
-              background: selected === o.id ? "#fff0f7" : "white"
-            }}
-            aria-pressed={selected === o.id}
-          >
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>{o.title}</div>
-            <div style={{ color: "#6b7280" }}>{o.desc}</div>
-          </button>
-        ))}
+        {opts.map((o) => {
+          const active = selected === o.id;
+          return (
+            <button
+              key={o.id}
+              onClick={() => onChange(o.id)}
+              className="panel"
+              style={{
+                borderStyle: "solid",
+                borderColor: active ? "var(--accent-purple)" : "var(--ui-border)",
+                background: active ? "rgba(111,63,255,0.12)" : "rgba(255,255,255,0.03)",
+                boxShadow: active ? "var(--glow-purple)" : "none"
+              }}
+              aria-pressed={active}
+            >
+              <div style={{ fontWeight: 800, marginBottom: 6, color: "var(--text-primary)" }}>{o.title}</div>
+              <div style={{ color: "var(--text-secondary)" }}>{o.desc}</div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
