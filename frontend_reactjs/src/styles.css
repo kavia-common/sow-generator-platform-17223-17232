@@ -1,0 +1,207 @@
+/* Ocean Professional global styles */
+
+:root{
+  --ocn-bg: #FDF2F8;
+  --ocn-surface: #FFFFFF;
+  --ocn-text: #374151;
+  --ocn-primary: #F472B6;
+  --ocn-secondary: #F59E0B;
+  --ocn-success: #10B981;
+  --ocn-error: #EF4444;
+  --ocn-gradient: linear-gradient(135deg, #FFE4E6 0%, #F3E8FF 100%);
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --shadow-sm: 0 4px 10px rgba(0,0,0,0.06);
+  --shadow-md: 0 10px 24px rgba(17, 24, 39, 0.08);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  color: var(--ocn-text);
+  background: var(--ocn-bg);
+}
+
+/* Layout wrapper */
+.app-shell {
+  display: grid;
+  grid-template-rows: 64px 1fr;
+  height: 100%;
+}
+
+/* Top Navigation */
+.topnav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--ocn-surface);
+  border-bottom: 1px solid rgba(55,65,81,0.08);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--ocn-gradient);
+  color: #6B21A8;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+.brand .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ocn-secondary);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
+}
+
+.topnav .spacer { flex: 1; }
+
+.selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.select, .btn {
+  appearance: none;
+  border: 1px solid rgba(55,65,81,0.12);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ocn-surface);
+  color: var(--ocn-text);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.btn.primary {
+  background: var(--ocn-primary);
+  color: white;
+  border: none;
+}
+.btn.secondary {
+  background: var(--ocn-secondary);
+  color: #1f2937;
+  border: none;
+}
+
+.userbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(55,65,81,0.08);
+}
+
+/* Body area: sidebar + main */
+.body-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 0;
+}
+
+/* Sidebar */
+.sidebar {
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(254,242,242,0.6), rgba(243,232,255,0.6));
+  border-right: 1px solid rgba(55,65,81,0.06);
+}
+.nav-group {
+  background: var(--ocn-surface);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 12px;
+}
+.nav-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #6b7280;
+  margin: 6px 6px 10px;
+}
+.nav-item {
+  display: block;
+  padding: 10px 12px;
+  margin: 6px;
+  border-radius: 10px;
+  color: #374151;
+  text-decoration: none;
+  border: 1px dashed rgba(55,65,81,0.12);
+  transition: all .15s ease;
+}
+.nav-item:hover {
+  border-style: solid;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Main workspace */
+.workspace {
+  padding: 18px;
+  overflow: auto;
+}
+.panel {
+  background: var(--ocn-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 16px;
+  border: 1px solid rgba(55,65,81,0.08);
+}
+.panel-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 8px 4px 16px;
+  letter-spacing: .01em;
+}
+
+/* Form elements */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.form-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 700;
+}
+.input, .textarea {
+  border: 1px solid rgba(55,65,81,0.15);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  outline: none;
+}
+.textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+/* Preview card */
+.preview {
+  background: linear-gradient(180deg, #ffffff, #fff9fb);
+  border-radius: 16px;
+  border: 1px solid rgba(244,114,182,.25);
+  padding: 12px;
+}
+
+/* Responsive */
+@media (max-width: 980px){
+  .body-grid { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+}
