@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { applyThemeToRoot, oceanTheme } from "../theme";
+import "./AIChatWizard.css";
 
 /**
  * PUBLIC_INTERFACE
@@ -150,7 +151,6 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
     setStepIndex(next);
     const s = steps[next];
     if (s) {
-      // Suggestions from project title for 'title' step
       if (s.key === "title") {
         const suggested = (projectTitle || "").trim();
         if (suggested) pushBot(`Suggested title: “${suggested}”`);
@@ -165,7 +165,7 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
     }
     return true;
-    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -173,7 +173,6 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
     const current = steps[stepIndex];
     if (!current) return;
 
-    // Special handling for upload types: they use buttons/inputs below
     if (["upload"].includes(current.type)) return;
 
     const val = input.trim();
@@ -187,12 +186,7 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
       if (current.type === "choice") {
         pushUser(val);
         if (current.key === "start") {
-          if (/1/i.test(val)) {
-            // Jump to title anyway (we need minimal info)
-            nextStep();
-          } else {
-            nextStep();
-          }
+          nextStep();
         } else if (current.key === "finish") {
           if (/yes/i.test(val)) {
             packageForExport();
@@ -201,7 +195,6 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
             pushBot("Okay. You can review and edit in the SOW Form anytime.");
           }
         } else {
-          // generic choice: continue
           nextStep();
         }
       } else if (current.type === "text") {
@@ -218,7 +211,6 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
         if (current.target) setValue(current.target, val);
         nextStep();
       } else {
-        // fallback
         nextStep();
       }
     } finally {
@@ -238,9 +230,7 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
   }
 
   function packageForExport() {
-    // Let parent know we have a SOW package
     onPackage?.(sow);
-    // Persist locally
     localStorage.setItem("sow-wizard-data", JSON.stringify(sow));
   }
 
@@ -257,25 +247,7 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Close SOW Wizard" : "Open SOW Wizard"}
         title={open ? "Close SOW Wizard" : "Open SOW Wizard"}
-        style={{
-          position: "fixed",
-          right: rightPos ? 16 : undefined,
-          left: rightPos ? undefined : 16,
-          bottom: 16,
-          zIndex: 60,
-          borderRadius: 999,
-          border: "1px solid rgba(255,255,255,0.15)",
-          background:
-            "radial-gradient(120% 120% at 30% 20%, var(--accent-pink), var(--accent-magenta))",
-          color: "#fff",
-          boxShadow:
-            "0 6px 16px rgba(159,66,255,0.45), 0 10px 30px rgba(31,41,55,.35)",
-          width: 56,
-          height: 56,
-          display: "grid",
-          placeItems: "center",
-          cursor: "pointer",
-        }}
+        className={`wiz-fab ${rightPos ? "" : "left"}`}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M4 7a3 3 0 0 1 3-3h7a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9l-4 4v-4.5A3.5 3.5 0 0 1 4 12V7Z" stroke="white" strokeWidth="1.6" fill="rgba(255,255,255,0.12)"/>
@@ -288,40 +260,12 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
         role="dialog"
         aria-modal="false"
         aria-label="SOW Wizard"
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          height: "100vh",
-          width: "min(520px, 92vw)",
-          transform: open ? "translateX(0%)" : "translateX(105%)",
-          transition: "transform .25s ease",
-          zIndex: 55,
-          background: "var(--ocn-surface)",
-          color: "var(--ocn-text)",
-          boxShadow: "0 0 60px rgba(31,41,55,0.35)",
-          borderLeft: "1px solid rgba(55,65,81,0.10)",
-          display: "grid",
-          gridTemplateRows: "auto 1fr auto",
-        }}
+        className={`wiz-panel ${open ? "open" : ""}`}
       >
-        <div
-          style={{
-            padding: "14px 16px",
-            borderBottom: "1px solid rgba(55,65,81,0.08)",
-            background: "linear-gradient(135deg, #FFE4E6 0%, #F3E8FF 100%)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div style={{ display: "grid", gap: 2 }}>
-            <div style={{ fontSize: 12, color: "#6B7280", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" }}>
-              SOW Wizard
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#374151" }} title={headerTitle}>
-              {headerTitle}
-            </div>
+        <div className="wiz-header">
+          <div className="wiz-header-title">
+            <div className="wiz-overline">SOW Wizard</div>
+            <div className="wiz-title" title={headerTitle}>{headerTitle}</div>
           </div>
           <button
             type="button"
@@ -335,26 +279,13 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
           </button>
         </div>
 
-        <div style={{ padding: 14, overflow: "auto", display: "grid", gap: 10 }}>
+        <div className="wiz-body">
           {/* Chat transcript */}
-          <div role="log" aria-live="polite" style={{ display: "grid", gap: 8 }}>
+          <div role="log" aria-live="polite" className="wiz-log">
             {messages.map((m, i) => (
               <div
                 key={i}
-                style={{
-                  display: "inline-block",
-                  maxWidth: "92%",
-                  justifySelf: m.from === "user" ? "end" : "start",
-                  background:
-                    m.from === "user"
-                      ? "linear-gradient(135deg, var(--accent-purple), var(--accent-pink))"
-                      : "#FFFFFF",
-                  color: m.from === "user" ? "#fff" : "#374151",
-                  borderRadius: 16,
-                  border: "1px solid rgba(55,65,81,0.18)",
-                  padding: "10px 12px",
-                  boxShadow: m.from === "user" ? "var(--glow-purple)" : "0 4px 14px rgba(0,0,0,0.08)",
-                }}
+                className={`wiz-bubble ${m.from === "user" ? "user" : "bot"}`}
               >
                 {m.text}
               </div>
@@ -364,15 +295,7 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
 
           {/* Current step special UIs for upload/preview */}
           {current?.type === "upload" && (
-            <div
-              style={{
-                border: "1px solid rgba(55,65,81,0.18)",
-                borderRadius: 12,
-                padding: 12,
-                background: "#FFFFFF",
-                color: "#374151",
-              }}
-            >
+            <div className="wiz-upload">
               <div style={{ marginBottom: 8 }}>{current.prompt}</div>
               <label className="btn" style={{ background: "#fff", color: "#374151" }}>
                 {current.label || "Choose File"}
@@ -386,16 +309,15 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
                   }}
                 />
               </label>
-              <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                {/* Previews */}
+              <div className="wiz-previews">
                 {current.key === "logo" && sow?.meta?.logoUrl ? (
-                  <img alt="Logo preview" src={sow.meta.logoUrl} style={{ maxHeight: 56, borderRadius: 8, border: "1px solid var(--ui-border)" }} />
+                  <img alt="Logo preview" src={sow.meta.logoUrl} className="wiz-preview-img" style={{ maxHeight: 56 }} />
                 ) : null}
                 {current.key === "photo" && sow?.meta?.photoUrl ? (
-                  <img alt="Photo preview" src={sow.meta.photoUrl} style={{ maxHeight: 100, borderRadius: 8, border: "1px solid var(--ui-border)" }} />
+                  <img alt="Photo preview" src={sow.meta.photoUrl} className="wiz-preview-img" style={{ maxHeight: 100 }} />
                 ) : null}
                 {current.key === "signature" && sow?.meta?.signatureUrl ? (
-                  <img alt="Signature preview" src={sow.meta.signatureUrl} style={{ maxHeight: 64, borderRadius: 8, border: "1px solid var(--ui-border)", background: "#fff" }} />
+                  <img alt="Signature preview" src={sow.meta.signatureUrl} className="wiz-preview-img" style={{ maxHeight: 64, background: "#fff" }} />
                 ) : null}
               </div>
             </div>
@@ -403,9 +325,9 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
 
           {/* Text/choice input */}
           {current?.type !== "upload" && (
-            <form onSubmit={handleSubmit} aria-label="Wizard input" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <form onSubmit={handleSubmit} aria-label="Wizard input" className="wiz-input-row">
               <input
-                className="input"
+                className="wiz-input"
                 placeholder={
                   current?.type === "choice"
                     ? "Type your choice (e.g., 1 or Yes)"
@@ -413,14 +335,6 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
                 }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                style={{
-                  flex: 1,
-                  background: "#FFFFFF",
-                  color: "#374151",
-                  borderRadius: 12,
-                  border: "1px solid rgba(55,65,81,0.18)",
-                  height: 44,
-                }}
               />
               <button className="btn btn-primary" type="submit" disabled={loading}>
                 {loading ? "..." : "Send"}
@@ -445,14 +359,7 @@ export default function AIChatWizard({ projectTitle = "", position = "right", on
           </div>
         </div>
 
-        <div
-          style={{
-            padding: "10px 14px",
-            borderTop: "1px solid rgba(55,65,81,0.08)",
-            color: "#6B7280",
-            fontSize: 12,
-          }}
-        >
+        <div className="wiz-footer">
           I’ll guide you through just the essentials. You can refine everything in the SOW Form.
         </div>
       </div>

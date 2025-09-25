@@ -18,6 +18,7 @@
   /* UI neutrals */
   --ui-border: rgba(255,255,255,0.12);
   --ui-border-strong: rgba(255,255,255,0.2);
+  /* Compatibility alias for components that read --ui-border-strong via var() fallback */
   --ui-fill: rgba(255,255,255,0.04);
   --ui-fill-hover: rgba(255,255,255,0.08);
 
