@@ -8,11 +8,8 @@ import "./GlassHeader.css";
  * Props mirror TopNav to keep wiring unchanged elsewhere.
  */
 export default function GlassHeader({
-  projects = [],
   templates = [],
-  selectedProject,
   selectedTemplate,
-  onProjectChange,
   onTemplateChange,
   onSaveDraft
 }) {
@@ -26,16 +23,6 @@ export default function GlassHeader({
         <nav className="nav-links" aria-label="Selectors">
           <select
             className="select"
-            value={selectedProject || ""}
-            onChange={(e) => onProjectChange?.(e.target.value)}
-            aria-label="Select Project"
-          >
-            <option value="" disabled>Select Project</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-
-          <select
-            className="select"
             value={selectedTemplate || ""}
             onChange={(e) => onTemplateChange?.(e.target.value)}
             aria-label="Select Template"
@@ -46,7 +33,6 @@ export default function GlassHeader({
         </nav>
 
         <div className="header-actions">
-          {/* Removed "New" to disable add-new actions */}
           <button className="btn btn-primary" onClick={onSaveDraft}>Save</button>
         </div>
       </div>

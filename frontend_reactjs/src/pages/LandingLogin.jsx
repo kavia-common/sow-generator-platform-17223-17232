@@ -34,18 +34,12 @@ export default function LandingLogin({ onContinue }) {
       <BackgroundWaves />
       <header className="site-header" role="banner" aria-label="Main navigation">
         <div className="nav-pill">
-          <div className="brand-chip" aria-label="Brand">
-            <span role="img" aria-label="star">★</span>
-            <span>Delta</span>
+          <div className="brand-chip" aria-label="SOW Generator">
+            <span role="img" aria-label="spark">✨</span>
+            <span>SOW Generator</span>
           </div>
-          <nav className="nav-links" aria-label="Primary">
-            <a href="#features">Features</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#docs">Docs</a>
-          </nav>
           <div className="header-actions">
-            <button className="btn">Sign In</button>
-            <button className="btn btn-primary" onClick={() => onContinue?.({})}>Get Started</button>
+            <button className="btn btn-primary" onClick={() => onContinue?.({})}>Enter Workspace</button>
           </div>
         </div>
       </header>
@@ -54,9 +48,9 @@ export default function LandingLogin({ onContinue }) {
         <section className="hero" role="region" aria-label="Intro" style={{ paddingTop: 120, paddingBottom: 40 }}>
           <div className="hero-inner">
             <h1 className="hero-title" style={{ WebkitTextFillColor: "transparent", backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.72))", WebkitBackgroundClip: "text" }}>
-              Your New AI Assistant
+              Welcome to your Statement of Work generator
             </h1>
-            <p className="hero-subtitle">Get AI-generated Data Solutions in Seconds</p>
+            <p className="hero-subtitle">Create professional SOWs with guided steps, friendly prompts, and effortless export.</p>
           </div>
         </section>
 

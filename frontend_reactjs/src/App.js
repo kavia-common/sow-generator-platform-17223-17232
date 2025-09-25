@@ -10,7 +10,7 @@ import TemplateSelect from "./pages/TemplateSelect";
 import GenerateDraft from "./pages/GenerateDraft";
 import ReviewEdit from "./pages/ReviewEdit";
 import { applyThemeToRoot, oceanTheme } from "./theme";
-import AIChatWidget from "./components/AIChatWidget";
+import AIChatWidget from "./components/AIChatWizard";
 import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
 import ExportWord from "./pages/ExportWord";
@@ -25,12 +25,10 @@ function App() {
   const [current, setCurrent] = useState("sowform"); // default to new SOW form
 
   // Selections
-  const [projects] = useState([{ id: "p1", name: "Current Project" }]);
   const [templates] = useState([
     { id: "FP", name: "Fixed Price" },
     { id: "TM", name: "Time & Material" },
   ]);
-  const [selectedProject, setSelectedProject] = useState("p1");
   const [selectedTemplate, setSelectedTemplate] = useState("");
 
   // Data models
@@ -94,10 +92,7 @@ function App() {
     }
   };
 
-  const currentProjectName =
-    projects.find((p) => p.id === selectedProject)?.name ||
-    meta.title ||
-    "Current Project";
+  const currentProjectName = meta.title || "Statement of Work";
 
   if (stage === "landing") {
     return <LandingLogin onContinue={() => setStage("builder")} />;
@@ -108,13 +103,9 @@ function App() {
       <BackgroundWaves />
       <div className="app-shell">
         <GlassHeader
-          projects={projects}
           templates={templates}
-          selectedProject={selectedProject}
           selectedTemplate={selectedTemplate}
-          onProjectChange={setSelectedProject}
           onTemplateChange={setSelectedTemplate}
-          onNewProject={undefined}
           onSaveDraft={onSaveDraft}
         />
         <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
@@ -126,7 +117,14 @@ function App() {
       </div>
 
       {/* Right-side floating AI icon that opens the in-page prompt panel */}
-      <AIChatWidget projectTitle={currentProjectName} position="right" />
+      <AIChatWidget
+        projectTitle={currentProjectName}
+        position="right"
+        onPackage={(payload) => {
+          // Sync wizard data to main SOW form so ExportWord receives it
+          setSowData(payload);
+        }}
+      />
     </>
   );
 }
