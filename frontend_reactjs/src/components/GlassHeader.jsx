@@ -14,7 +14,6 @@ export default function GlassHeader({
   selectedTemplate,
   onProjectChange,
   onTemplateChange,
-  onNewProject,
   onSaveDraft
 }) {
   return (
@@ -47,7 +46,7 @@ export default function GlassHeader({
         </nav>
 
         <div className="header-actions">
-          <button className="btn btn-ghost" onClick={onNewProject}>New</button>
+          {/* Removed "New" to disable add-new actions */}
           <button className="btn btn-primary" onClick={onSaveDraft}>Save</button>
         </div>
       </div>
