@@ -6,11 +6,9 @@ import { generateSOWFromPrompt } from "../services/aiClient";
  * PUBLIC_INTERFACE
  * AIChatWidget
  * A compact floating AI/chat launcher that opens a side-panel for SOW prompt generation.
- * - No login UI
- * - Shows only the current project title (provided by parent)
- * - Elegant Ocean Professional styling
+ * The launcher icon sits at bottom-right with a gradient glow per design notes.
  */
-export default function AIChatWidget({ projectTitle = "Untitled Project" }) {
+export default function AIChatWidget({ projectTitle = "Untitled Project", position = "right" }) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState(localStorage.getItem("sowPrompt") || "");
   const [loading, setLoading] = useState(false);
@@ -18,7 +16,6 @@ export default function AIChatWidget({ projectTitle = "Untitled Project" }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Ensure theme tokens exist even if app didn't set it yet
     applyThemeToRoot(oceanTheme);
   }, []);
 
@@ -53,53 +50,41 @@ export default function AIChatWidget({ projectTitle = "Untitled Project" }) {
     link.click();
   };
 
+  const rightPos = position !== "left";
+
   return (
     <>
-      {/* Launcher button (bottom-left) */}
+      {/* Launcher button (bottom-right) */}
       <button
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="ai-panel"
         onClick={() => setOpen(v => !v)}
-        title={open ? "Close AI Prompt" : "Open AI Prompt"}
+        aria-label={open ? "Close AI Assistant" : "Open AI Assistant"}
+        title={open ? "Close AI Assistant" : "Open AI Assistant"}
         style={{
           position: "fixed",
-          left: 16,
+          right: rightPos ? 16 : undefined,
+          left: rightPos ? undefined : 16,
           bottom: 16,
           zIndex: 60,
           borderRadius: 999,
-          border: "1px solid var(--ui-border)",
-          background: "linear-gradient(135deg, #FFE4E6, #F3E8FF)",
-          color: "var(--ocn-text)",
-          boxShadow: "0 10px 30px rgba(31,41,55,.25)",
-          width: 48,
-          height: 48,
+          border: "1px solid rgba(255,255,255,0.15)",
+          background: "radial-gradient(120% 120% at 30% 20%, var(--accent-pink), var(--accent-magenta))",
+          color: "#fff",
+          boxShadow: "0 6px 16px rgba(159,66,255,0.45), 0 10px 30px rgba(31,41,55,.35)",
+          width: 56,
+          height: 56,
           display: "grid",
           placeItems: "center",
           cursor: "pointer",
         }}
       >
-        {/* Simple modern chat bubble icon (SVG) */}
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M4 6.5C4 5.12 5.12 4 6.5 4h11A2.5 2.5 0 0 1 20 6.5v6A2.5 2.5 0 0 1 17.5 15H10l-4 4v-4.5A2.5 2.5 0 0 1 4 12.5v-6Z"
-            stroke="url(#g1)"
-            strokeWidth="1.5"
-            fill="rgba(255,255,255,0.85)"
-          />
-          <defs>
-            <linearGradient id="g1" x1="0" y1="0" x2="24" y2="24">
-              <stop stopColor="#F472B6" />
-              <stop offset="1" stopColor="#F59E0B" />
-            </linearGradient>
-          </defs>
+        {/* Chat bubble with sparkle */}
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 7a3 3 0 0 1 3-3h7a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H9l-4 4v-4.5A3.5 3.5 0 0 1 4 12V7Z" stroke="white" strokeWidth="1.6" fill="rgba(255,255,255,0.12)"/>
+          <path d="M17.5 3.5l.6 1.8 1.8.6-1.8.6-.6 1.8-.6-1.8-1.8-.6 1.8-.6.6-1.8Z" fill="white"/>
         </svg>
       </button>
 
@@ -126,7 +111,6 @@ export default function AIChatWidget({ projectTitle = "Untitled Project" }) {
           gridTemplateRows: "auto 1fr auto",
         }}
       >
-        {/* Header with current project title only */}
         <div
           style={{
             padding: "14px 16px",
@@ -157,7 +141,6 @@ export default function AIChatWidget({ projectTitle = "Untitled Project" }) {
           </button>
         </div>
 
-        {/* Content */}
         <div style={{ padding: 14, overflow: "auto" }}>
           <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 8 }}>
             Describe your SOW needs. The AI will generate a structured draft based on your prompt.
@@ -259,7 +242,6 @@ export default function AIChatWidget({ projectTitle = "Untitled Project" }) {
           </div>
         </div>
 
-        {/* Footer subtle note */}
         <div
           style={{
             padding: "10px 14px",

@@ -9,24 +9,22 @@ import ProjectDetails from "./pages/ProjectDetails";
 import TemplateSelect from "./pages/TemplateSelect";
 import GenerateDraft from "./pages/GenerateDraft";
 import ReviewEdit from "./pages/ReviewEdit";
-import ExportPDF from "./pages/ExportPDF";
 import { applyThemeToRoot, oceanTheme } from "./theme";
 import AIChatWidget from "./components/AIChatWidget";
+import LandingLogin from "./pages/LandingLogin";
+import SOWForm from "./pages/SOWForm";
+import ExportWord from "./pages/ExportWord";
 
 // PUBLIC_INTERFACE
 function App() {
   /**
-   * SOW Generator App Shell
-   * - Glassmorphic top navigation with pill/blur
-   * - Neon full-bleed background
-   * - Side navigation for SOW steps
-   * - Main workspace for forms and review
-   * - Bottom-left AI chat widget that opens in-page panel
+   * App with Landing/Login intro, then SOW builder.
+   * AI prompt opens in-page from a right-side icon launcher.
    */
-  const [current, setCurrent] = useState("company");
+  const [stage, setStage] = useState("landing"); // landing | builder
+  const [current, setCurrent] = useState("sowform"); // default to new SOW form
 
   // Selections
-  // Removed "New Project" semantics; we keep a single current project selection list but avoid "new" actions
   const [projects] = useState([{ id: "p1", name: "Current Project" }]);
   const [templates] = useState([
     { id: "FP", name: "Fixed Price" },
@@ -39,6 +37,7 @@ function App() {
   const [company, setCompany] = useState({});
   const [project, setProject] = useState({});
   const [draft, setDraft] = useState("");
+  const [sowData, setSowData] = useState(null); // full SOW JSON (all sections), including logo file/url
 
   useEffect(() => {
     applyThemeToRoot(oceanTheme);
@@ -46,20 +45,26 @@ function App() {
 
   const meta = useMemo(
     () => ({
-      title: project?.overview?.slice(0, 30) || "Statement of Work",
+      title:
+        sowData?.meta?.title ||
+        project?.overview?.slice(0, 30) ||
+        "Statement of Work",
       template: selectedTemplate,
+      client: sowData?.meta?.client || company?.name || "",
+      date: sowData?.meta?.date || "",
     }),
-    [project?.overview, selectedTemplate]
+    [sowData, project?.overview, selectedTemplate, company?.name]
   );
 
   const onSaveDraft = () => {
-    // For MVP, just notify; full impl could persist draft to Supabase
     // eslint-disable-next-line no-alert
-    alert("Draft saved locally. Use Export to save to Supabase.");
+    alert("Draft saved locally.");
   };
 
   const renderStep = () => {
     switch (current) {
+      case "sowform":
+        return <SOWForm value={sowData} onChange={setSowData} />;
       case "company":
         return <CompanyDetails data={company} onChange={setCompany} />;
       case "project":
@@ -83,17 +88,20 @@ function App() {
       case "review":
         return <ReviewEdit draft={draft} onChange={setDraft} />;
       case "export":
-        return <ExportPDF draft={draft} meta={meta} />;
+        return <ExportWord value={sowData} meta={meta} />;
       default:
         return null;
     }
   };
 
-  // Compute current project title to display inside AI widget
   const currentProjectName =
     projects.find((p) => p.id === selectedProject)?.name ||
-    project?.overview?.slice(0, 30) ||
+    meta.title ||
     "Current Project";
+
+  if (stage === "landing") {
+    return <LandingLogin onContinue={() => setStage("builder")} />;
+  }
 
   return (
     <>
@@ -106,13 +114,9 @@ function App() {
           selectedTemplate={selectedTemplate}
           onProjectChange={setSelectedProject}
           onTemplateChange={setSelectedTemplate}
-          // Remove New action from header
           onNewProject={undefined}
           onSaveDraft={onSaveDraft}
         />
-
-        {/* Remove Hero CTA "Start a new SOW" and other add-new triggers */}
-        {/* Keep a subtle header-less space or remove hero entirely; choose to remove to reduce clutter */}
         <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
           <SideNav current={current} onNavigate={setCurrent} />
           <main className="workspace" role="main" aria-live="polite">
@@ -121,8 +125,8 @@ function App() {
         </div>
       </div>
 
-      {/* Bottom-left floating AI icon that opens the in-page prompt panel */}
-      <AIChatWidget projectTitle={currentProjectName} />
+      {/* Right-side floating AI icon that opens the in-page prompt panel */}
+      <AIChatWidget projectTitle={currentProjectName} position="right" />
     </>
   );
 }
