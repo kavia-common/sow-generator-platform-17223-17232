@@ -1,22 +1,23 @@
 //
+//
 // Lightweight AI client for generating SOW content from a prompt.
-// Tries a local backend endpoint first (if available): /api/ai/sow
-// Falls back to OpenAI chat.completions if REACT_APP_OPENAI_API_KEY is set.
+// Tries a local backend endpoint first (preferred): /api/ai/sow or REACT_APP_BACKEND_URL + /api/ai/sow
+// Optional fallback to OpenAI only if REACT_APP_OPENAI_API_KEY is explicitly configured.
 //
 // PUBLIC_INTERFACE
 export async function generateSOWFromPrompt(promptText) {
   /**
    * Generate a SOW draft from the provided prompt.
    * Prefers a local backend endpoint at /api/ai/sow (POST {prompt})
-   * Fallback: OpenAI chat completions API using REACT_APP_OPENAI_API_KEY.
+   * Optional fallback: OpenAI chat completions API using REACT_APP_OPENAI_API_KEY if set.
    *
    * Returns:
    *  { ok: true, content: string } on success
    *  { ok: false, error: string } on failure
    *
-   * Note:
-   * - For OpenAI fallback, set REACT_APP_OPENAI_API_KEY in .env (frontend build-time var).
-   * - If neither backend nor OpenAI key is available, a clear error is returned.
+   * Notes:
+   * - To ensure no external paid API is used, do NOT set REACT_APP_OPENAI_API_KEY.
+   * - Configure REACT_APP_BACKEND_URL if the frontend is not reverse-proxying /api to the backend.
    */
   try {
     const content = String(promptText || "").trim();
@@ -24,9 +25,12 @@ export async function generateSOWFromPrompt(promptText) {
       return { ok: false, error: "Please enter a prompt before generating a SOW." };
     }
 
-    // 1) Try local/backend endpoint first (if hosted via proxy or same origin)
+    // Prefer local backend
+    const base = (process.env.REACT_APP_BACKEND_URL || "").trim().replace(/\/+$/, "");
+    const url = base ? `${base}/api/ai/sow` : "/api/ai/sow";
+
     try {
-      const resp = await fetch("/api/ai/sow", {
+      const resp = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: content }),
@@ -37,19 +41,18 @@ export async function generateSOWFromPrompt(promptText) {
         if (text) {
           return { ok: true, content: text };
         }
-        // Non-fatal: backend reachable but response isn't usable
       }
     } catch (_e) {
-      // Ignore and fall back to OpenAI
+      // ignore and consider fallback below
     }
 
-    // 2) Fallback: OpenAI (client-side, for demo/dev only)
+    // Optional fallback to OpenAI if explicitly configured (not required for this project)
     const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY;
     if (!OPENAI_API_KEY) {
       return {
         ok: false,
         error:
-          "AI configuration missing: Set REACT_APP_OPENAI_API_KEY in your .env or provide a backend at /api/ai/sow.",
+          "Local AI backend not reachable. Start backend_express and set a dev proxy or REACT_APP_BACKEND_URL.",
       };
     }
 
@@ -62,11 +65,10 @@ export async function generateSOWFromPrompt(promptText) {
       `Project Prompt: ${content}`,
     ].join("\n");
 
-    // Call OpenAI Chat Completions API (gpt-4o-mini or gpt-3.5/4 variant)
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
