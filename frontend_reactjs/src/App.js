@@ -14,6 +14,7 @@ import AIChatWidget from "./components/AIChatWizard";
 import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
 import ExportWord from "./pages/ExportWord";
+import { getSOWTemplateSchema, scaffoldSOWFromTemplate } from "./templates";
 
 // PUBLIC_INTERFACE
 function App() {
@@ -30,6 +31,7 @@ function App() {
     { id: "TM", name: "Time & Material" },
   ]);
   const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [selectedTemplateSchema, setSelectedTemplateSchema] = useState(null);
 
   // Data models
   const [company, setCompany] = useState({});
@@ -40,6 +42,18 @@ function App() {
   useEffect(() => {
     applyThemeToRoot(oceanTheme);
   }, []);
+
+  // When template selection changes, scaffold sowData with the template fields
+  useEffect(() => {
+    if (!selectedTemplate) {
+      setSelectedTemplateSchema(null);
+      return;
+    }
+    const schema = getSOWTemplateSchema(selectedTemplate);
+    setSelectedTemplateSchema(schema || null);
+    setSowData((prev) => scaffoldSOWFromTemplate(prev, schema));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate]);
 
   const meta = useMemo(
     () => ({
@@ -62,7 +76,7 @@ function App() {
   const renderStep = () => {
     switch (current) {
       case "sowform":
-        return <SOWForm value={sowData} onChange={setSowData} />;
+        return <SOWForm value={sowData} onChange={setSowData} selectedTemplate={selectedTemplate} templateSchema={selectedTemplateSchema} />;
       case "company":
         return <CompanyDetails data={company} onChange={setCompany} />;
       case "project":

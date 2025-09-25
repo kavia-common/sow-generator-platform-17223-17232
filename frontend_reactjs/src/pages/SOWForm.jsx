@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  * Interactive data collection for all required SOW template fields (excluding the Answer column),
  * including logo upload and display. Produces a structured JSON payload suitable for Word export.
  */
-export default function SOWForm({ value, onChange }) {
+export default function SOWForm({ value, onChange, selectedTemplate, templateSchema }) {
   const [data, setData] = useState(
     value || {
       meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "" },
@@ -18,7 +18,9 @@ export default function SOWForm({ value, onChange }) {
       governance: { comm_plan: "", reporting: "", meetings: "", risk_mgmt: "", change_control: "" },
       commercials: { pricing_model: "", budget: "", payment_terms: "", invoicing: "" },
       legal: { confidentiality: "", ip: "", sla: "", termination: "", warranties: "" },
-      signoff: { signatories: [], date: "" }
+      signoff: { signatories: [], date: "" },
+      templateMeta: value?.templateMeta || null,
+      templateData: value?.templateData || {}
     }
   );
 
@@ -26,6 +28,21 @@ export default function SOWForm({ value, onChange }) {
     onChange?.(data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  // Sync local when parent value updates (e.g., after selecting a template)
+  useEffect(() => {
+    if (value) setData(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const setTemplateField = (path, v) => {
+    setData((prev) => {
+      const next = structuredClone(prev);
+      if (!next.templateData) next.templateData = {};
+      setPath(next.templateData, path, v);
+      return next;
+    });
+  };
 
   const logoInputRef = useRef(null);
   const onLogoPick = (e) => {
@@ -76,6 +93,22 @@ export default function SOWForm({ value, onChange }) {
   return (
     <div className="panel">
       <div className="panel-title">SOW Data Collection</div>
+
+      {templateSchema ? (
+        <Section title={`Template Specific Fields — ${templateSchema.title}`}>
+          <div style={{ gridColumn: "1 / -1", color: "var(--text-secondary)", marginBottom: 8 }}>
+            Selected Template: {selectedTemplate || templateSchema.id}
+          </div>
+          {(templateSchema.fields || []).map((f) => (
+            <DynamicTemplateField
+              key={f.key}
+              field={f}
+              value={getPath(data.templateData || {}, [f.key])}
+              onChange={(v) => setTemplateField([f.key], v)}
+            />
+          ))}
+        </Section>
+      ) : null}
 
       {/* Meta */}
       <div className="form-grid">
@@ -266,4 +299,172 @@ function splitCsv(s) {
     .split(",")
     .map((t) => t.trim())
     .filter(Boolean);
+}
+
+/**
+ * Dynamic field renderer for template-driven inputs
+ */
+function DynamicTemplateField({ field, value, onChange }) {
+  const common = { label: field.label || field.key };
+
+  // Conditional display if dependsOn exists: this requires broader context;
+  // As a simple approach, render anyway — integration can enforce conditions upstream.
+  switch (field.type) {
+    case "text":
+    case "email":
+    case "currency":
+      return <Input {...common} value={value || ""} onChange={onChange} />;
+    case "date":
+      return <Input {...common} type="date" value={value || ""} onChange={onChange} />;
+    case "textarea":
+      return <Field {...common} value={value || ""} onChange={onChange} />;
+    case "select":
+      return (
+        <div className="form-control">
+          <label className="label">{common.label}</label>
+          <select className="select" value={value || ""} onChange={(e) => onChange(e.target.value)}>
+            <option value="">Select...</option>
+            {(field.options || []).map((opt) => (
+              <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
+            ))}
+          </select>
+        </div>
+      );
+    case "list":
+      return (
+        <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <label className="label">{common.label}</label>
+            <button className="btn" type="button" onClick={() => onChange([...(value || []), prompt("Add item:") || ""].filter(Boolean))}>Add</button>
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {(value || []).map((it, idx) => (
+              <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="input" style={{ flex: 1, background: "rgba(255,255,255,0.03)" }}>{String(it)}</div>
+                <button className="btn" type="button" onClick={() => onChange((value || []).filter((_, i) => i !== idx))} title="Remove">✕</button>
+              </div>
+            ))}
+            {!value || (value || []).length === 0 ? (
+              <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>No items yet. Click Add to insert.</div>
+            ) : null}
+          </div>
+        </div>
+      );
+    case "checkbox":
+      return (
+        <div className="form-control">
+          <label className="label">
+            <input
+              type="checkbox"
+              checked={!!value}
+              onChange={(e) => onChange(e.target.checked)}
+              style={{ marginRight: 8 }}
+            />
+            {common.label}
+          </label>
+        </div>
+      );
+    case "object":
+      return (
+        <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+          <label className="label">{common.label}</label>
+          <div className="form-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            {(field.properties || []).map((p) => (
+              <DynamicTemplateField
+                key={p.key}
+                field={p}
+                value={(value || {})[p.key]}
+                onChange={(v) => onChange({ ...(value || {}), [p.key]: v })}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    case "table":
+      return <DynamicTableField field={field} rows={value || []} onChange={onChange} />;
+    case "upload-list":
+      return (
+        <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+          <label className="label">{common.label}</label>
+          <input type="file" accept={field.accept || "*/*"} multiple onChange={(e) => handleFilesToDataURLs(e, (arr) => onChange([...(value || []), ...arr]))} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {(value || []).map((src, i) => (
+              <img key={i} src={src} alt={`upload-${i}`} style={{ maxHeight: 60, border: "1px solid var(--ui-border)", borderRadius: 6 }} />
+            ))}
+          </div>
+        </div>
+      );
+    default:
+      return <Input {...common} value={value || ""} onChange={onChange} />;
+  }
+}
+
+function DynamicTableField({ field, rows, onChange }) {
+  const cols = field.columns || [];
+  const addRow = () => {
+    const empty = {};
+    cols.forEach((c) => (empty[c.key] = ""));
+    onChange([...(rows || []), empty]);
+  };
+  const setCell = (rIdx, key, val) => {
+    const next = rows.map((r, i) => (i === rIdx ? { ...r, [key]: val } : r));
+    onChange(next);
+  };
+  const delRow = (rIdx) => {
+    onChange(rows.filter((_, i) => i !== rIdx));
+  };
+  return (
+    <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+      <label className="label">{field.label || field.key}</label>
+      <div style={{ overflowX: "auto", border: "1px solid var(--ui-border)", borderRadius: 8 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+          <thead>
+            <tr>
+              {cols.map((c) => (
+                <th key={c.key} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--ui-border)" }}>{c.label}</th>
+              ))}
+              <th style={{ width: 80 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {(rows || []).map((row, i) => (
+              <tr key={i}>
+                {cols.map((c) => (
+                  <td key={c.key} style={{ padding: 6, borderBottom: "1px solid var(--ui-border)" }}>
+                    {c.type === "date" ? (
+                      <input className="input" type="date" value={row[c.key] || ""} onChange={(e) => setCell(i, c.key, e.target.value)} />
+                    ) : (
+                      <input className="input" value={row[c.key] || ""} onChange={(e) => setCell(i, c.key, e.target.value)} />
+                    )}
+                  </td>
+                ))}
+                <td style={{ textAlign: "right" }}>
+                  <button className="btn" type="button" onClick={() => delRow(i)}>Remove</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <button className="btn" type="button" onClick={addRow}>Add Row</button>
+      </div>
+    </div>
+  );
+}
+
+function handleFilesToDataURLs(e, cb) {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+  const readers = [];
+  const out = [];
+  files.forEach((file, idx) => {
+    const reader = new FileReader();
+    readers.push(reader);
+    reader.onload = () => {
+      out[idx] = reader.result;
+      if (out.filter(Boolean).length === files.length) cb(out);
+    };
+    reader.readAsDataURL(file);
+  });
 }

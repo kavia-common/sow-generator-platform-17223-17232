@@ -1,0 +1,357 @@
+{
+  "version": "1.0.0",
+  "templates": [
+    {
+      "id": "DT3_SUPPLIER_SOW",
+      "title": "DT3 Supplier SOW (Work Order)",
+      "source": "attachments/20250925_150955_DT3_Supplier_SoW_Template(docx).txt",
+      "required": [
+        "client_portfolio",
+        "project_type",
+        "engagement_number",
+        "included_projects",
+        "planning_assumptions",
+        "scope_of_work",
+        "supplier_deliverables",
+        "client_deliverables",
+        "project_duration",
+        "schedule_milestones",
+        "client_relationship_managers",
+        "supplier_relationship_managers",
+        "charges_payment_schedule",
+        "contractor_rate",
+        "key_client_personnel",
+        "service_level_agreements",
+        "communication_paths",
+        "service_locations",
+        "change_control_procedures",
+        "address_for_communications",
+        "authorization_signatures"
+      ],
+      "fields": [
+        {
+          "key": "client_portfolio",
+          "label": "Client Portfolio",
+          "type": "text"
+        },
+        {
+          "key": "project_type",
+          "label": "Type of Project",
+          "type": "select",
+          "options": [
+            "Fixed Price",
+            "Time and Material"
+          ]
+        },
+        {
+          "key": "engagement_number",
+          "label": "Engagement Number (Required for Fixed Price)",
+          "type": "text",
+          "dependsOn": { "project_type": "Fixed Price" }
+        },
+        {
+          "key": "included_projects",
+          "label": "Included Projects (Required for Fixed Price)",
+          "type": "list",
+          "dependsOn": { "project_type": "Fixed Price" }
+        },
+        {
+          "key": "planning_assumptions",
+          "label": "Planning Assumptions",
+          "type": "list"
+        },
+        {
+          "key": "scope_of_work",
+          "label": "Scope of Work",
+          "type": "textarea"
+        },
+        {
+          "key": "supplier_deliverables",
+          "label": "Supplier Deliverables",
+          "type": "list"
+        },
+        {
+          "key": "client_deliverables",
+          "label": "Client Deliverables",
+          "type": "list"
+        },
+        {
+          "key": "project_duration",
+          "label": "Project Duration",
+          "type": "object",
+          "properties": [
+            { "key": "start_date", "label": "Start Date", "type": "date" },
+            { "key": "end_date", "label": "End Date", "type": "date" }
+          ]
+        },
+        {
+          "key": "schedule_milestones",
+          "label": "Project Schedule and Milestones",
+          "type": "list"
+        },
+        {
+          "key": "client_relationship_managers",
+          "label": "Client Relationship Managers",
+          "type": "list"
+        },
+        {
+          "key": "supplier_relationship_managers",
+          "label": "Supplier Relationship Managers",
+          "type": "list",
+          "placeholder": "<Supplier>"
+        },
+        {
+          "key": "charges_payment_schedule",
+          "label": "Charges & Payment Schedule (Fixed Price Only)",
+          "type": "textarea",
+          "dependsOn": { "project_type": "Fixed Price" }
+        },
+        {
+          "key": "contractor_rate",
+          "label": "Contractor Rate (T&M Only)",
+          "type": "text",
+          "dependsOn": { "project_type": "Time and Material" }
+        },
+        {
+          "key": "key_client_personnel",
+          "label": "Key Client Personnel and Expert Roles",
+          "type": "list"
+        },
+        {
+          "key": "service_level_agreements",
+          "label": "Service Level Agreements",
+          "type": "textarea",
+          "hint": "As defined in the Agreement."
+        },
+        {
+          "key": "communication_paths",
+          "label": "Communication Paths",
+          "type": "list"
+        },
+        {
+          "key": "service_locations",
+          "label": "Service Locations",
+          "type": "list",
+          "placeholder": "e.g., India"
+        },
+        {
+          "key": "change_control_procedures",
+          "label": "Change Control Procedures (Fixed Price Only)",
+          "type": "textarea",
+          "dependsOn": { "project_type": "Fixed Price" }
+        },
+        {
+          "key": "address_for_communications",
+          "label": "Address for Communications",
+          "type": "object",
+          "properties": [
+            { "key": "supplier_name", "label": "Supplier Name", "type": "text" },
+            { "key": "contact_name", "label": "Contact Name", "type": "text" },
+            { "key": "email", "label": "Email", "type": "email" },
+            { "key": "address", "label": "Address", "type": "textarea" }
+          ]
+        },
+        {
+          "key": "authorization_signatures",
+          "label": "Authorization",
+          "type": "object",
+          "properties": [
+            { "key": "supplier_signature_name", "label": "Supplier — Name", "type": "text" },
+            { "key": "supplier_signature_date", "label": "Supplier — Date", "type": "date" },
+            { "key": "client_signature_name", "label": "Client — Name", "type": "text" },
+            { "key": "client_signature_date", "label": "Client — Date", "type": "date" }
+          ]
+        }
+      ],
+      "mapsToSOW": {
+        "scope.in_scope": "supplier_deliverables",
+        "deliverables.items": "supplier_deliverables",
+        "deliverables.milestones": "schedule_milestones",
+        "governance.comm_plan": "communication_paths",
+        "commercials.pricing_model": "project_type",
+        "commercials.payment_terms": "charges_payment_schedule",
+        "signoff.signatories": ["authorization_signatures.supplier_signature_name", "authorization_signatures.client_signature_name"],
+        "signoff.date": ["authorization_signatures.supplier_signature_date", "authorization_signatures.client_signature_date"]
+      }
+    },
+    {
+      "id": "SCOPE_OF_WORK_PM",
+      "title": "Scope of Work — Project Manager Template",
+      "source": "attachments/20250925_150956_Scope_of_Work_Template_Word_ProjectManager_NW_WLNK2(docx).txt",
+      "required": [
+        "project_name",
+        "project_manager",
+        "goals",
+        "scope_description",
+        "project_exclusions",
+        "resource_requirements",
+        "project_deliverables",
+        "project_timeline",
+        "project_milestones",
+        "project_costs",
+        "payment_terms",
+        "change_management",
+        "change_board_members",
+        "communication_plan"
+      ],
+      "fields": [
+        { "key": "project_name", "label": "Project Name", "type": "text" },
+        { "key": "project_manager", "label": "Project Manager", "type": "text" },
+        {
+          "key": "goals",
+          "label": "Project Goals and Objectives",
+          "type": "object",
+          "properties": [
+            { "key": "goal_1", "label": "Project Goal 1", "type": "text" },
+            { "key": "goal_1_objectives", "label": "Objectives (for Goal 1)", "type": "list" },
+            { "key": "goal_2", "label": "Project Goal 2", "type": "text" },
+            { "key": "goal_2_objectives", "label": "Objectives (for Goal 2)", "type": "list" }
+          ]
+        },
+        { "key": "scope_description", "label": "Scope of Work Description", "type": "textarea" },
+        { "key": "project_exclusions", "label": "Project Exclusions", "type": "textarea" },
+        {
+          "key": "resource_requirements",
+          "label": "Resource Requirements",
+          "type": "table",
+          "columns": [
+            { "key": "task", "label": "Project Task", "type": "text" },
+            { "key": "labor", "label": "Labor Requirements", "type": "text" },
+            { "key": "raw_materials", "label": "Raw Materials", "type": "text" },
+            { "key": "equipment", "label": "Equipment / Machinery", "type": "text" },
+            { "key": "other", "label": "Other Resources", "type": "text" }
+          ]
+        },
+        {
+          "key": "project_deliverables",
+          "label": "Project Deliverables",
+          "type": "table",
+          "columns": [
+            { "key": "deliverable", "label": "Deliverable Description", "type": "text" },
+            { "key": "acceptance_criteria", "label": "Acceptance criteria", "type": "text" },
+            { "key": "notes", "label": "Notes", "type": "text" }
+          ]
+        },
+        { "key": "project_timeline", "label": "Project Timeline", "type": "list" },
+        {
+          "key": "project_milestones",
+          "label": "Project Milestones",
+          "type": "list"
+        },
+        {
+          "key": "project_costs",
+          "label": "Project Costs",
+          "type": "table",
+          "columns": [
+            { "key": "task", "label": "Project Task", "type": "text" },
+            { "key": "labor_costs", "label": "Labor Costs", "type": "currency" },
+            { "key": "materials_costs", "label": "Cost of Materials", "type": "currency" },
+            { "key": "other_costs", "label": "Other Costs", "type": "currency" },
+            { "key": "total", "label": "Total Estimated Cost", "type": "currency", "computed": true }
+          ]
+        },
+        { "key": "payment_terms", "label": "Payment Terms", "type": "textarea" },
+        {
+          "key": "change_management",
+          "label": "Change Management Process",
+          "type": "textarea"
+        },
+        {
+          "key": "change_board_members",
+          "label": "Change Control Board Members",
+          "type": "list"
+        },
+        {
+          "key": "change_requests",
+          "label": "Change Requests",
+          "type": "table",
+          "columns": [
+            { "key": "description", "label": "Change Request Description", "type": "text" },
+            { "key": "impact", "label": "Potential Impact", "type": "text" },
+            { "key": "resources", "label": "Resource Requirements", "type": "text" },
+            { "key": "estimated_costs", "label": "Estimated Costs", "type": "currency" },
+            { "key": "status", "label": "Status", "type": "text" },
+            { "key": "date", "label": "Date", "type": "date" }
+          ]
+        },
+        {
+          "key": "communication_plan",
+          "label": "Communication Plan",
+          "type": "textarea",
+          "hint": "Define objectives, frequency, channels and audiences."
+        }
+      ],
+      "mapsToSOW": {
+        "meta.title": "project_name",
+        "roles.pm": "project_manager",
+        "background.objectives": [
+          "goals.goal_1",
+          "goals.goal_1_objectives",
+          "goals.goal_2",
+          "goals.goal_2_objectives"
+        ],
+        "scope.in_scope": "scope_description",
+        "scope.out_of_scope": "project_exclusions",
+        "approach.solution_overview": "scope_description",
+        "deliverables.items": "project_deliverables",
+        "deliverables.milestones": "project_milestones",
+        "deliverables.timeline": "project_timeline",
+        "deliverables.acceptance_criteria": "project_deliverables.acceptance_criteria",
+        "commercials.budget": "project_costs",
+        "commercials.payment_terms": "payment_terms",
+        "governance.change_control": "change_management",
+        "governance.comm_plan": "communication_plan"
+      }
+    },
+    {
+      "id": "DT3_EMPLOYEE_NDA_ACK",
+      "title": "DT3 Employee/Contractor NDA Acknowledgement",
+      "source": "attachments/20250925_150956_DT3, Employee_NDA_2025 Nandana (1)(docx).txt",
+      "note": "This is an NDA acknowledgement, not a SOW. Included for completeness if your workflow supports attaching NDA acknowledgements.",
+      "required": [
+        "party_role",
+        "consultant_name",
+        "title",
+        "date",
+        "assignment_ack",
+        "cooperation_ack",
+        "jurisdiction",
+        "dt3_counter_sign_name"
+      ],
+      "fields": [
+        { "key": "party_role", "label": "Role (Contractor/Employee)", "type": "select", "options": ["Independent Contractor", "Employee"] },
+        { "key": "consultant_name", "label": "Consultant Name", "type": "text" },
+        { "key": "title", "label": "Title", "type": "text" },
+        { "key": "date", "label": "Date", "type": "date" },
+        {
+          "key": "nondisclosure_ack",
+          "label": "Nondisclosure Acknowledgement",
+          "type": "checkbox",
+          "default": true
+        },
+        {
+          "key": "assignment_ack",
+          "label": "Assignment of Work IP Acknowledgement",
+          "type": "checkbox",
+          "default": true
+        },
+        {
+          "key": "cooperation_ack",
+          "label": "Cooperation to Register/Protect IP",
+          "type": "checkbox",
+          "default": true
+        },
+        {
+          "key": "jurisdiction",
+          "label": "Jurisdiction",
+          "type": "text",
+          "placeholder": "Forsyth County, Georgia / US District Court for Georgia"
+        },
+        { "key": "dt3_counter_sign_name", "label": "DT3 Counter Sign — Name", "type": "text", "placeholder": "e.g., CEO" },
+        { "key": "dt3_counter_sign_date", "label": "DT3 Counter Sign — Date", "type": "date" },
+        { "key": "signatures", "label": "Signatures (uploads optional)", "type": "upload-list", "accept": "image/*" }
+      ],
+      "mapsToSOW": {}
+    }
+  ]
+}
