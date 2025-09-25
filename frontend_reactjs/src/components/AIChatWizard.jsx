@@ -3,6 +3,11 @@ import { applyThemeToRoot, oceanTheme } from "../theme";
 import "./AIChatWizard.css";
 
 /**
+ * NOTE: OpenAI is not used by this component. Any AI-backed functionality in this app
+ * must call the local backend_express endpoints (e.g., /api/ai/sow) exclusively.
+ */
+
+/**
  * PUBLIC_INTERFACE
  * AIChatWizard
  * Conversational SOW wizard that:

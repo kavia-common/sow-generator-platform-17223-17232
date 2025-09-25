@@ -1,6 +1,6 @@
 # Local LLM Setup for SOW Wizard
 
-This project uses a local, open-source LLM served by the backend_express container. No paid APIs are required.
+This project uses a local, open-source LLM served by the backend_express container. No paid APIs are required. OpenAI is not supported in this deployment.
 
 ## Steps
 
@@ -26,13 +26,14 @@ This project uses a local, open-source LLM served by the backend_express contain
 5) Configure frontend to call backend:
    cd ../frontend_reactjs
    cp .env.example .env
-   Set REACT_APP_BACKEND_URL=http://localhost:8080
+   # Option A: set REACT_APP_BACKEND_URL=http://localhost:8080
+   # Option B: add "proxy": "http://localhost:8080" to package.json and leave REACT_APP_BACKEND_URL blank
    npm start
 
 6) Use the app:
-   - The Generate Draft step and AI Chat Wizard can invoke /api/ai/sow (non-stream) and /api/chat (stream) endpoints.
-   - No external API keys are needed.
+   - The Generate Draft step and AI Chat Wizard invoke /api/ai/sow (non-stream) on the backend.
+   - No external API keys are needed or supported.
 
 Notes:
 - If you prefer reverse-proxying /api to the backend, configure your dev server or deployment environment accordingly.
-- SSE streaming requires proxies to not buffer responses.
+- SSE streaming requires proxies to not buffer responses (relevant for /api/chat if you wire streaming UI later).
