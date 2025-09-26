@@ -226,6 +226,37 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       <Section title="Sign-off">
         <ListField title="Signatories" path={["signoff","signatories"]} items={data.signoff.signatories} onAdd={addToList} onRemove={removeFromList} />
         <Input label="Sign-off Date" type="date" value={data.signoff.date} onChange={(v)=>setField(["signoff","date"], v)} />
+
+        <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+          <label className="label">Digital Signature Upload (optional)</label>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="btn" type="button" onClick={() => document.getElementById("signature-input-hidden")?.click()}>Upload Signature</button>
+            <input
+              id="signature-input-hidden"
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setField(["meta","signatureUrl"], reader.result);
+                  setField(["meta","signatureName"], file.name);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+            <div style={{ color: "var(--text-secondary)" }}>{data?.meta?.signatureName || "No file selected"}</div>
+            {data?.meta?.signatureUrl ? (
+              <img
+                src={data.meta.signatureUrl}
+                alt="Signature"
+                style={{ maxHeight: 64, border: "1px solid var(--ui-border)", borderRadius: 6, background: "#fff" }}
+              />
+            ) : null}
+          </div>
+        </div>
       </Section>
     </div>
   );
