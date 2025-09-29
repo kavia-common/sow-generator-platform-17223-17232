@@ -4,14 +4,14 @@ import React from "react";
  * PUBLIC_INTERFACE
  * ExportWord
  * Builds a minimal .docx (Word) file client-side including headings, paragraphs, bullet lists,
- * and embedded images for logo/signature if uploaded. No external libraries.
+ * and embedded images for logo and signatures (Supplier and Client). No external libraries.
  *
  * Props:
  * - value: Full SOW JSON (meta, sections, templateData, etc.)
  * - meta: Summary info (title, client, date, template)
- * - draftText: Optional edited draft to include as a section
+ * - draftText: Deprecated in export; excluded from final output per requirement
  */
-export default function ExportWord({ value, meta, draftText }) {
+export default function ExportWord({ value, meta /* draftText intentionally ignored */ }) {
   const makeParagraph = (text) =>
     `<w:p><w:r><w:t>${escapeXml(text || "")}</w:t></w:r></w:p>`;
 
@@ -40,7 +40,7 @@ export default function ExportWord({ value, meta, draftText }) {
         .toISOString()
         .slice(0, 10))}.docx`;
 
-      const { documentXml, media, relsExtra } = buildDocumentXmlWithMedia(value, meta, draftText);
+      const { documentXml, media, relsExtra } = buildDocumentXmlWithMedia(value, meta);
 
       // Build a minimal DOCX package (ZIP with specific files)
       const files = buildDocxFiles(documentXml, media, relsExtra);
@@ -60,7 +60,7 @@ export default function ExportWord({ value, meta, draftText }) {
     }
   }
 
-  function buildDocumentXmlWithMedia(data, metaInfo, draft) {
+  function buildDocumentXmlWithMedia(data, metaInfo) {
     const d = data || {};
     const metaSec = d.meta || {};
     const bg = d.background || {};
@@ -74,15 +74,22 @@ export default function ExportWord({ value, meta, draftText }) {
     const sign = d.signoff || {};
     const templateData = d.templateData || {};
 
+    // Extended signatures: supplier/client separate fields and optional images
+    const auth = (d.templateData && d.templateData.authorization_signatures) || {};
+    const supplierSigUrl = auth.supplier_signature_image || d.meta?.supplierSignatureUrl || "";
+    const clientSigUrl = auth.client_signature_image || d.meta?.clientSignatureUrl || "";
+
     // Optional images as base64 data URLs
     const logoDataUrl = metaSec.logoUrl || "";
-    const signatureDataUrl = metaSec.signatureUrl || "";
+    const supplierSignatureDataUrl = supplierSigUrl || "";
+    const clientSignatureDataUrl = clientSigUrl || "";
 
     // Media mapping (if exists)
     const media = {};
     const relsExtra = [];
     let logoRid = null;
-    let signRid = null;
+    let supplierRid = null;
+    let clientRid = null;
     let mediaIndex = 3; // rId1 styles, rId2 numbering are used. Start rId3 for images.
 
     if (logoDataUrl && /^data:image\//.test(logoDataUrl)) {
@@ -92,12 +99,19 @@ export default function ExportWord({ value, meta, draftText }) {
       logoRid = `rId${mediaIndex++}`;
       relsExtra.push({ id: logoRid, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: name });
     }
-    if (signatureDataUrl && /^data:image\//.test(signatureDataUrl)) {
-      const { bytes, ext } = dataUrlToBytes(signatureDataUrl);
-      const name = `media/signature.${ext}`;
+    if (supplierSignatureDataUrl && /^data:image\//.test(supplierSignatureDataUrl)) {
+      const { bytes, ext } = dataUrlToBytes(supplierSignatureDataUrl);
+      const name = `media/supplier_signature.${ext}`;
       media[`word/${name}`] = bytes;
-      signRid = `rId${mediaIndex++}`;
-      relsExtra.push({ id: signRid, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: name });
+      supplierRid = `rId${mediaIndex++}`;
+      relsExtra.push({ id: supplierRid, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: name });
+    }
+    if (clientSignatureDataUrl && /^data:image\//.test(clientSignatureDataUrl)) {
+      const { bytes, ext } = dataUrlToBytes(clientSignatureDataUrl);
+      const name = `media/client_signature.${ext}`;
+      media[`word/${name}`] = bytes;
+      clientRid = `rId${mediaIndex++}`;
+      relsExtra.push({ id: clientRid, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: name });
     }
 
     const title = metaInfo?.title || metaSec.title || "Statement of Work";
@@ -200,22 +214,41 @@ export default function ExportWord({ value, meta, draftText }) {
       ? [makeHeading("Template-specific Details", 2), makeParagraph(JSON.stringify(templateData))].join("")
       : "";
 
+    // Sign-off with Supplier and Client signature blocks, labels, and optional images
     const signParts = [
-      makeHeading("Sign-off", 2),
-      makeParagraph(`Signatories: ${(sign.signatories || []).join(", ")}`),
-      makeParagraph(`Sign-off Date: ${sign.date || ""}`),
+      makeHeading("Sign-off", 2)
     ];
-    if (signRid) {
-      signParts.push(inlineImageXml(signRid, 180, 64));
+    // Supplier block
+    const supplierName = auth.supplier_signature_name || "";
+    const supplierDate = auth.supplier_signature_date || "";
+    if (supplierName || supplierDate || supplierRid) {
+      signParts.push(makeParagraph("Supplier:"));
+      if (supplierRid) signParts.push(inlineImageXml(supplierRid, 180, 64));
+      if (supplierName) signParts.push(makeParagraph(`Name: ${supplierName}`));
+      if (supplierDate) signParts.push(makeParagraph(`Date: ${supplierDate}`));
     }
+    // Client block
+    const clientName = auth.client_signature_name || "";
+    const clientDate = auth.client_signature_date || "";
+    if (clientName || clientDate || clientRid) {
+      signParts.push(makeParagraph("Client:"));
+      if (clientRid) signParts.push(inlineImageXml(clientRid, 180, 64));
+      if (clientName) signParts.push(makeParagraph(`Name: ${clientName}`));
+      if (clientDate) signParts.push(makeParagraph(`Date: ${clientDate}`));
+    }
+
+    // Generic sign-off meta (optional historical fields)
+    if ((sign.signatories || []).length) {
+      signParts.push(makeParagraph(`Other Signatories: ${(sign.signatories || []).join(", ")}`));
+    }
+    if (sign.date) {
+      signParts.push(makeParagraph(`Sign-off Date: ${sign.date}`));
+    }
+
     const signXml = signParts.join("");
 
-    // Optional raw draft if user edited
-    const draftXml = draft
-      ? [makeHeading("Draft (Edited)", 2), makeParagraph(draft)].join("")
-      : "";
-
-    const body = [headerParts.join(""), background, scopeXml, delivXml, rolesXml, approachXml, govXml, commXml, legalXml, templateXml, draftXml, signXml].join("");
+    // Per requirement, do NOT include the freeform draft in the export
+    const body = [headerParts.join(""), background, scopeXml, delivXml, rolesXml, approachXml, govXml, commXml, legalXml, templateXml, signXml].join("");
 
     // Minimal document XML with numbering definitions for bullets
     const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -507,7 +540,7 @@ ${rels}
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <button className="btn btn-primary" type="button" onClick={downloadDocx}>Export Word (.docx)</button>
         <div style={{ color: "var(--text-secondary)" }}>
-          Your uploaded logo and signature will be embedded in the document.
+          Your uploaded logo and both Supplier and Client signatures (if provided) will be embedded in the document.
         </div>
       </div>
     </div>

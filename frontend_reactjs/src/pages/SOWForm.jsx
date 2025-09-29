@@ -3,13 +3,27 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 /**
  * PUBLIC_INTERFACE
  * SOWForm
- * Interactive data collection for all required SOW template fields (excluding the Answer column),
- * including logo upload and display. Produces a structured JSON payload suitable for Word export.
+ * Interactive data collection strictly based on detected placeholders from the selected DOCX template
+ * (via templateSchema fields). Includes logo upload and separate Supplier & Client signature fields.
  */
 export default function SOWForm({ value, onChange, selectedTemplate, templateSchema }) {
   const [data, setData] = useState(
     value || {
-      meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "" },
+      meta: {
+        title: "",
+        client: "",
+        date: "",
+        version: "",
+        prepared_by: "",
+        stakeholders: [],
+        logoUrl: "",
+        logoName: "",
+        // Backward-compat single signature kept but not used in export anymore
+        signatureUrl: "",
+        // New explicit signature URLs:
+        supplierSignatureUrl: "",
+        clientSignatureUrl: ""
+      },
       background: { project_background: "", business_problem: "", objectives: "", success_criteria: "" },
       scope: { in_scope: [], out_of_scope: [], assumptions: [], constraints: [], dependencies: [] },
       deliverables: { items: [], milestones: [], timeline: [], acceptance_criteria: "" },
@@ -222,14 +236,65 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         <Field label="Warranties & Liabilities" value={data.legal.warranties} onChange={(v)=>setField(["legal","warranties"], v)} />
       </Section>
 
-      {/* Sign-off */}
+      {/* Sign-off: Separate Supplier and Client blocks plus images */}
       <Section title="Sign-off">
-        <ListField title="Signatories" path={["signoff","signatories"]} items={data.signoff.signatories} onAdd={addToList} onRemove={removeFromList} />
-        <Input label="Sign-off Date" type="date" value={data.signoff.date} onChange={(v)=>setField(["signoff","date"], v)} />
-        <div className="form-control" style={{ gridColumn: "1 / -1" }}>
-          <label className="label">Upload Signature (image)</label>
-          <SignatureUpload value={data.meta.signatureUrl} onChange={(url) => setField(["meta","signatureUrl"], url)} />
+        <div className="form-control">
+          <label className="label">Supplier — Name</label>
+          <input
+            className="input"
+            value={getPath(data.templateData, ["authorization_signatures","supplier_signature_name"]) || ""}
+            onChange={(e) => setTemplateField(["authorization_signatures","supplier_signature_name"], e.target.value)}
+            placeholder="Supplier signatory name"
+          />
         </div>
+        <div className="form-control">
+          <label className="label">Supplier — Date</label>
+          <input
+            className="input"
+            type="date"
+            value={getPath(data.templateData, ["authorization_signatures","supplier_signature_date"]) || ""}
+            onChange={(e) => setTemplateField(["authorization_signatures","supplier_signature_date"], e.target.value)}
+          />
+        </div>
+        <SignatureUploadLabeled
+          label="Supplier — Signature (image)"
+          value={getPath(data.templateData, ["authorization_signatures","supplier_signature_image"]) || data.meta.supplierSignatureUrl}
+          onChange={(url) => {
+            setTemplateField(["authorization_signatures","supplier_signature_image"], url);
+            setField(["meta","supplierSignatureUrl"], url);
+          }}
+        />
+
+        <div className="form-control">
+          <label className="label">Client — Name</label>
+          <input
+            className="input"
+            value={getPath(data.templateData, ["authorization_signatures","client_signature_name"]) || ""}
+            onChange={(e) => setTemplateField(["authorization_signatures","client_signature_name"], e.target.value)}
+            placeholder="Client signatory name"
+          />
+        </div>
+        <div className="form-control">
+          <label className="label">Client — Date</label>
+          <input
+            className="input"
+            type="date"
+            value={getPath(data.templateData, ["authorization_signatures","client_signature_date"]) || ""}
+            onChange={(e) => setTemplateField(["authorization_signatures","client_signature_date"], e.target.value)}
+          />
+        </div>
+        <SignatureUploadLabeled
+          label="Client — Signature (image)"
+          value={getPath(data.templateData, ["authorization_signatures","client_signature_image"]) || data.meta.clientSignatureUrl}
+          onChange={(url) => {
+            setTemplateField(["authorization_signatures","client_signature_image"], url);
+            setField(["meta","clientSignatureUrl"], url);
+          }}
+        />
+
+        {/* Historical generic sign-off fields */}
+        <ListField title="Other Signatories" path={["signoff","signatories"]} items={data.signoff.signatories} onAdd={addToList} onRemove={removeFromList} />
+        <Input label="Sign-off Date (optional)" type="date" value={data.signoff.date} onChange={(v)=>setField(["signoff","date"], v)} />
       </Section>
     </div>
   );
@@ -287,7 +352,7 @@ function ListField({ title, path, items, onAdd, onRemove }) {
 }
 
 function getPath(obj, path) {
-  return path.reduce((o, k) => (o ? o[k] : undefined), obj);
+  return path.reduce((o, k) => (o ? o[k] : undefined), obj || {});
 }
 function setPath(obj, path, value) {
   let o = obj;
@@ -306,13 +371,11 @@ function splitCsv(s) {
 }
 
 /**
- * Dynamic field renderer for template-driven inputs
+ * Dynamic field renderer strictly based on template fields.
  */
 function DynamicTemplateField({ field, value, onChange }) {
   const common = { label: field.label || field.key };
 
-  // Conditional display if dependsOn exists: this requires broader context;
-  // As a simple approach, render anyway — integration can enforce conditions upstream.
   switch (field.type) {
     case "text":
     case "email":
@@ -474,34 +537,37 @@ function handleFilesToDataURLs(e, cb) {
 }
 
 /**
- * Signature image upload control used near Sign-off section.
+ * Labeled signature uploader for Supplier/Client blocks.
  */
-function SignatureUpload({ value, onChange }) {
+function SignatureUploadLabeled({ label, value, onChange }) {
   const [name, setName] = useState("");
   const inputRef = useRef(null);
   return (
-    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <button className="btn" type="button" onClick={() => inputRef.current?.click()}>Choose Signature</button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: "none" }}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => {
-            onChange?.(reader.result);
-            setName(file.name);
-          };
-          reader.readAsDataURL(file);
-        }}
-      />
-      <div style={{ color: "var(--text-secondary)" }}>{name || "No file selected"}</div>
-      {value ? (
-        <img alt="Signature preview" src={value} style={{ maxHeight: 64, background: "#fff", borderRadius: 6, border: "1px solid var(--ui-border)" }} />
-      ) : null}
+    <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+      <label className="label">{label}</label>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <button className="btn" type="button" onClick={() => inputRef.current?.click()}>Choose Signature</button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              onChange?.(reader.result);
+              setName(file.name);
+            };
+            reader.readAsDataURL(file);
+          }}
+        />
+        <div style={{ color: "var(--text-secondary)" }}>{name || "No file selected"}</div>
+        {value ? (
+          <img alt="Signature preview" src={value} style={{ maxHeight: 64, background: "#fff", borderRadius: 6, border: "1px solid var(--ui-border)" }} />
+        ) : null}
+      </div>
     </div>
   );
 }

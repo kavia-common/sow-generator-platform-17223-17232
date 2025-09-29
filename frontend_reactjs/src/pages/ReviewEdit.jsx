@@ -6,14 +6,24 @@ export default function ReviewEdit({ draft, onChange }) {
   return (
     <div className="panel">
       <div className="panel-title">Review & Edit</div>
-      <textarea
-        className="textarea"
-        value={draft || ""}
-        onChange={(e) => onChange?.(e.target.value)}
-        placeholder="Your generated draft will appear here for editing..."
-        style={{ minHeight: 520, fontSize: 14, lineHeight: 1.5, padding: 16 }}
-        aria-label="Edit SOW draft text"
-      />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+        <textarea
+          className="textarea"
+          value={draft || ""}
+          onChange={(e) => onChange?.(e.target.value)}
+          placeholder="Your generated draft will appear here for editing..."
+          style={{
+            minHeight: 520,
+            fontSize: 14,
+            lineHeight: 1.5,
+            padding: 16,
+            width: "100%",
+            minWidth: "100%",
+            resize: "both"
+          }}
+          aria-label="Edit SOW draft text"
+        />
+      </div>
     </div>
   );
 }
