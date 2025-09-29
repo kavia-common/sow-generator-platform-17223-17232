@@ -11,7 +11,8 @@ export default function ReviewEdit({ draft, onChange }) {
         value={draft || ""}
         onChange={(e) => onChange?.(e.target.value)}
         placeholder="Your generated draft will appear here for editing..."
-        style={{ minHeight: 280 }}
+        style={{ minHeight: 520, fontSize: 14, lineHeight: 1.5, padding: 16 }}
+        aria-label="Edit SOW draft text"
       />
     </div>
   );

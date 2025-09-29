@@ -4,9 +4,8 @@ import "./theme.css";
 import BackgroundWaves from "./components/BackgroundWaves";
 import GlassHeader from "./components/GlassHeader";
 import SideNav from "./components/SideNav";
-import CompanyDetails from "./pages/CompanyDetails";
-import ProjectDetails from "./pages/ProjectDetails";
 import TemplateSelect from "./pages/TemplateSelect";
+import TemplatePreview from "./pages/TemplatePreview";
 import GenerateDraft from "./pages/GenerateDraft";
 import ReviewEdit from "./pages/ReviewEdit";
 import { applyThemeToRoot, oceanTheme } from "./theme";
@@ -23,7 +22,8 @@ function App() {
    * AI prompt opens in-page from a right-side icon launcher.
    */
   const [stage, setStage] = useState("landing"); // landing | builder
-  const [current, setCurrent] = useState("sowform"); // default to new SOW form
+  const [current, setCurrent] = useState("template"); // start with preview/select
+  const [draft, setDraft] = useState("");
 
   // Selections
   const [templates] = useState([
@@ -33,11 +33,21 @@ function App() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [selectedTemplateSchema, setSelectedTemplateSchema] = useState(null);
 
-  // Data models
-  const [company, setCompany] = useState({});
-  const [project, setProject] = useState({});
-  const [draft, setDraft] = useState("");
-  const [sowData, setSowData] = useState(null); // full SOW JSON (all sections), including logo file/url
+  // Unified SOW JSON (also holds logo/signature)
+  const [sowData, setSowData] = useState({
+    meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "", signatureUrl: "" },
+    background: { project_background: "", business_problem: "", objectives: "", success_criteria: "" },
+    scope: { in_scope: [], out_of_scope: [], assumptions: [], constraints: [], dependencies: [] },
+    deliverables: { items: [], milestones: [], timeline: [], acceptance_criteria: "" },
+    roles: { sponsor: "", pm: "", tech_lead: "", team: [], client_responsibilities: "" },
+    approach: { solution_overview: "", tech_stack: [], data_sources: [], security: "", qa_strategy: "" },
+    governance: { comm_plan: "", reporting: "", meetings: "", risk_mgmt: "", change_control: "" },
+    commercials: { pricing_model: "", budget: "", payment_terms: "", invoicing: "" },
+    legal: { confidentiality: "", ip: "", sla: "", termination: "", warranties: "" },
+    signoff: { signatories: [], date: "" },
+    templateMeta: null,
+    templateData: {}
+  });
 
   useEffect(() => {
     applyThemeToRoot(oceanTheme);
@@ -57,60 +67,109 @@ function App() {
 
   const meta = useMemo(
     () => ({
-      title:
-        sowData?.meta?.title ||
-        project?.overview?.slice(0, 30) ||
-        "Statement of Work",
+      title: sowData?.meta?.title || "Statement of Work",
       template: selectedTemplate,
-      client: sowData?.meta?.client || company?.name || "",
+      client: sowData?.meta?.client || "",
       date: sowData?.meta?.date || "",
     }),
-    [sowData, project?.overview, selectedTemplate, company?.name]
+    [sowData, selectedTemplate]
   );
 
   const onSaveDraft = () => {
+    localStorage.setItem("sow-data", JSON.stringify(sowData));
     // eslint-disable-next-line no-alert
     alert("Draft saved locally.");
   };
 
+  const onRefreshAll = () => {
+    // Clear all inputs and reset to template selection
+    setSowData({
+      meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "", signatureUrl: "" },
+      background: { project_background: "", business_problem: "", objectives: "", success_criteria: "" },
+      scope: { in_scope: [], out_of_scope: [], assumptions: [], constraints: [], dependencies: [] },
+      deliverables: { items: [], milestones: [], timeline: [], acceptance_criteria: "" },
+      roles: { sponsor: "", pm: "", tech_lead: "", team: [], client_responsibilities: "" },
+      approach: { solution_overview: "", tech_stack: [], data_sources: [], security: "", qa_strategy: "" },
+      governance: { comm_plan: "", reporting: "", meetings: "", risk_mgmt: "", change_control: "" },
+      commercials: { pricing_model: "", budget: "", payment_terms: "", invoicing: "" },
+      legal: { confidentiality: "", ip: "", sla: "", termination: "", warranties: "" },
+      signoff: { signatories: [], date: "" },
+      templateMeta: null,
+      templateData: {}
+    });
+    setSelectedTemplate("");
+    setSelectedTemplateSchema(null);
+    setDraft("");
+    setCurrent("template");
+  };
+
   const renderStep = () => {
     switch (current) {
-      case "sowform":
-        return <SOWForm value={sowData} onChange={setSowData} selectedTemplate={selectedTemplate} templateSchema={selectedTemplateSchema} />;
-      case "company":
-        return <CompanyDetails data={company} onChange={setCompany} />;
-      case "project":
-        return <ProjectDetails data={project} onChange={setProject} />;
       case "template":
         return (
-          <TemplateSelect
-            selected={selectedTemplate}
-            onChange={setSelectedTemplate}
+          <>
+            <TemplatePreview
+              selected={selectedTemplate}
+              onSelect={(id) => {
+                setSelectedTemplate(id);
+                setCurrent("sowform");
+              }}
+            />
+            <div className="panel" style={{ marginTop: 12 }}>
+              <TemplateSelect
+                selected={selectedTemplate}
+                onChange={(id) => {
+                  setSelectedTemplate(id);
+                }}
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button className="btn" type="button" onClick={() => setCurrent("sowform")} disabled={!selectedTemplate}>
+                  Continue to SOW Form
+                </button>
+                <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">
+                  Refresh / Clear
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      case "sowform":
+        return (
+          <SOWForm
+            value={sowData}
+            onChange={setSowData}
+            selectedTemplate={selectedTemplate}
+            templateSchema={selectedTemplateSchema}
           />
         );
       case "generate":
         return (
           <GenerateDraft
-            company={company}
-            project={project}
+            company={{ name: sowData?.meta?.client }}
+            project={{ overview: sowData?.background?.project_background, scope: (sowData?.scope?.in_scope || []).join(", "), deliverables: (sowData?.deliverables?.items || []).join(", "), roles: (sowData?.roles?.team || []).join(", "), acceptance: sowData?.deliverables?.acceptance_criteria }}
             template={selectedTemplate}
             onDraft={setDraft}
           />
         );
       case "review":
-        return <ReviewEdit draft={draft} onChange={setDraft} />;
+        return (
+          <ReviewEdit
+            draft={draft}
+            onChange={setDraft}
+          />
+        );
       case "export":
-        return <ExportWord value={sowData} meta={meta} />;
+        return <ExportWord value={sowData} meta={meta} draftText={draft} />;
       default:
         return null;
     }
   };
 
-  const currentProjectName = meta.title || "Statement of Work";
-
   if (stage === "landing") {
     return <LandingLogin onContinue={() => setStage("builder")} />;
   }
+
+  const currentProjectName = meta.title || "Statement of Work";
 
   return (
     <>
@@ -119,12 +178,23 @@ function App() {
         <GlassHeader
           templates={templates}
           selectedTemplate={selectedTemplate}
-          onTemplateChange={setSelectedTemplate}
+          onTemplateChange={(id) => {
+            setSelectedTemplate(id);
+            setCurrent("sowform");
+          }}
           onSaveDraft={onSaveDraft}
         />
         <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
           <SideNav current={current} onNavigate={setCurrent} />
           <main className="workspace" role="main" aria-live="polite">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+              <button className="btn" type="button" onClick={() => setCurrent("template")}>Template</button>
+              <button className="btn" type="button" onClick={() => setCurrent("sowform")}>Form</button>
+              <button className="btn" type="button" onClick={() => setCurrent("generate")}>Generate</button>
+              <button className="btn" type="button" onClick={() => setCurrent("review")}>Review</button>
+              <button className="btn" type="button" onClick={() => setCurrent("export")}>Export</button>
+              <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Refresh</button>
+            </div>
             {renderStep()}
           </main>
         </div>

@@ -3,11 +3,15 @@ import React from "react";
 /**
  * PUBLIC_INTERFACE
  * ExportWord
- * Builds a minimal .docx (Word) file client-side following the extracted SOW template structure.
- * No external libraries; constructs a simple DOCX with a document.xml packed into a ZIP container.
- * Note: This is a simplified .docx generator sufficient for headings, paragraphs, and bullet lists.
+ * Builds a minimal .docx (Word) file client-side including headings, paragraphs, bullet lists,
+ * and embedded images for logo/signature if uploaded. No external libraries.
+ *
+ * Props:
+ * - value: Full SOW JSON (meta, sections, templateData, etc.)
+ * - meta: Summary info (title, client, date, template)
+ * - draftText: Optional edited draft to include as a section
  */
-export default function ExportWord({ value, meta }) {
+export default function ExportWord({ value, meta, draftText }) {
   const makeParagraph = (text) =>
     `<w:p><w:r><w:t>${escapeXml(text || "")}</w:t></w:r></w:p>`;
 
@@ -17,7 +21,7 @@ export default function ExportWord({ value, meta }) {
     )}</w:t></w:r></w:p>`;
 
   const makeList = (items = []) =>
-    items
+    (items || [])
       .map(
         (t) =>
           `<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>${escapeXml(
@@ -26,20 +30,20 @@ export default function ExportWord({ value, meta }) {
       )
       .join("");
 
-  const downloadDocx = () => {
+  // PUBLIC_INTERFACE
+  function downloadDocx() {
     try {
-      const docTitle =
-        meta?.title || value?.meta?.title || "Statement of Work";
+      const docTitle = meta?.title || value?.meta?.title || "Statement of Work";
       const filename = `SOW_${(meta?.client || "Client")
-        .replace(/[^\\w-]+/g, "_")}_${(docTitle || "Project")
-        .replace(/[^\\w-]+/g, "_")}_${(meta?.date || new Date()
+        .replace(/[^\w-]+/g, "_")}_${(docTitle || "Project")
+        .replace(/[^\w-]+/g, "_")}_${(meta?.date || new Date()
         .toISOString()
         .slice(0, 10))}.docx`;
 
-      const xml = buildDocumentXml(value, meta);
+      const { documentXml, media, relsExtra } = buildDocumentXmlWithMedia(value, meta, draftText);
 
       // Build a minimal DOCX package (ZIP with specific files)
-      const files = buildDocxFiles(xml);
+      const files = buildDocxFiles(documentXml, media, relsExtra);
       const blob = zipSync(files);
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -54,9 +58,9 @@ export default function ExportWord({ value, meta }) {
       // eslint-disable-next-line no-alert
       alert(`Failed to export Word: ${e?.message || e}`);
     }
-  };
+  }
 
-  function buildDocumentXml(data, metaInfo) {
+  function buildDocumentXmlWithMedia(data, metaInfo, draft) {
     const d = data || {};
     const metaSec = d.meta || {};
     const bg = d.background || {};
@@ -68,19 +72,51 @@ export default function ExportWord({ value, meta }) {
     const comm = d.commercials || {};
     const legal = d.legal || {};
     const sign = d.signoff || {};
+    const templateData = d.templateData || {};
+
+    // Optional images as base64 data URLs
+    const logoDataUrl = metaSec.logoUrl || "";
+    const signatureDataUrl = metaSec.signatureUrl || "";
+
+    // Media mapping (if exists)
+    const media = {};
+    const relsExtra = [];
+    let logoRid = null;
+    let signRid = null;
+    let mediaIndex = 3; // rId1 styles, rId2 numbering are used. Start rId3 for images.
+
+    if (logoDataUrl && /^data:image\//.test(logoDataUrl)) {
+      const { bytes, ext } = dataUrlToBytes(logoDataUrl);
+      const name = `media/logo.${ext}`;
+      media[`word/${name}`] = bytes;
+      logoRid = `rId${mediaIndex++}`;
+      relsExtra.push({ id: logoRid, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: name });
+    }
+    if (signatureDataUrl && /^data:image\//.test(signatureDataUrl)) {
+      const { bytes, ext } = dataUrlToBytes(signatureDataUrl);
+      const name = `media/signature.${ext}`;
+      media[`word/${name}`] = bytes;
+      signRid = `rId${mediaIndex++}`;
+      relsExtra.push({ id: signRid, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: name });
+    }
 
     const title = metaInfo?.title || metaSec.title || "Statement of Work";
-    const header = [
-      makeHeading(title, 1),
-      makeParagraph(`Client/Organization: ${metaSec.client || ""}`),
-      makeParagraph(`Date: ${metaSec.date || metaInfo?.date || ""}`),
-      makeParagraph(`Version: ${metaSec.version || ""}`),
-      makeParagraph(`Prepared By: ${metaSec.prepared_by || ""}`),
-      makeParagraph(
-        `Stakeholders/Approvers: ${(metaSec.stakeholders || []).join(", ")}`
-      ),
-    ].join("");
+    const headerParts = [];
 
+    // Title and client name
+    headerParts.push(makeHeading(title, 1));
+    headerParts.push(makeParagraph(`Client/Organization: ${metaSec.client || ""}`));
+    headerParts.push(makeParagraph(`Date: ${metaSec.date || metaInfo?.date || ""}`));
+    headerParts.push(makeParagraph(`Version: ${metaSec.version || ""}`));
+    headerParts.push(makeParagraph(`Prepared By: ${metaSec.prepared_by || ""}`));
+    headerParts.push(makeParagraph(`Stakeholders/Approvers: ${(metaSec.stakeholders || []).join(", ")}`));
+
+    // Inline logo at top if available (insert above title)
+    if (logoRid) {
+      headerParts.unshift(inlineImageXml(logoRid, 180, 56));
+    }
+
+    // Main sections
     const background = [
       makeHeading("Background & Objectives", 2),
       makeParagraph(`Project Background: ${bg.project_background || ""}`),
@@ -120,23 +156,15 @@ export default function ExportWord({ value, meta }) {
       makeParagraph(`Project Sponsor: ${roles.sponsor || ""}`),
       makeParagraph(`Project Manager: ${roles.pm || ""}`),
       makeParagraph(`Technical Lead: ${roles.tech_lead || ""}`),
-      makeParagraph(
-        `Team Members / Roles: ${(roles.team || []).join(", ")}`
-      ),
-      makeParagraph(
-        `Client Responsibilities: ${roles.client_responsibilities || ""}`
-      ),
+      makeParagraph(`Team Members / Roles: ${(roles.team || []).join(", ")}`),
+      makeParagraph(`Client Responsibilities: ${roles.client_responsibilities || ""}`),
     ].join("");
 
     const approachXml = [
       makeHeading("Approach & Methodology", 2),
       makeParagraph(`Solution Overview: ${app.solution_overview || ""}`),
-      makeParagraph(
-        `Technical Stack / Tools: ${(app.tech_stack || []).join(", ")}`
-      ),
-      makeParagraph(
-        `Data Sources / Integrations: ${(app.data_sources || []).join(", ")}`
-      ),
+      makeParagraph(`Technical Stack / Tools: ${(app.tech_stack || []).join(", ")}`),
+      makeParagraph(`Data Sources / Integrations: ${(app.data_sources || []).join(", ")}`),
       makeParagraph(`Security & Compliance: ${app.security || ""}`),
       makeParagraph(`QA & Testing Strategy: ${app.qa_strategy || ""}`),
     ].join("");
@@ -167,16 +195,30 @@ export default function ExportWord({ value, meta }) {
       makeParagraph(`Warranties & Liabilities: ${legal.warranties || ""}`),
     ].join("");
 
-    const signXml = [
+    // Template-specific section dump (for transparency)
+    const templateXml = Object.keys(templateData || {}).length
+      ? [makeHeading("Template-specific Details", 2), makeParagraph(JSON.stringify(templateData))].join("")
+      : "";
+
+    const signParts = [
       makeHeading("Sign-off", 2),
       makeParagraph(`Signatories: ${(sign.signatories || []).join(", ")}`),
       makeParagraph(`Sign-off Date: ${sign.date || ""}`),
-    ].join("");
+    ];
+    if (signRid) {
+      signParts.push(inlineImageXml(signRid, 180, 64));
+    }
+    const signXml = signParts.join("");
 
-    const body = [header, background, scopeXml, delivXml, rolesXml, approachXml, govXml, commXml, legalXml, signXml].join("");
+    // Optional raw draft if user edited
+    const draftXml = draft
+      ? [makeHeading("Draft (Edited)", 2), makeParagraph(draft)].join("")
+      : "";
+
+    const body = [headerParts.join(""), background, scopeXml, delivXml, rolesXml, approachXml, govXml, commXml, legalXml, templateXml, draftXml, signXml].join("");
 
     // Minimal document XML with numbering definitions for bullets
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
  xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -203,6 +245,43 @@ export default function ExportWord({ value, meta }) {
     </w:sectPr>
   </w:body>
 </w:document>`;
+
+    return { documentXml, media, relsExtra };
+  }
+
+  function inlineImageXml(relId, widthPx, heightPx) {
+    // Convert pixels to EMUs (1 px ~ 9525 EMUs at 96 DPI)
+    const cx = Math.round(widthPx * 9525);
+    const cy = Math.round(heightPx * 9525);
+    return `
+<w:p>
+  <w:r>
+    <w:drawing>
+      <wp:inline distT="0" distB="0" distL="0" distR="0">
+        <wp:extent cx="${cx}" cy="${cy}"/>
+        <wp:docPr id="1" name="Picture"/>
+        <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+            <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:nvPicPr>
+                <pic:cNvPr id="0" name="image"/>
+                <pic:cNvPicPr/>
+              </pic:nvPicPr>
+              <pic:blipFill>
+                <a:blip r:embed="${relId}"/>
+                <a:stretch><a:fillRect/></a:stretch>
+              </pic:blipFill>
+              <pic:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </pic:spPr>
+            </pic:pic>
+          </a:graphicData>
+        </a:graphic>
+      </wp:inline>
+    </w:drawing>
+  </w:r>
+</w:p>`;
   }
 
   function escapeXml(s) {
@@ -212,13 +291,27 @@ export default function ExportWord({ value, meta }) {
       .replace(/>/g, "&gt;");
   }
 
+  function dataUrlToBytes(dataUrl) {
+    const [head, b64] = String(dataUrl).split(",");
+    const match = head.match(/data:([^;]+);base64/);
+    const mime = (match && match[1]) || "image/png";
+    const ext = mime.split("/")[1] || "png";
+    const bin = atob(b64 || "");
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { bytes, ext };
+  }
+
   // Build the minimal set of files required for a docx
-  function buildDocxFiles(documentXml) {
+  function buildDocxFiles(documentXml, media = {}, relsExtra = []) {
     const files = {};
     files["[Content_Types].xml"] = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="jpg" ContentType="image/jpeg"/>
+  <Default Extension="jpeg" ContentType="image/jpeg"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
@@ -229,10 +322,16 @@ export default function ExportWord({ value, meta }) {
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`;
 
+    // Build document relationships: include styles, numbering, plus media rels
+    const rels = [
+      `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`,
+      `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>`,
+      ...relsExtra.map((r) => `<Relationship Id="${r.id}" Type="${r.type}" Target="${r.target}"/>`),
+    ].join("\n");
+
     files["word/_rels/document.xml.rels"] = `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+${rels}
 </Relationships>`;
 
     files["word/document.xml"] = documentXml;
@@ -276,37 +375,43 @@ export default function ExportWord({ value, meta }) {
   </w:num>
 </w:numbering>`;
 
+    // Attach media binaries
+    Object.keys(media).forEach((path) => {
+      files[path] = media[path]; // Uint8Array
+    });
+
     return files;
   }
 
-  // Create a very small ZIP writer (no compression) for docx
+  // Create a very small ZIP writer that supports both text (string) and binary (Uint8Array) entries
   function zipSync(fileMap) {
-    const encoder = new TextEncoder();
+    const textEncoder = new TextEncoder();
     const fileEntries = [];
     const centralEntries = [];
     let offset = 0;
 
-    const DOS_TIME = 0; // minimal
+    const DOS_TIME = 0;
     const DOS_DATE = 0;
 
     Object.keys(fileMap).forEach((filename) => {
-      const content = encoder.encode(fileMap[filename]);
-      const nameBytes = encoder.encode(filename);
+      const val = fileMap[filename];
+      const content = typeof val === "string" ? textEncoder.encode(val) : val; // Uint8Array for binary
+      const nameBytes = textEncoder.encode(filename);
       const crc = crc32(content);
 
       // Local file header
       const localHeader = new Uint8Array(30 + nameBytes.length);
-      writeUint32(localHeader, 0, 0x04034b50); // local file header signature
-      writeUint16(localHeader, 4, 20); // version needed
-      writeUint16(localHeader, 6, 0); // flags
-      writeUint16(localHeader, 8, 0); // compression 0 = store
+      writeUint32(localHeader, 0, 0x04034b50);
+      writeUint16(localHeader, 4, 20);
+      writeUint16(localHeader, 6, 0);
+      writeUint16(localHeader, 8, 0);
       writeUint16(localHeader, 10, DOS_TIME);
       writeUint16(localHeader, 12, DOS_DATE);
       writeUint32(localHeader, 14, crc);
       writeUint32(localHeader, 18, content.length);
       writeUint32(localHeader, 22, content.length);
       writeUint16(localHeader, 26, nameBytes.length);
-      writeUint16(localHeader, 28, 0); // extra length
+      writeUint16(localHeader, 28, 0);
       localHeader.set(nameBytes, 30);
 
       fileEntries.push(localHeader, content);
@@ -314,22 +419,22 @@ export default function ExportWord({ value, meta }) {
       // Central directory header
       const central = new Uint8Array(46 + nameBytes.length);
       writeUint32(central, 0, 0x02014b50);
-      writeUint16(central, 4, 20); // version made by
-      writeUint16(central, 6, 20); // version needed
-      writeUint16(central, 8, 0); // flags
-      writeUint16(central, 10, 0); // compression
+      writeUint16(central, 4, 20);
+      writeUint16(central, 6, 20);
+      writeUint16(central, 8, 0);
+      writeUint16(central, 10, 0);
       writeUint16(central, 12, DOS_TIME);
       writeUint16(central, 14, DOS_DATE);
       writeUint32(central, 16, crc);
       writeUint32(central, 20, content.length);
       writeUint32(central, 24, content.length);
       writeUint16(central, 28, nameBytes.length);
-      writeUint16(central, 30, 0); // extra
-      writeUint16(central, 32, 0); // comment
-      writeUint16(central, 34, 0); // disk number
-      writeUint16(central, 36, 0); // internal attrs
-      writeUint32(central, 38, 0); // external attrs
-      writeUint32(central, 42, offset); // relative offset of local header
+      writeUint16(central, 30, 0);
+      writeUint16(central, 32, 0);
+      writeUint16(central, 34, 0);
+      writeUint16(central, 36, 0);
+      writeUint32(central, 38, 0);
+      writeUint32(central, 42, offset);
       central.set(nameBytes, 46);
 
       centralEntries.push({ central, size: central.length });
@@ -341,16 +446,15 @@ export default function ExportWord({ value, meta }) {
 
     const end = new Uint8Array(22);
     writeUint32(end, 0, 0x06054b50);
-    writeUint16(end, 4, 0); // disk
-    writeUint16(end, 6, 0); // disk start
+    writeUint16(end, 4, 0);
+    writeUint16(end, 6, 0);
     writeUint16(end, 8, Object.keys(fileMap).length);
     writeUint16(end, 10, Object.keys(fileMap).length);
     writeUint32(end, 12, centralSize);
     writeUint32(end, 16, centralOffset);
-    writeUint16(end, 20, 0); // comment length
+    writeUint16(end, 20, 0);
 
-    const totalSize =
-      offset + centralSize + end.length;
+    const totalSize = offset + centralSize + end.length;
     const out = new Uint8Array(totalSize);
     let pos = 0;
     fileEntries.forEach((u8) => {
@@ -402,9 +506,9 @@ export default function ExportWord({ value, meta }) {
       <div className="panel-title">Export</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <button className="btn btn-primary" type="button" onClick={downloadDocx}>Export Word (.docx)</button>
-      </div>
-      <div style={{ color: "var(--text-secondary)" }}>
-        Exports a structured Word document following the SOW template (headings, paragraphs, and bullet lists).
+        <div style={{ color: "var(--text-secondary)" }}>
+          Your uploaded logo and signature will be embedded in the document.
+        </div>
       </div>
     </div>
   );

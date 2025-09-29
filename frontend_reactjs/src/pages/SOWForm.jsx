@@ -226,6 +226,10 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       <Section title="Sign-off">
         <ListField title="Signatories" path={["signoff","signatories"]} items={data.signoff.signatories} onAdd={addToList} onRemove={removeFromList} />
         <Input label="Sign-off Date" type="date" value={data.signoff.date} onChange={(v)=>setField(["signoff","date"], v)} />
+        <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+          <label className="label">Upload Signature (image)</label>
+          <SignatureUpload value={data.meta.signatureUrl} onChange={(url) => setField(["meta","signatureUrl"], url)} />
+        </div>
       </Section>
     </div>
   );
@@ -467,4 +471,37 @@ function handleFilesToDataURLs(e, cb) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Signature image upload control used near Sign-off section.
+ */
+function SignatureUpload({ value, onChange }) {
+  const [name, setName] = useState("");
+  const inputRef = useRef(null);
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <button className="btn" type="button" onClick={() => inputRef.current?.click()}>Choose Signature</button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            onChange?.(reader.result);
+            setName(file.name);
+          };
+          reader.readAsDataURL(file);
+        }}
+      />
+      <div style={{ color: "var(--text-secondary)" }}>{name || "No file selected"}</div>
+      {value ? (
+        <img alt="Signature preview" src={value} style={{ maxHeight: 64, background: "#fff", borderRadius: 6, border: "1px solid var(--ui-border)" }} />
+      ) : null}
+    </div>
+  );
 }

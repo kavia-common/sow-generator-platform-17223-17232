@@ -4,12 +4,10 @@ import React from "react";
 export default function SideNav({ current, onNavigate }) {
   /** Side navigation with SOW actions and steps */
   const items = [
-    { id: "sowform", label: "SOW Form (All Fields)" },
-    { id: "company", label: "Company Details" },
-    { id: "project", label: "Project Details" },
-    { id: "template", label: "Choose Template (FP/T&M)" },
+    { id: "template", label: "Template Preview & Select" },
+    { id: "sowform", label: "SOW Form (Dynamic)" },
     { id: "generate", label: "Generate Draft" },
-    { id: "review", label: "Review & Edit" },
+    { id: "review", label: "Review & Edit (Large Box)" },
     { id: "export", label: "Export Word (.docx)" },
   ];
 

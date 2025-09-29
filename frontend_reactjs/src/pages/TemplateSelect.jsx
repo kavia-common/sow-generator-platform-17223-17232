@@ -22,12 +22,17 @@ export default function TemplateSelect({ selected, onChange }) {
                 borderStyle: "solid",
                 borderColor: active ? "var(--accent-purple)" : "var(--ui-border)",
                 background: active ? "rgba(111,63,255,0.12)" : "rgba(255,255,255,0.03)",
-                boxShadow: active ? "var(--glow-purple)" : "none"
+                boxShadow: active ? "var(--glow-purple)" : "none",
+                textAlign: "left"
               }}
               aria-pressed={active}
             >
               <div style={{ fontWeight: 800, marginBottom: 6, color: "var(--text-primary)" }}>{o.title}</div>
               <div style={{ color: "var(--text-secondary)" }}>{o.desc}</div>
+              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span className="btn" style={{ pointerEvents: "none" }}>Preview above</span>
+                <span className="btn" style={{ pointerEvents: "none" }}>Select to continue</span>
+              </div>
             </button>
           );
         })}
