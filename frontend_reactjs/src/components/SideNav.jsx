@@ -10,6 +10,7 @@ export default function SideNav({ current, onNavigate }) {
     { id: "generate", label: "Generate Draft" },
     { id: "review", label: "Review & Edit" },
     { id: "export", label: "Export PDF" },
+    { id: "templates-admin", label: "Templates Manager" },
   ];
 
   return (

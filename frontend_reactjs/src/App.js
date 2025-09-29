@@ -12,6 +12,7 @@ import ReviewEdit from "./pages/ReviewEdit";
 import ExportPDF from "./pages/ExportPDF";
 import Hero from "./components/Hero";
 import Login from "./pages/Login";
+import TemplatesManager from "./pages/TemplatesManager";
 import { applyThemeToRoot, oceanTheme } from "./theme";
 
 // PUBLIC_INTERFACE
@@ -103,6 +104,8 @@ function App() {
         return <ReviewEdit draft={draft} onChange={setDraft} />;
       case "export":
         return <ExportPDF draft={draft} meta={meta} />;
+      case "templates-admin":
+        return <TemplatesManager />;
       default:
         return null;
     }

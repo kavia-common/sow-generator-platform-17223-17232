@@ -6,6 +6,7 @@ Elegant React UI for creating Statements of Work following the BRS:
 - AI draft generation (simulated in MVP)
 - Review & edit
 - Export (download text) and Save to Supabase
+- Templates Manager: create, edit, delete templates connected to Supabase
 
 ## Run
 
