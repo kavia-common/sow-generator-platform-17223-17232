@@ -8,23 +8,90 @@
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * loadDocxArrayBuffer
+ * Load a .docx ArrayBuffer from a URL (string) or File/Blob with strict validation.
+ * Ensures the file is a binary DOCX (ZIP package) and not a .txt transcript or corrupted upload.
+ */
 export async function loadDocxArrayBuffer(urlOrFile) {
-  /**
-   * Load a .docx ArrayBuffer from a URL (string) or File/Blob.
-   */
   if (!urlOrFile) throw new Error("No DOCX template source provided");
+
+  // Helper: verify header bytes correspond to a ZIP (PK\x03\x04 at start)
+  function isZipLocalFileHeader(u8) {
+    if (!u8 || u8.length < 4) return false;
+    return u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 0x03 && u8[3] === 0x04;
+  }
+
+  // Helper: validate mime/extension hints when available
+  function looksLikeDocx(name, type) {
+    const lower = (name || "").toLowerCase();
+    const t = (type || "").toLowerCase();
+    const extOk = lower.endsWith(".docx");
+    const mimeOk =
+      t === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      t === "application/zip" ||
+      t === "application/octet-stream" ||
+      t === "application/x-zip-compressed";
+    // Accept if either extension is .docx or mime hints at zip/docx
+    return extOk || mimeOk;
+  }
+
+  let nameHint = "";
+  let typeHint = "";
+
   if (typeof urlOrFile === "string") {
+    nameHint = urlOrFile.split("?")[0].split("#")[0];
     const res = await fetch(urlOrFile);
     if (!res.ok) throw new Error(`Failed to fetch template: ${res.status}`);
-    return await res.arrayBuffer();
+    // Try to infer content-type header
+    typeHint = res.headers.get("content-type") || "";
+    const ab = await res.arrayBuffer();
+    const u8 = new Uint8Array(ab);
+    if (!isZipLocalFileHeader(u8)) {
+      // Provide actionable help for common mistake of uploading .txt transcript
+      const hintExt = nameHint.toLowerCase().endsWith(".txt") ? " The selected file appears to be a .txt transcript, not a .docx." : "";
+      throw new Error(
+        "Invalid DOCX file: Not a valid ZIP package. Ensure you upload the original .docx (binary) template, not a text transcript." + hintExt
+      );
+    }
+    if (!looksLikeDocx(nameHint, typeHint)) {
+      // Not fatal if header is ZIP, but we can warn in message logs; proceed silently.
+    }
+    return ab;
   }
+
   if (typeof File !== "undefined" && urlOrFile instanceof File) {
-    return await urlOrFile.arrayBuffer();
+    nameHint = urlOrFile.name || "";
+    typeHint = urlOrFile.type || "";
+    if (!looksLikeDocx(nameHint, typeHint)) {
+      throw new Error(
+        "Unsupported template file: Please upload a .docx file exported from Word/Google Docs. Text transcripts (.txt) are not supported for merging."
+      );
+    }
+    const ab = await urlOrFile.arrayBuffer();
+    const u8 = new Uint8Array(ab);
+    if (!isZipLocalFileHeader(u8)) {
+      throw new Error(
+        "Invalid DOCX file: The uploaded file is not a valid .docx (ZIP) package. Please re-export and upload the original .docx."
+      );
+    }
+    return ab;
   }
+
   if (typeof Blob !== "undefined" && urlOrFile instanceof Blob) {
-    return await urlOrFile.arrayBuffer();
+    nameHint = ""; // Blob may not include name
+    typeHint = urlOrFile.type || "";
+    const ab = await urlOrFile.arrayBuffer();
+    const u8 = new Uint8Array(ab);
+    if (!isZipLocalFileHeader(u8)) {
+      throw new Error(
+        "Invalid DOCX file: Blob is not a valid .docx (ZIP) package."
+      );
+    }
+    return ab;
   }
+
   throw new Error("Unsupported template source type");
 }
 

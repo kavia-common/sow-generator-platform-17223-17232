@@ -24,6 +24,12 @@ export default function DocxPreviewAndGenerate({ data }) {
         return;
       }
 
+      // Preempt common mis-uploads: if the URL ends with .txt, it's a transcript, not a .docx
+      if ((templateDocxUrl || "").toLowerCase().endsWith(".txt")) {
+        alert("The selected template is a .txt transcript, not a .docx. Please upload/select the original .docx template file.");
+        return;
+      }
+
       const ab = await loadDocxArrayBuffer(templateDocxUrl);
 
       // Only user-entered values. No defaults. Prepare mapping and merge.
@@ -36,7 +42,12 @@ export default function DocxPreviewAndGenerate({ data }) {
       const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
       triggerDownload(blob, name);
     } catch (e) {
-      alert(`Failed to generate DOCX from template: ${e?.message || e}`);
+      const msg = String(e?.message || e || "");
+      if (msg.includes("end of central directory") || msg.toLowerCase().includes("zip")) {
+        alert("Failed to generate DOCX: The uploaded file is not a valid DOCX (zip) package. Please upload the original .docx template.");
+      } else {
+        alert(`Failed to generate DOCX from template: ${msg}`);
+      }
     }
   }, [data]);
 
