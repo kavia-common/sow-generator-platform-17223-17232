@@ -74,7 +74,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
 
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button className="btn" type="button" onClick={onEdit}>Edit</button>
-        <button className="btn btn-primary" type="button" onClick={onConfirm}>Confirm and Generate</button>
+        <button className="btn btn-primary" type="button" onClick={onConfirm}>Confirm and Continue to DOCX Preview</button>
       </div>
     </div>
   );

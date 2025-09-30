@@ -112,9 +112,9 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button className="btn btn-primary" type="button" onClick={onGenerate}>Generate Word</button>
+        <button className="btn btn-primary" type="button" onClick={onGenerate}>Generate DOCX</button>
         <div style={{ color: "var(--text-secondary)" }}>
-          This will merge your entries into the original template layout. No drafts or PDFs are produced.
+          This will merge your entries into the original template layout. Only .docx output is produced; no PDF or draft output.
         </div>
       </div>
     </div>

@@ -6,9 +6,8 @@ export default function SideNav({ current, onNavigate }) {
   const items = [
     { id: "template", label: "Template Preview & Select" },
     { id: "sowform", label: "SOW Form (Dynamic)" },
-    { id: "pdfSow", label: "SOW via PDF Templates" },
-    { id: "generate", label: "Generate Draft" },
-    { id: "review", label: "Review & Edit (Large Box)" },
+    { id: "review", label: "Review & Edit" },
+    { id: "preview", label: "Preview & Generate (DOCX)" },
     { id: "export", label: "Export Word (.docx)" },
   ];
 

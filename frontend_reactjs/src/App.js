@@ -186,8 +186,10 @@ function App() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
               <button className="btn" type="button" onClick={() => setCurrent("template")}>Template</button>
               <button className="btn" type="button" onClick={() => setCurrent("sowform")}>Form</button>
-              <button className="btn" type="button" onClick={() => setCurrent("export")}>Export</button>
-              <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Refresh</button>
+              <button className="btn" type="button" onClick={() => setCurrent("review")}>Review</button>
+              <button className="btn" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
+              <button className="btn" type="button" onClick={() => setCurrent("export")}>Export (.docx)</button>
+              <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Reset</button>
             </div>
             {renderStep()}
           </main>

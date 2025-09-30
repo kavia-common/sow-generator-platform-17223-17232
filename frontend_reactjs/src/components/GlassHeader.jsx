@@ -33,7 +33,7 @@ export default function GlassHeader({
         </nav>
 
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={onSaveDraft}>Save</button>
+          <button className="btn btn-primary" onClick={onSaveDraft} title="Save current inputs locally">Save Progress</button>
         </div>
       </div>
     </header>

@@ -536,7 +536,7 @@ ${rels}
 
   return (
     <div className="panel">
-      <div className="panel-title">Export</div>
+      <div className="panel-title">Export (DOCX)</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <button className="btn btn-primary" type="button" onClick={downloadDocx}>Export Word (.docx)</button>
         <div style={{ color: "var(--text-secondary)" }}>
