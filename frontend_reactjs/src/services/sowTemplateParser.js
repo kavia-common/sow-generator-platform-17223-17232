@@ -1,8 +1,11 @@
 //
+//
 // PUBLIC_INTERFACE
 // SOW Template Parser: Extracts sections, headers, and fields from DOCX transcript .txt files.
-// It detects enumerated sections (e.g., "1. Client Portfolio:"), headers, and maps freeform vs list fields.
-// Outputs a structured schema suitable for dynamic SOWForm rendering and later DOCX overlay mapping.
+// In STRICT mode (default), it only surfaces placeholders that actually exist in the template.
+// It avoids adding inferred fields/sections like Authorization, Stakeholders, etc., unless
+// strictTemplateFields is explicitly set to false.
+//
 //
 
 /**
@@ -12,10 +15,11 @@
  * - Recognizes numbered sections "^\s*\d+\.\s+Title:"
  * - Recognizes headers like "Statement of Work", "Authorization", etc.
  * - Extracts placeholders [Field], <Field>, and categorizes fields as "text", "textarea", "list", "date", "email", "currency"
- * - Converts bullet lines (•, -, \uf0b7) into list items
+ * - Converts bullet lines (•, -, \uf0b7) into listItems (UI hint only; does not create fields in strict mode)
  *
  * @param {string} transcriptText - Plain text extracted from DOCX
  * @param {object} [options] - Parsing options
+ *   - strictTemplateFields?: boolean (default: true) When true, do not add any inferred fields.
  * @returns {{
  *   sections: Array<{
  *     index?: number,
@@ -29,6 +33,8 @@
  * }}
  */
 export function parseSOWTranscriptToSections(transcriptText, options = {}) {
+  const { strictTemplateFields = true } = options;
+
   const text = normalizeEols(String(transcriptText || ''));
   const lines = text.split('\n');
 
@@ -37,7 +43,7 @@ export function parseSOWTranscriptToSections(transcriptText, options = {}) {
 
   const numberedSectionRe = /^\s*(\d+)\.\s+(.+?)(:)?\s*$/;
   const headerRe = /^\s*(Statement of Work.*|Work Order.*|Authorization.*|Scope of Work.*|Master Services Agreement.*)\s*$/i;
-  const bulletRe = /^\s*(?:[-*•\u2022\u25CF]|\uf0b7)\s+(.*)\s*$/;
+  const bulletRe = /^\s*(?:[-*\u2022\u2022\u25CF]|\uf0b7)\s+(.*)\s*$/;
 
   function startSection(title, index) {
     if (current) sections.push(finalizeSection(current));
@@ -46,40 +52,38 @@ export function parseSOWTranscriptToSections(transcriptText, options = {}) {
   function pushLine(l) {
     if (!current) startSection('Preamble');
     current.lines.push(l);
-    // Detect bullets into listItems
+    // Detect bullets into listItems (UI hint only)
     const m = l.match(bulletRe);
     if (m && m[1]) {
       current.listItems.push(m[1].trim());
     }
     // Extract placeholders from line
-    extractPlaceholdersFromLine(l).forEach((f) => ensureField(current.fields, f));
+    extractPlaceholdersFromLine(l, { strictTemplateFields }).forEach((f) => ensureField(current.fields, f));
   }
   function finalizeSection(sec) {
-    // If section had bullets, add a list field if not already detected
-    if (sec.listItems && sec.listItems.length > 0) {
-      const label = sec.title;
-      const key = normalizeKey(`${label}_list`);
-      ensureField(sec.fields, { key, label: `${label} (List)`, type: 'list', source: 'inferred' });
-    }
+    if (!strictTemplateFields) {
+      // Optional legacy augmentations when not strict (kept behind flag)
+      if (sec.listItems && sec.listItems.length > 0) {
+        const label = sec.title;
+        const key = normalizeKey(`${label}_list`);
+        ensureField(sec.fields, { key, label: `${label} (List)`, type: 'list', source: 'inferred' });
+      }
 
-    // Heuristic: lines containing "Start Date"/"End Date" turn into an object fields set
-    const hasStartDate = sec.lines.some((l) => /start date\s*:?\s*$/i.test(l) || /\[start date\]/i.test(l));
-    const hasEndDate = sec.lines.some((l) => /end date\s*:?\s*$/i.test(l) || /\[end date\]/i.test(l));
-    if (hasStartDate || hasEndDate) {
-      ensureField(sec.fields, { key: normalizeKey(`${sec.title}_duration`), label: 'Project Duration', type: 'object', source: 'inferred' });
-    }
+      const hasStartDate = sec.lines.some((l) => /start date\s*:?(\s*)$/i.test(l) || /\[start date\]/i.test(l));
+      const hasEndDate = sec.lines.some((l) => /end date\s*:?(\s*)$/i.test(l) || /\[end date\]/i.test(l));
+      if (hasStartDate || hasEndDate) {
+        ensureField(sec.fields, { key: normalizeKey(`${sec.title}_duration`), label: 'Project Duration', type: 'object', source: 'inferred' });
+      }
 
-    // Default freeform textarea for scope/charges/change control if section title matches
-    const t = sec.title.toLowerCase();
-    if ((/scope/.test(t) || /charges/.test(t) || /payment/.test(t) || /change control/.test(t)) && !sec.fields.some((f) => f.type === 'textarea')) {
-      ensureField(sec.fields, { key: normalizeKey(sec.title), label: sec.title, type: 'textarea', source: 'inferred' });
-    }
+      const t = sec.title.toLowerCase();
+      if ((/scope/.test(t) || /charges/.test(t) || /payment/.test(t) || /change control/.test(t)) && !sec.fields.some((f) => f.type === 'textarea')) {
+        ensureField(sec.fields, { key: normalizeKey(sec.title), label: sec.title, type: 'textarea', source: 'inferred' });
+      }
 
-    // If no fields detected at all, add a simple text field for the section
-    if (sec.fields.length === 0) {
-      ensureField(sec.fields, { key: normalizeKey(sec.title), label: sec.title, type: 'text', source: 'inferred' });
+      if (sec.fields.length === 0) {
+        ensureField(sec.fields, { key: normalizeKey(sec.title), label: sec.title, type: 'text', source: 'inferred' });
+      }
     }
-
     return sec;
   }
 
@@ -110,7 +114,7 @@ export function parseSOWTranscriptToSections(transcriptText, options = {}) {
     });
   });
 
-  // Template type detection heuristics
+  // Template type detection heuristics (metadata only)
   const lc = text.toLowerCase();
   let detected = 'Unknown';
   if (lc.includes('time & materials') || lc.includes('t&m') || lc.includes('charges & payment terms (t&m)')) {
@@ -119,8 +123,10 @@ export function parseSOWTranscriptToSections(transcriptText, options = {}) {
     detected = 'Fixed Price';
   }
 
-  // Enhance specific known sections from heuristics
-  enhanceKnownSections(sections);
+  if (!strictTemplateFields) {
+    // Optional known-section enhancements only when not strict
+    enhanceKnownSections(sections);
+  }
 
   return {
     sections,
@@ -138,22 +144,23 @@ export function parseSOWTranscriptToSections(transcriptText, options = {}) {
  * @param {{sections:Array}} parsed
  * @param {string} templateId
  * @param {string} title
+ * @param {object} [options] - { strictTemplateFields?: boolean }
  * @returns {{id:string,title:string,fields:Array}}
  */
-export function buildDynamicSchemaFromSections(parsed, templateId, title) {
+export function buildDynamicSchemaFromSections(parsed, templateId, title, options = {}) {
+  const { strictTemplateFields = true } = options;
   const fields = [];
 
   parsed.sections
     .sort((a, b) => {
-      // Maintain numeric order if available, else keep original order
       if (typeof a.index === 'number' && typeof b.index === 'number') return a.index - b.index;
       if (typeof a.index === 'number') return -1;
       if (typeof b.index === 'number') return 1;
       return 0;
     })
     .forEach((sec) => {
-      // For Project Duration special case create object with start/end
-      if (/project duration/i.test(sec.title)) {
+      // In strict mode, do not synthesize special objects unless placeholders make them explicit.
+      if (!strictTemplateFields && /project duration/i.test(sec.title)) {
         fields.push({
           key: 'project_duration',
           label: 'Project Duration',
@@ -166,7 +173,6 @@ export function buildDynamicSchemaFromSections(parsed, templateId, title) {
         return;
       }
 
-      // If section has multiple fields, keep them as a grouped object.
       if ((sec.fields || []).length > 1) {
         fields.push({
           key: normalizeKey(sec.title),
@@ -180,19 +186,21 @@ export function buildDynamicSchemaFromSections(parsed, templateId, title) {
       }
     });
 
-  // Ensure Authorization block
-  if (!fields.some((f) => f.key === 'authorization_signatures')) {
-    fields.push({
-      key: 'authorization_signatures',
-      label: 'Authorization',
-      type: 'object',
-      properties: [
-        { key: 'supplier_signature_name', label: 'Supplier — Name', type: 'text' },
-        { key: 'supplier_signature_date', label: 'Supplier — Date', type: 'date' },
-        { key: 'client_signature_name', label: 'Client — Name', type: 'text' },
-        { key: 'client_signature_date', label: 'Client — Date', type: 'date' },
-      ],
-    });
+  // Do NOT add Authorization or any extra blocks in strict mode.
+  if (!strictTemplateFields) {
+    if (!fields.some((f) => f.key === 'authorization_signatures')) {
+      fields.push({
+        key: 'authorization_signatures',
+        label: 'Authorization',
+        type: 'object',
+        properties: [
+          { key: 'supplier_signature_name', label: 'Supplier — Name', type: 'text' },
+          { key: 'supplier_signature_date', label: 'Supplier — Date', type: 'date' },
+          { key: 'client_signature_name', label: 'Client — Name', type: 'text' },
+          { key: 'client_signature_date', label: 'Client — Date', type: 'date' },
+        ],
+      });
+    }
   }
 
   return { id: templateId, title: title || templateId, fields };
@@ -200,7 +208,7 @@ export function buildDynamicSchemaFromSections(parsed, templateId, title) {
 
 // Helpers
 
-function extractPlaceholdersFromLine(line) {
+function extractPlaceholdersFromLine(line, { strictTemplateFields = true } = {}) {
   const out = [];
   // [Placeholders]
   const brackets = Array.from(line.matchAll(/\[([^\]\n]+)\]/g)).map((m) => m[1].trim());
@@ -216,13 +224,16 @@ function extractPlaceholdersFromLine(line) {
     });
   });
 
-  // Explicit hints like "Start Date:" or "End Date:" with no []
-  if (/start date\s*:?\s*$/i.test(line) && !out.some((f) => /start_date/.test(f.key))) {
-    out.push({ key: 'start_date', label: 'Start Date', type: 'date', source: 'inferred' });
+  if (!strictTemplateFields) {
+    // Legacy: Implicit date hints like "Start Date:" or "End Date:" with no []/<> tokens
+    if (/start date\s*:?(\s*)$/i.test(line) && !out.some((f) => /start_date/.test(f.key))) {
+      out.push({ key: 'start_date', label: 'Start Date', type: 'date', source: 'inferred' });
+    }
+    if (/end date\s*:?(\s*)$/i.test(line) && !out.some((f) => /end_date/.test(f.key))) {
+      out.push({ key: 'end_date', label: 'End Date', type: 'date', source: 'inferred' });
+    }
   }
-  if (/end date\s*:?\s*$/i.test(line) && !out.some((f) => /end_date/.test(f.key))) {
-    out.push({ key: 'end_date', label: 'End Date', type: 'date', source: 'inferred' });
-  }
+
   return out;
 }
 
@@ -241,24 +252,21 @@ function ensureField(arr, f) {
 }
 
 function enhanceKnownSections(sections) {
+  // Legacy non-strict augmentation helper; only used when strictTemplateFields = false.
   sections.forEach((sec) => {
     const t = sec.title.toLowerCase();
-    // Known list-like sections
     if (/supplier deliverables|client deliverables|project schedule|milestones|communication paths|key client personnel/.test(t)) {
       ensureField(sec.fields, { key: normalizeKey(sec.title), label: sec.title, type: 'list', source: 'inferred' });
     }
-    // Address block object
     if (/address for communications/.test(t)) {
       ensureField(sec.fields, { key: 'supplier_name', label: 'Supplier Name', type: 'text', source: 'inferred' });
       ensureField(sec.fields, { key: 'contact_name', label: 'Contact Name', type: 'text', source: 'inferred' });
       ensureField(sec.fields, { key: 'email', label: 'Email', type: 'email', source: 'inferred' });
       ensureField(sec.fields, { key: 'address', label: 'Address', type: 'textarea', source: 'inferred' });
     }
-    // Charges & Payment variants
     if (/charges & payment/.test(t)) {
       ensureField(sec.fields, { key: normalizeKey(sec.title), label: sec.title, type: 'textarea', source: 'inferred' });
     }
-    // Type of Project
     if (/type of project/.test(t) && !sec.fields.some((f) => f.key === 'type_of_project')) {
       ensureField(sec.fields, { key: 'type_of_project', label: 'Type of Project', type: 'text', source: 'inferred' });
     }
@@ -266,7 +274,7 @@ function enhanceKnownSections(sections) {
 }
 
 function normalizeEols(s) {
-  return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  return s.replace(/\r\n/g, '\n').replace(/\\r/g, '\n');
 }
 
 function normalizeKey(label) {

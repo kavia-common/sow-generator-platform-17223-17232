@@ -27,8 +27,8 @@ export async function parseBuiltinTemplates() {
       const resp = await fetch(item.url);
       if (!resp.ok) throw new Error(`Failed to load ${item.url}`);
       const text = await resp.text();
-      const parsed = parseSOWTranscriptToSections(text);
-      const schema = buildDynamicSchemaFromSections(parsed, item.id, item.title);
+      const parsed = parseSOWTranscriptToSections(text, { strictTemplateFields: true });
+      const schema = buildDynamicSchemaFromSections(parsed, item.id, item.title, { strictTemplateFields: true });
       results.push({ id: item.id, title: item.title, sections: parsed.sections, schema, meta: parsed.meta });
     } catch (e) {
       console.error('Template parse error:', item, e);

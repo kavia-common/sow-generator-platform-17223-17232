@@ -42,8 +42,8 @@ export async function getDynamicSchemaFromAttachment(templateId) {
   const text = await resp.text();
 
   const { parseSOWTranscriptToSections, buildDynamicSchemaFromSections } = await import('../services/sowTemplateParser.js');
-  const parsed = parseSOWTranscriptToSections(text);
-  const schema = buildDynamicSchemaFromSections(parsed, templateId, arg.title);
+  const parsed = parseSOWTranscriptToSections(text, { strictTemplateFields: true });
+  const schema = buildDynamicSchemaFromSections(parsed, templateId, arg.title, { strictTemplateFields: true });
   return { parsed, schema };
 }
 
