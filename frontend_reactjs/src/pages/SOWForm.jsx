@@ -49,6 +49,26 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
 
   const sections = activeParsed?.sections || [];
 
+  // Auto-assign bundled template URL into meta.templateDocxUrl based on selectedTemplate
+  useEffect(() => {
+    async function syncBundled() {
+      const { getBundledTemplateInfoByType } = await import("../services/bundledTemplates.js");
+      const info = getBundledTemplateInfoByType(selectedTemplate);
+      setData((prev) => {
+        const next = structuredClone(prev || {});
+        next.meta = next.meta || {};
+        // Store hint to generator, but allow generator to fallback to transcript if missing
+        next.meta.templateDocxUrl = info?.docxUrl || null;
+        next.meta.sowType = selectedTemplate || null;
+        // Track selection for display/debugging
+        next.templateMeta = { ...(next.templateMeta || {}), id: info?.id || selectedTemplate, title: info?.title || selectedTemplate };
+        return next;
+      });
+    }
+    if (selectedTemplate) syncBundled();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate]);
+
   const setTemplateField = (path, v) => {
     setData((prev) => {
       const next = structuredClone(prev);

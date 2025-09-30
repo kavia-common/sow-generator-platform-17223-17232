@@ -4,15 +4,15 @@ import React from "react";
 export default function TemplateSelect({ selected, onChange }) {
   /** Choose SOW template between Fixed Price (FP) and Time & Material (T&M) */
   const opts = [
-    { id: "FP", title: "Fixed Price (FP)", desc: "Defined scope, fixed budget and timeline." },
-    { id: "TM", title: "Time & Material (T&M)", desc: "Flexible scope, billable hours and materials." },
+    { id: "FP", title: "Fixed Price (FP)", desc: "Defined scope, fixed budget and timeline. Bundled DOCX will be used automatically." },
+    { id: "TM", title: "Time & Material (T&M)", desc: "Flexible scope, billable hours and materials. Bundled DOCX will be used automatically." },
   ];
   return (
     <div className="panel">
       <div className="panel-title">Choose Template</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div style={{ gridColumn: "1 / -1", color: "var(--text-secondary)", marginBottom: 4 }}>
-          Selecting a template controls which SOW form fields you will see.
+          Selecting a template controls which SOW form fields you will see. The corresponding bundled .docx will be auto-selected for generation.
         </div>
         {opts.map((o) => {
           const active = selected === o.id;

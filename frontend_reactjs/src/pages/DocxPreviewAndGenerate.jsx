@@ -3,39 +3,43 @@ import React, { useCallback } from "react";
 /**
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
- * Strict export: Generates a .docx using ONLY the uploaded .docx template as the base.
- * No overlays, no generic sections, and no added/default content. Only in-place replacement
- * of placeholders with user data. Unused placeholders remain as-is.
+ * Generates a .docx using bundled .docx by SOW type; if missing, falls back to transcript-rendered .docx.
+ * Placeholders are replaced with provided values; unfilled remain unchanged.
  *
  * Props:
- * - data: { meta?: { templateDocxUrl?: string, client?: string, title?: string }, templateData?: Record<string, any> }
- * Notes:
- * - meta.templateDocxUrl is set upstream on template selection/upload. If missing, UI will prompt to select/assign.
+ * - data: { meta?: { templateDocxUrl?: string, client?: string, title?: string, sowType?: "TM"|"FP" }, templateData?: Record<string, any> }
  */
 export default function DocxPreviewAndGenerate({ data }) {
   const onGenerateExact = useCallback(async () => {
     try {
       const { loadDocxArrayBuffer, prepareTemplateData, mergeDocxWithData } = await import("../services/docxInPlaceTemplateMergeService.js");
+      const { ensureSampleDocxIfMissing } = await import("../services/bundledTemplates.js");
 
-      // Enforce: require the actual uploaded DOCX template URL
-      const templateDocxUrl = data?.meta?.templateDocxUrl || null;
+      const sowType = data?.meta?.sowType || (data?.templateMeta?.id?.includes("TM") ? "TM" : data?.templateMeta?.id?.includes("FIXED") ? "FP" : null);
+
+      // First, try to use bundled docx (or fallback to transcript-based docx if missing)
+      const probe = await ensureSampleDocxIfMissing(sowType || (data?.meta?.templateDocxUrl ? null : null), data);
+      if (probe && probe.ok && probe.kind === "fallback" && probe.blob) {
+        const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
+        triggerDownload(probe.blob, name);
+        if (!data?.meta?.templateDocxUrl) {
+          // notify user gently about fallback
+          setTimeout(() => alert("Bundled .docx not found. Generated using transcript fallback."), 0);
+        }
+        return;
+      }
+
+      // If bundled is present, or meta.templateDocxUrl is set, then merge with docxtemplater
+      const templateDocxUrl = (probe && probe.ok && probe.url) || data?.meta?.templateDocxUrl || null;
       if (!templateDocxUrl) {
-        alert("A DOCX template is required. Please upload or select the correct template file before generating.");
+        alert("No bundled .docx available for the selected type, and no .docx provided. Please contact support.");
         return;
       }
-
-      // Preempt common mis-uploads: if the URL ends with .txt, it's a transcript, not a .docx
-      if ((templateDocxUrl || "").toLowerCase().endsWith(".txt")) {
-        alert("The selected template is a .txt transcript, not a .docx. Please upload/select the original .docx template file.");
-        return;
-      }
-
       const ab = await loadDocxArrayBuffer(templateDocxUrl);
 
       // Only user-entered values. No defaults. Prepare mapping and merge.
       const dataMap = prepareTemplateData(data?.templateData || {});
       const blob = mergeDocxWithData(ab, dataMap, {
-        // keepUnfilledTags=true => placeholders without values remain unchanged in the document.
         keepUnfilledTags: true
       });
 
@@ -44,7 +48,7 @@ export default function DocxPreviewAndGenerate({ data }) {
     } catch (e) {
       const msg = String(e?.message || e || "");
       if (msg.includes("end of central directory") || msg.toLowerCase().includes("zip")) {
-        alert("Failed to generate DOCX: The uploaded file is not a valid DOCX (zip) package. Please upload the original .docx template.");
+        alert("Failed to generate DOCX: The bundled/selected file is not a valid DOCX (zip) package.");
       } else {
         alert(`Failed to generate DOCX from template: ${msg}`);
       }
