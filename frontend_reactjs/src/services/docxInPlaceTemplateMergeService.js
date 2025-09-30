@@ -98,34 +98,44 @@ export async function loadDocxArrayBuffer(urlOrFile) {
 // PUBLIC_INTERFACE
 export function prepareTemplateData(templateData) {
   /**
-   * Convert our templateData into a flat map keyed by normalized names,
-   * but also include original keys to match docxtemplater tag names exactly when possible.
+   * Convert user-entered templateData into a flat data map that will be passed to docxtemplater.
+   * Requirements:
+   * - Map every entered form value to a tag (exact key and normalized variant).
+   * - Only include fields that have input (non-empty after stringification).
+   * - Support nested authorization_signatures.* via dotted keys.
    */
-  const flat = {};
-  function put(k, v) {
-    if (v == null) return;
-    flat[k] = toStringValue(v);
+  const out = {};
+  const src = templateData || {};
+
+  function hasInput(v) {
+    if (v == null) return false;
+    if (typeof v === 'string') return v.trim().length > 0;
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'object') return Object.keys(v).length > 0;
+    return true;
   }
-  // copy as-is
-  Object.keys(templateData || {}).forEach((k) => {
-    put(k, templateData[k]);
+  function putIfHasInput(k, v) {
+    if (!hasInput(v)) return;
+    out[k] = toStringValue(v);
+  }
+
+  // Copy exact keys that have input
+  Object.keys(src).forEach((k) => {
+    putIfHasInput(k, src[k]);
   });
 
-  // include normalized variants for convenience
-  Object.keys(templateData || {}).forEach((k) => {
-    put(normalizeKey(k), templateData[k]);
+  // Provide normalized variants for convenience (maps to {{normalized_key}} tags)
+  Object.keys(src).forEach((k) => {
+    putIfHasInput(normalizeKey(k), src[k]);
   });
 
-  // Do not inject aliases or defaults. Only flatten known nested authorization_signatures with dotted keys,
-  // so templates that explicitly reference authorization_signatures.* can resolve. No extra aliasing.
-  const auth = (templateData && templateData.authorization_signatures) || {};
+  // Flatten nested authorization_signatures.* only for provided sub-keys
+  const auth = src.authorization_signatures || {};
   Object.keys(auth).forEach((k) => {
-    if (auth[k] != null) {
-      put(`authorization_signatures.${k}`, auth[k]);
-    }
+    putIfHasInput(`authorization_signatures.${k}`, auth[k]);
   });
 
-  return flat;
+  return out;
 }
 
 // PUBLIC_INTERFACE

@@ -34,7 +34,8 @@ export default function DocxPreviewAndGenerate({ data }) {
       }
 
       const ab = await loadDocxArrayBuffer(templateDocxUrl);
-      const dataMap = prepareTemplateData(data?.templateData || {}, { logoDataUrl: data?.meta?.logoUrl });
+      // Only include fields that have input; keep unfilled tags intact in the document
+      const dataMap = prepareTemplateData(data?.templateData || {});
       const blob = mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true });
 
       const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
