@@ -115,13 +115,22 @@ function App() {
             />
             <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
               <button
-                className="btn btn-primary"
+                className="btn"
                 type="button"
                 onClick={() => setCurrent("preview")}
                 disabled={!selectedTemplate || !selectedTemplateSchema}
-                title={!selectedTemplate ? "Please select T&M or Fixed Price first." : !selectedTemplateSchema ? "Template fields are not available." : "Preview & Generate"}
+                title={!selectedTemplate ? "Please select T&M or Fixed Price first." : !selectedTemplateSchema ? "Template fields are not available." : "Preview before generating"}
               >
-                Preview & Generate
+                Preview
+              </button>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setCurrent("preview_auto")}
+                disabled={!selectedTemplate || !selectedTemplateSchema}
+                title="Submit & Export your SOW as a DOCX in one click"
+              >
+                Submit & Export
               </button>
             </div>
           </>
@@ -130,6 +139,13 @@ function App() {
         return (
           <DocxPreviewAndGenerate
             data={sowData}
+          />
+        );
+      case "preview_auto":
+        return (
+          <DocxPreviewAndGenerate
+            data={sowData}
+            autoGenerate={true}
           />
         );
       case "export":

@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 
 /**
  * PUBLIC_INTERFACE
@@ -8,8 +8,9 @@ import React, { useCallback } from "react";
  *
  * Props:
  * - data: { meta?: { client?: string, title?: string, sowType?: "TM"|"FP", templateDocxUrl?: string, logoUrl?: string }, templateData?: Record<string, any> }
+ * - autoGenerate?: boolean  If true, immediately trigger generation on mount/update (used for one-click submit).
  */
-export default function DocxPreviewAndGenerate({ data }) {
+export default function DocxPreviewAndGenerate({ data, autoGenerate = false }) {
   const onGenerate = useCallback(async () => {
     try {
       const { loadDocxArrayBuffer, prepareTemplateData, mergeDocxWithData } = await import("../services/docxInPlaceTemplateMergeService.js");
@@ -73,6 +74,13 @@ export default function DocxPreviewAndGenerate({ data }) {
       }
     }
   }, [data]);
+
+  // Auto-generate on mount/update if requested (used after one-click submit)
+  useEffect(() => {
+    if (autoGenerate) {
+      onGenerate();
+    }
+  }, [autoGenerate, onGenerate]);
 
   function triggerDownload(blob, filename) {
     const link = document.createElement("a");
