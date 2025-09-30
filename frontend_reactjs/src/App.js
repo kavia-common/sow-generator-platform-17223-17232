@@ -12,6 +12,7 @@ import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
 import ExportWord from "./pages/ExportWord";
 import DocxPreviewAndGenerate from "./pages/DocxPreviewAndGenerate";
+import ReviewScreen from "./pages/ReviewScreen";
 import { scaffoldSOWFromTemplate } from "./templates"; // kept for base scaffolding if needed
 
 // PUBLIC_INTERFACE
@@ -127,9 +128,19 @@ function App() {
               templateSchema={selectedTemplateSchema}
             />
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button className="btn btn-primary" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
+              <button className="btn btn-primary" type="button" onClick={() => setCurrent("review")}>Review</button>
             </div>
           </>
+        );
+      case "review":
+        return (
+          <ReviewScreen
+            data={sowData}
+            templateSchema={selectedTemplateSchema}
+            transcriptText={sowData?.templateMeta?.transcriptText || ""}
+            onEdit={() => setCurrent("sowform")}
+            onConfirm={() => setCurrent("preview")}
+          />
         );
       case "preview":
         return (
