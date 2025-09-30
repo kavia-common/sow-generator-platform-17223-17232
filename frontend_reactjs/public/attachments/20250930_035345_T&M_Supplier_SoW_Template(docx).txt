@@ -1,0 +1,50 @@
+[Add Logo Here]
+Statement of Work (T&M)
+To
+Master Services Agreement
+This Statement of Work (SOW) references and is executed subject to and in accordance with the terms and conditions of that certain Master Services Agreement dated [Start Date] (“Agreement”) previously entered into by and between [Client Name] (“Client”), and [Supplier Name] (“Supplier”). This SOW is effective upon signature by both parties as outlined in the Authorization section below.
+1. Client Portfolio:
+2. Type of Project: Time & Materials
+3. Engagement Number:
+4. Planning Assumptions: Resources billed based on actual hours worked and materials used.
+5. Scope of Work:
+   This Work Order documents the scope of consulting & software services to be provided.
+6. Supplier Deliverables:
+   - Description
+7. Client Deliverables:
+   - Description
+8. Project Duration:
+   Start Date: 
+   End Date:
+9. Project Schedule and Milestones:
+10. Client Relationship Managers:
+11. Supplier Relationship Managers:
+12. Charges & Payment Terms (T&M):
+   - Resource rates
+   - Billing frequency
+   - Payment terms
+13. Contractor Rate Card:
+   - Role: [Role]
+   - Rate: [Rate/hr]
+14. Key Client Personnel and Expert Roles:
+15. Service Level Agreements:
+   As defined in the Agreement.
+16. Communication Paths:
+17. Service Locations:
+   [Specify Locations]
+18. Change Control Procedures:
+   As per Agreement or mutually agreed in writing.
+19. Address for Communications:
+   [Supplier Name, Contact Name, Email, Address]
+20. Authorization:
+   An authorized representative of each party has executed this SOW.
+
+   Supplier:
+   Signature: ____________
+   Name: ____________
+   Date: ____________
+
+   Client:
+   Signature: ____________
+   Name: ____________
+   Date: ____________

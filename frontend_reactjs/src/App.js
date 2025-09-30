@@ -6,25 +6,19 @@ import GlassHeader from "./components/GlassHeader";
 import SideNav from "./components/SideNav";
 import TemplateSelect from "./pages/TemplateSelect";
 import TemplatePreview from "./pages/TemplatePreview";
-import GenerateDraft from "./pages/GenerateDraft";
-import ReviewEdit from "./pages/ReviewEdit";
 import { applyThemeToRoot, oceanTheme } from "./theme";
 import AIChatWidget from "./components/AIChatWizard";
 import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
 import ExportWord from "./pages/ExportWord";
-import PDFTemplateSOW from "./pages/PDFTemplateSOW";
-import { getSOWTemplateSchema, scaffoldSOWFromTemplate } from "./templates";
+import DocxPreviewAndGenerate from "./pages/DocxPreviewAndGenerate";
+import { scaffoldSOWFromTemplate } from "./templates"; // kept for base scaffolding if needed
 
 // PUBLIC_INTERFACE
 function App() {
-  /**
-   * App with Landing/Login intro, then SOW builder.
-   * AI prompt opens in-page from a right-side icon launcher.
-   */
+  // Stage and step
   const [stage, setStage] = useState("landing"); // landing | builder
-  const [current, setCurrent] = useState("template"); // start with preview/select
-  const [draft, setDraft] = useState("");
+  const [current, setCurrent] = useState("template"); // template | sowform | export
 
   // Selections
   const [templates] = useState([
@@ -34,7 +28,7 @@ function App() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [selectedTemplateSchema, setSelectedTemplateSchema] = useState(null);
 
-  // Unified SOW JSON (also holds logo/signature)
+  // Unified SOW JSON (holds meta/logo/signature & dynamic templateData)
   const [sowData, setSowData] = useState({
     meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "", signatureUrl: "" },
     background: { project_background: "", business_problem: "", objectives: "", success_criteria: "" },
@@ -54,18 +48,7 @@ function App() {
     applyThemeToRoot(oceanTheme);
   }, []);
 
-  // When template selection changes, scaffold sowData with the template fields
-  useEffect(() => {
-    if (!selectedTemplate) {
-      setSelectedTemplateSchema(null);
-      return;
-    }
-    const schema = getSOWTemplateSchema(selectedTemplate);
-    setSelectedTemplateSchema(schema || null);
-    setSowData((prev) => scaffoldSOWFromTemplate(prev, schema));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTemplate]);
-
+  // Update meta for export
   const meta = useMemo(
     () => ({
       title: sowData?.meta?.title || "Statement of Work",
@@ -75,12 +58,6 @@ function App() {
     }),
     [sowData, selectedTemplate]
   );
-
-  const onSaveDraft = () => {
-    localStorage.setItem("sow-data", JSON.stringify(sowData));
-    // eslint-disable-next-line no-alert
-    alert("Draft saved locally.");
-  };
 
   const onRefreshAll = () => {
     // Clear all inputs and reset to template selection
@@ -100,7 +77,6 @@ function App() {
     });
     setSelectedTemplate("");
     setSelectedTemplateSchema(null);
-    setDraft("");
     setCurrent("template");
   };
 
@@ -111,8 +87,15 @@ function App() {
           <>
             <TemplatePreview
               selected={selectedTemplate}
-              onSelect={(id) => {
+              onSelect={(id, runtimeSchema, transcriptText) => {
                 setSelectedTemplate(id);
+                const schema = runtimeSchema || null;
+                setSelectedTemplateSchema(schema);
+                setSowData((prev) => {
+                  const next = scaffoldSOWFromTemplate(prev, schema);
+                  next.templateMeta = { ...(next.templateMeta || {}), transcriptText: transcriptText || "" };
+                  return next;
+                });
                 setCurrent("sowform");
               }}
             />
@@ -136,33 +119,29 @@ function App() {
         );
       case "sowform":
         return (
-          <SOWForm
-            value={sowData}
-            onChange={setSowData}
-            selectedTemplate={selectedTemplate}
+          <>
+            <SOWForm
+              value={sowData}
+              onChange={setSowData}
+              selectedTemplate={selectedTemplate}
+              templateSchema={selectedTemplateSchema}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button className="btn btn-primary" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
+            </div>
+          </>
+        );
+      case "preview":
+        return (
+          <DocxPreviewAndGenerate
+            transcriptText={sowData?.templateMeta?.transcriptText || ""}
             templateSchema={selectedTemplateSchema}
-          />
-        );
-      case "generate":
-        return (
-          <GenerateDraft
-            company={{ name: sowData?.meta?.client }}
-            project={{ overview: sowData?.background?.project_background, scope: (sowData?.scope?.in_scope || []).join(", "), deliverables: (sowData?.deliverables?.items || []).join(", "), roles: (sowData?.roles?.team || []).join(", "), acceptance: sowData?.deliverables?.acceptance_criteria }}
-            template={selectedTemplate}
-            onDraft={setDraft}
-          />
-        );
-      case "pdfSow":
-        return <PDFTemplateSOW />;
-      case "review":
-        return (
-          <ReviewEdit
-            draft={draft}
-            onChange={setDraft}
+            data={sowData}
           />
         );
       case "export":
-        return <ExportWord value={sowData} meta={meta} draftText={draft} />;
+        // Keep legacy export as an optional path if needed
+        return <ExportWord value={sowData} meta={meta} />;
       default:
         return null;
     }
@@ -185,7 +164,10 @@ function App() {
             setSelectedTemplate(id);
             setCurrent("sowform");
           }}
-          onSaveDraft={onSaveDraft}
+          onSaveDraft={() => {
+            localStorage.setItem("sow-data", JSON.stringify(sowData));
+            alert("Draft saved locally.");
+          }}
         />
         <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
           <SideNav current={current} onNavigate={setCurrent} />
@@ -193,8 +175,6 @@ function App() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
               <button className="btn" type="button" onClick={() => setCurrent("template")}>Template</button>
               <button className="btn" type="button" onClick={() => setCurrent("sowform")}>Form</button>
-              <button className="btn" type="button" onClick={() => setCurrent("generate")}>Generate</button>
-              <button className="btn" type="button" onClick={() => setCurrent("review")}>Review</button>
               <button className="btn" type="button" onClick={() => setCurrent("export")}>Export</button>
               <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Refresh</button>
             </div>
@@ -208,7 +188,6 @@ function App() {
         projectTitle={currentProjectName}
         position="right"
         onPackage={(payload) => {
-          // Sync wizard data to main SOW form so ExportWord receives it
           setSowData(payload);
         }}
       />

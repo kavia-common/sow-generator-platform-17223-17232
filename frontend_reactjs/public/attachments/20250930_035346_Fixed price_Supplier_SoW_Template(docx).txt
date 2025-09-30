@@ -1,0 +1,44 @@
+Statement of Work
+To
+Master Services Agreement
+This Statement of Work references and is executed subject to and in accordance with the terms and conditions of that certain Master Services Agreement dated [start date] (“Agreement”) previously entered into by and between [company name] (“Client”), the limited liability company, and <Supplier Name>. (“Supplier”). This Work Order is offered by [company name] and shall become effective when signed by Supplier where indicated below in the Section headed “Authorization”
+Work Order Provisions | Work Order Provisions
+1. Client Portfolio: | 1. Client Portfolio:
+2. Type of Project: | 2. Type of Project:
+3. Engagement Number (Required for Fixed Price): | 3. Engagement Number (Required for Fixed Price):
+Included Projects (Required for Fixed Price): | Included Projects (Required for Fixed Price):
+5. Planning Assumptions: A fixed numbers of resource assigned are to be assigned to the project.
+ | 5. Planning Assumptions: A fixed numbers of resource assigned are to be assigned to the project.
+
+Scope of Work (Required for Fixed Price):
+
+This Work Order is issued to document the scope of the consulting & software services to be provided. Following is the scope of work. | Scope of Work (Required for Fixed Price):
+
+This Work Order is issued to document the scope of the consulting & software services to be provided. Following is the scope of work.
+7. Supplier Deliverables | Description
+8. Client Deliverables | Description
+.
+9. Project Durations | Start Date: 
+End Date:
+10. Project Schedule and Milestones
+11. Client Relationship Managers
+12. Supplier Relationship Managers | <Supplier> | <Supplier>
+13. Charges & Payment Schedule (Fixed Price Only)
+14. Contractor Rate (T&M Only) | N/A | N/A
+15. Key Client Personnel and Expert Roles | N/A | N/A
+16. Service Level Agreements | As defined in the Agreement. | As defined in the Agreement.
+17. Communication Paths
+18. Service Locations | India | India
+19. Change Control Procedures (Fixed Price Only) | N/A | N/A
+20. Address for Communications | <Supplier Name, Contact Name, Email and Address> | <Supplier Name, Contact Name, Email and Address>
+21. Authorization
+An authorized representative of each party has executed this Work Order as of the date indicated under
+such representative’s signature. | 21. Authorization
+An authorized representative of each party has executed this Work Order as of the date indicated under
+such representative’s signature. | 21. Authorization
+An authorized representative of each party has executed this Work Order as of the date indicated under
+such representative’s signature.
+<Supplier> | <Supplier> | Company name
+Signature: | Signature: | Signature:
+Name: | Name: | Name:
+Date: | Date: | Date:
