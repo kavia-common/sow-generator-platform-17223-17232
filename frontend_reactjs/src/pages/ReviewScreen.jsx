@@ -10,10 +10,10 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
     const fields = templateSchema?.fields || [];
     const base = computeOverlaysFromFields(fields);
     return base.map((ov) => {
-      const val = getPath(data?.templateData || {}, ov.fieldKey);
+      const rawVal = resolveValueByKey(data?.templateData || {}, ov.fieldKey);
       return {
         ...ov,
-        text: `${labelFor(fields, ov.fieldKey)}: ${formatValue(val)}`
+        text: `${labelFor(fields, ov.fieldKey)}: ${formatValue(rawVal)}`
       };
     });
   }, [templateSchema, data]);
@@ -86,11 +86,33 @@ function labelFor(fields, key) {
   return found?.label || key;
 }
 function formatValue(v) {
-  if (Array.isArray(v)) return v.join(", ");
-  if (v && typeof v === "object") return JSON.stringify(v);
-  return v ?? "";
+  if (v == null) return "";
+  if (Array.isArray(v)) {
+    return v.map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
+  }
+  if (typeof v === "object") {
+    // For objects, render key: value pairs compactly
+    try {
+      return Object.keys(v).map((k) => `${k}: ${formatValue(v[k])}`).join("; ");
+    } catch {
+      return JSON.stringify(v);
+    }
+  }
+  return String(v);
 }
-function getPath(obj, key) {
-  // Here keys are flat (no dot path) for templateData; nested object fields are rendered as objects already
-  return (obj || {})[key];
+/**
+ * Resolve value by key supporting dotted paths ("a.b") and flat keys ("a_b") fallbacks.
+ */
+function resolveValueByKey(obj, key) {
+  if (!obj) return undefined;
+  if (!key) return undefined;
+  // Try dotted path first if present
+  if (String(key).includes(".")) {
+    const val = String(key)
+      .split(".")
+      .reduce((o, k) => (o ? o[k] : undefined), obj);
+    if (val !== undefined) return val;
+  }
+  // Fallback to flat key
+  return obj[key];
 }

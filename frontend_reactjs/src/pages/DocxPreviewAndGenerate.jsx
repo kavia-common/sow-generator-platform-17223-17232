@@ -17,12 +17,12 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
 
   const overlays = useMemo(() => {
     // compute overlays from schema fields and substitute user values for preview and export
-    const base = computeOverlaysFromFields(templateSchema?.fields || []);
+    const base = computeOverlaysFromFields((templateSchema && templateSchema.fields) ? templateSchema.fields : []);
     return base.map((ov) => {
-      const v = getPath(data?.templateData || {}, [ov.fieldKey]);
+      const v = getPath(data?.templateData || {}, ov.fieldKey);
       return {
         ...ov,
-        text: labelFromSchemaKey(templateSchema?.fields || [], ov.fieldKey) + ": " + (formatValue(v)),
+        text: labelFromSchemaKey(templateSchema?.fields || [], ov.fieldKey) + ": " + formatValue(v),
       };
     });
   }, [templateSchema, data]);
@@ -33,10 +33,19 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
   }
 
   function formatValue(v) {
-    if (Array.isArray(v)) return v.join(", ");
-    if (v && typeof v === "object") return JSON.stringify(v);
-    return v ?? "";
+    if (v == null) return "";
+    if (Array.isArray(v)) {
+      return v.map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
     }
+    if (typeof v === "object") {
+      try {
+        return Object.keys(v).map((k) => `${k}: ${formatValue(v[k])}`).join("; ");
+      } catch {
+        return JSON.stringify(v);
+      }
+    }
+    return String(v);
+  }
 
   function onGenerate() {
     // Single page dimensions (approx) for A4-like preview
@@ -121,6 +130,12 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
   );
 }
 
-function getPath(obj, path) {
-  return (path || "").split(".").reduce((o, k) => (o ? o[k] : undefined), obj || {});
+function getPath(obj, keyOrPath) {
+  if (!obj) return undefined;
+  if (!keyOrPath) return undefined;
+  const s = String(keyOrPath);
+  if (s.includes(".")) {
+    return s.split(".").reduce((o, k) => (o ? o[k] : undefined), obj);
+  }
+  return obj[s];
 }
