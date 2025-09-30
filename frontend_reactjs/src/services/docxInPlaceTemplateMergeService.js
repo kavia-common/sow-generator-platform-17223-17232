@@ -49,12 +49,13 @@ export function prepareTemplateData(templateData) {
     put(normalizeKey(k), templateData[k]);
   });
 
-  // expand authorization_signatures nested object into top-level keys if present
+  // Do not inject aliases or defaults. Only flatten known nested authorization_signatures with dotted keys,
+  // so templates that explicitly reference authorization_signatures.* can resolve. No extra aliasing.
   const auth = (templateData && templateData.authorization_signatures) || {};
   Object.keys(auth).forEach((k) => {
-    put(k, auth[k]);
-    put(`authorization_signatures.${k}`, auth[k]);
-    put(normalizeKey(k), auth[k]);
+    if (auth[k] != null) {
+      put(`authorization_signatures.${k}`, auth[k]);
+    }
   });
 
   return flat;

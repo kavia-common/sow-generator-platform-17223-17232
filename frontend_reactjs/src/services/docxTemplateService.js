@@ -1,9 +1,11 @@
 //
+//
 // PUBLIC_INTERFACE
 // DOCX Template Service: parses provided DOCX-transcript .txt files for placeholders,
-// provides a dynamic field schema, preview rendering helpers, and DOCX generation
-// that preserves original layout using background page image plus positioned overlays.
+// and provides preview rendering helpers. Overlay-based DOCX generation and any
+// auto-insertion of default fields have been removed to comply with strict template export.
 //
+
 /**
  * PUBLIC_INTERFACE
  * parseDocxTranscriptPlaceholders
@@ -40,42 +42,20 @@ export function parseDocxTranscriptPlaceholders(transcriptText, options = {}) {
     }
   }
 
-  // Always include standard Authorization signature name/date placeholders if present in transcript
-  // (robust to templates that show lines rather than [Name])
-  const authHints = [
-    { label: "Supplier — Name", key: "authorization_signatures.supplier_signature_name", type: "text" },
-    { label: "Supplier — Date", key: "authorization_signatures.supplier_signature_date", type: "date" },
-    { label: "Client — Name", key: "authorization_signatures.client_signature_name", type: "text" },
-    { label: "Client — Date", key: "authorization_signatures.client_signature_date", type: "date" }
-  ];
-  const lowerText = text.toLowerCase();
-  if (lowerText.includes("supplier:")) {
-    ensure(set, authHints[0]);
-    ensure(set, authHints[1]);
-  }
-  if (lowerText.includes("client:")) {
-    ensure(set, authHints[2]);
-    ensure(set, authHints[3]);
-  }
-
+  // Do not auto-insert any additional fields. Only return placeholders actually found in transcript.
   return { fields: Array.from(set.values()) };
 }
 
-function ensure(map, def) {
-  const k = def.key;
-  if (!map.has(k)) map.set(k, def);
-}
-
 function normalizeKey(label) {
-  // Convert to a safe camel-like key
-  return label
+  // Convert to a safe snake-like key
+  return String(label || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
 
 function inferTypeFromLabel(label) {
-  const l = label.toLowerCase();
+  const l = String(label || "").toLowerCase();
   if (l.includes("date")) return "date";
   if (l.includes("email")) return "email";
   if (l.includes("rate") || l.includes("budget") || l.includes("cost")) return "currency";
@@ -87,7 +67,7 @@ function inferTypeFromLabel(label) {
  * PUBLIC_INTERFACE
  * buildDynamicTemplateSchemaFromTranscript
  * Generate a runtime schema from a transcript for dynamic form rendering.
- * Adds signature image fields and supports top-left logo handling (in SOWForm it’s in meta.logoUrl).
+ * This is a UI helper only and does not affect export behavior.
  *
  * @param {string} transcriptText
  * @param {string} templateId
@@ -97,30 +77,8 @@ function inferTypeFromLabel(label) {
 export function buildDynamicTemplateSchemaFromTranscript(transcriptText, templateId, title) {
   const { fields } = parseDocxTranscriptPlaceholders(transcriptText);
 
-  // Lift Authorization signature entries into nested object if present
-  const outFields = [];
-  const auth = {
-    key: "authorization_signatures",
-    label: "Authorization",
-    type: "object",
-    properties: [],
-  };
-
-  fields.forEach((f) => {
-    if (f.key === "authorization_signatures.supplier_signature_name" || f.key === "authorization_signatures.supplier_signature_date" || f.key === "authorization_signatures.client_signature_name" || f.key === "authorization_signatures.client_signature_date") {
-      const k = f.key.split(".").pop();
-      auth.properties.push({ key: k, label: f.label, type: f.type });
-    } else {
-      outFields.push({ key: f.key, label: f.label, type: f.type });
-    }
-  });
-
-  if (auth.properties.length > 0) {
-    // Also add image upload fields for signatures (not parsed from transcript)
-    auth.properties.push({ key: "supplier_signature_image", label: "Supplier — Signature (image)", type: "text" });
-    auth.properties.push({ key: "client_signature_image", label: "Client — Signature (image)", type: "text" });
-    outFields.push(auth);
-  }
+  // Preserve just the discovered fields
+  const outFields = fields.map((f) => ({ key: f.key, label: f.label, type: f.type }));
 
   return {
     id: templateId,
@@ -157,226 +115,9 @@ function escapeHtml(s) {
 
 /**
  * PUBLIC_INTERFACE
- * buildDocxWithBackgroundAndOverlays
- * Build a minimal DOCX where the original page is represented by a full-page white background
- * and user-entered values are overlaid as positioned text lines, with a top-left logo.
- * This preserves the structure visually by leaving the base "page" unmodified and only writing overlays.
- *
- * @param {{pages: Array<{widthPx:number,heightPx:number}>, overlays: Array<{pageIndex:number,xPx:number,yPx:number,text:string,fontSizePx?:number}>, logoDataUrl?: string}} params
- * @returns {Object.<string, string|Uint8Array>} A map of docx zip entries to write
- */
-export function buildDocxWithBackgroundAndOverlays(params) {
-  const { pages, overlays, logoDataUrl } = params || {};
-  const rels = [];
-  const media = {};
-  let nextRid = 3; // reserve rId1 styles, rId2 numbering if needed
-
-  function dataUrlToBytes(dataUrl) {
-    const [head, b64] = String(dataUrl).split(",");
-    const match = head.match(/data:([^;]+);base64/);
-    const mime = (match && match[1]) || "image/png";
-    const ext = mime.split("/")[1] || "png";
-    const bin = atob(b64 || "");
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return { bytes, ext, mime };
-  }
-
-  function addImage(name, dataUrl) {
-    const { bytes, ext } = dataUrlToBytes(dataUrl);
-    const path = `word/media/${name}.${ext}`;
-    media[path] = bytes;
-    const id = `rId${nextRid++}`;
-    rels.push({ id, type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", target: `media/${name}.${ext}` });
-    return id;
-  }
-
-  let logoRid = null;
-  if (logoDataUrl && /^data:image\//.test(logoDataUrl)) {
-    logoRid = addImage("logo_top_left", logoDataUrl);
-  }
-
-  function pxToEmu(px) {
-    return Math.round(px * 9525);
-  }
-
-  const bodyParts = [];
-  // Helper: inline image XML block for drawings
-  function inlineImageXml(relId, widthPx, heightPx) {
-    const cx = Math.round(widthPx * 9525);
-    const cy = Math.round(heightPx * 9525);
-    return `
-<w:p>
-  <w:r>
-    <w:drawing>
-      <wp:inline distT="0" distB="0" distL="0" distR="0">
-        <wp:extent cx="${cx}" cy="${cy}"/>
-        <wp:docPr id="1" name="Picture"/>
-        <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
-            <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-              <pic:nvPicPr>
-                <pic:cNvPr id="0" name="image"/>
-                <pic:cNvPicPr/>
-              </pic:nvPicPr>
-              <pic:blipFill>
-                <a:blip r:embed="${relId}"/>
-                <a:stretch><a:fillRect/></a:stretch>
-              </pic:blipFill>
-              <pic:spPr>
-                <a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
-                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-              </pic:spPr>
-            </pic:pic>
-          </a:graphicData>
-        </a:graphic>
-      </wp:inline>
-    </w:drawing>
-  </w:r>
-</w:p>`.trim();
-  }
-
-  function escapeXml(s) {
-    return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-
-  pages.forEach((p, pageIndex) => {
-    const cx = pxToEmu(p.widthPx);
-    const cy = pxToEmu(p.heightPx);
-
-    // background: white rectangle via SVG data URL (ensures a full blank page area)
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${p.widthPx}' height='${p.heightPx}'><rect width='100%' height='100%' fill='white'/></svg>`;
-    const bg = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
-    const bgRid = addImage(`page_${pageIndex}`, bg);
-
-    const pageImg = `
-<w:p>
-  <w:r>
-    <w:drawing>
-      <wp:inline distT="0" distB="0" distL="0" distR="0">
-        <wp:extent cx="${cx}" cy="${cy}"/>
-        <wp:docPr id="${100 + pageIndex}" name="Page${pageIndex + 1}"/>
-        <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-          <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
-            <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-              <pic:nvPicPr>
-                <pic:cNvPr id="0" name="page-${pageIndex + 1}"/>
-                <pic:cNvPicPr/>
-              </pic:nvPicPr>
-              <pic:blipFill>
-                <a:blip r:embed="${bgRid}"/>
-                <a:stretch><a:fillRect/></a:stretch>
-              </pic:blipFill>
-              <pic:spPr>
-                <a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
-                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
-              </pic:spPr>
-            </pic:pic>
-          </a:graphicData>
-        </a:graphic>
-      </wp:inline>
-    </w:drawing>
-  </w:r>
-</w:p>`.trim();
-    bodyParts.push(pageImg);
-
-    if (pageIndex === 0 && logoRid) {
-      // place logo top-left
-      const lw = 160, lh = 54;
-      bodyParts.push(inlineImageXml(logoRid, lw, lh));
-    }
-
-    // overlays
-    const pageOverlays = (overlays || []).filter((o) => o.pageIndex === pageIndex);
-    pageOverlays.forEach((ov) => {
-      const fontHalfPts = Math.round((ov.fontSizePx || 12) * 2);
-      const leftTwips = Math.round((ov.xPx || 0) * 10);
-      // Simulate placement using left indent; we append line breaks to approximate y ordering
-      bodyParts.push(`
-<w:p>
-  <w:pPr>
-    <w:ind w:left="${leftTwips}"/>
-  </w:pPr>
-  <w:r><w:rPr><w:sz w:val="${fontHalfPts}"/></w:rPr><w:t>${escapeXml(ov.text || "")}</w:t></w:r>
-</w:p>`.trim());
-    });
-
-    // Section break/page size
-    bodyParts.push(`
-<w:sectPr>
-  <w:pgSz w:w="11906" w:h="16838"/>
-  <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="708" w:footer="708" w:gutter="0"/>
-  <w:cols w:space="708"/>
-  <w:docGrid w:linePitch="360"/>
-</w:sectPr>`.trim());
-  });
-
-  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
- xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
- xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
- xmlns:v="urn:schemas-microsoft-com:vml"
- xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
- xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
- xmlns:w10="urn:schemas-microsoft-com:office:word"
- xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
- xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
- xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
- xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
- xmlns:wne="http://schemas.microsoft.com/office/2006/wordml"
- xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
- mc:Ignorable="w14 wp14">
-  <w:body>
-    ${bodyParts.join("\n")}
-  </w:body>
-</w:document>`;
-
-  const files = {};
-  files["[Content_Types].xml"] = `<?xml version="1.0" encoding="UTF-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Default Extension="png" ContentType="image/png"/>
-  <Default Extension="jpg" ContentType="image/jpeg"/>
-  <Default Extension="jpeg" ContentType="image/jpeg"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-</Types>`;
-
-  files["_rels/.rels"] = `<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-
-  const relsXml = [
-    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`,
-    ...rels.map((r) => `<Relationship Id="${r.id}" Type="${r.type}" Target="${r.target}"/>`),
-  ].join("\n");
-
-  files["word/_rels/document.xml.rels"] = `<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-${relsXml}
-</Relationships>`;
-
-  files["word/document.xml"] = documentXml;
-  files["word/styles.xml"] = `<?xml version="1.0" encoding="UTF-8"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
-    <w:name w:val="Normal"/>
-    <w:qFormat/>
-  </w:style>
-</w:styles>`;
-
-  Object.keys(media).forEach((k) => (files[k] = media[k]));
-  return files;
-}
-
-/**
- * PUBLIC_INTERFACE
  * zipSync
- * Minimal ZIP writer to package the DOCX entries into a blob, without extra dependencies.
+ * Minimal ZIP writer to package arbitrary text/binary files into a blob.
+ * Retained for UI utilities, but NOT used to add content to DOCX exports.
  * @param {Object.<string, string|Uint8Array>} fileMap
  * @returns {Blob}
  */
@@ -494,35 +235,10 @@ const table = (() => {
 
 /**
  * PUBLIC_INTERFACE
- * computeOverlaysFromFields
- * Generate overlays from field list in reading order; absolute positioning not available from text transcript;
- * overlay Y positions follow their order, X is a small indent. Consumers can adjust as needed.
- *
- * @param {Array<{key:string,label:string,type:string}>} fields
- * @returns {Array<{pageIndex:number,xPx:number,yPx:number,text:string,fontSizePx:number,fieldKey:string}>}
+ * parseTranscriptToSectionedSchema
+ * Bridge to new sowTemplateParser for sectioned parsing + schema assembly.
+ * This keeps docxTemplateService as the central facade for transcript operations.
  */
-export function computeOverlaysFromFields(fields) {
-  const overlays = [];
-  let y = 80; // top padding
-  const lineH = 26;
-  (fields || []).forEach((f) => {
-    overlays.push({
-      pageIndex: 0,
-      xPx: 64,
-      yPx: y,
-      text: `${f.label}: {{${f.key}}}`,
-      fontSizePx: 12,
-      fieldKey: f.key,
-    });
-    y += lineH;
-  });
-  return overlays;
-}
-
-// PUBLIC_INTERFACE
-// parseTranscriptToSectionedSchema
-// Bridge to new sowTemplateParser for sectioned parsing + schema assembly.
-// This keeps docxTemplateService as the central facade for transcript operations.
 export async function parseTranscriptToSectionedSchema(transcriptText, templateId, title) {
   const mod = await import('./sowTemplateParser.js');
   const parsed = mod.parseSOWTranscriptToSections(transcriptText);
