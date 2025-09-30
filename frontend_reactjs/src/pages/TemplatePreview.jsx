@@ -41,23 +41,43 @@ export default function TemplatePreview({ selected, onSelect }) {
             const r = await fetch(u);
             if (r.ok) {
               const t = await r.text();
-              if (t && t.trim()) return t;
+              if (t && t.trim()) return { text: t, url: u };
             }
           } catch {}
         }
-        return "";
+        return { text: "", url: "" };
       };
 
-      const [fp, tm] = await Promise.all([tryLoad(extended.FP), tryLoad(extended.TM)]);
-      setFpText(fp || "");
-      setTmText(tm || "");
+      const [fpRes, tmRes] = await Promise.all([tryLoad(extended.FP), tryLoad(extended.TM)]);
+      const fp = fpRes.text || "";
+      const tm = tmRes.text || "";
+
+      setFpText(fp);
+      setTmText(tm);
 
       const fpSchema = fp ? buildDynamicTemplateSchemaFromTranscript(fp, "FP", "Fixed Price") : null;
       const tmSchema = tm ? buildDynamicTemplateSchemaFromTranscript(tm, "TM", "Time & Materials") : null;
       setSchemas({ FP: fpSchema, TM: tmSchema });
+
+      // If a parent selection handler exists and an active type is already chosen, immediately inform it
+      // about the detected transcript URL so it can set meta.templateDocxUrl.
+      // We only notify when we actually have a transcript.
+      try {
+        const activeType = selected === "FP" ? "FP" : selected === "TM" ? "TM" : null;
+        if (activeType && onSelect) {
+          const chosen = activeType === "FP" ? fpRes : tmRes;
+          const schema = activeType === "FP" ? fpSchema : tmSchema;
+          if (chosen && chosen.text && schema) {
+            // Notify parent about available template + source URL (for meta.templateDocxUrl)
+            onSelect(activeType, schema, chosen.text, chosen.url);
+          }
+        }
+      } catch {
+        // non-fatal
+      }
     }
     loadLatest();
-  }, []);
+  }, [selected, onSelect]);
 
   const isFP = tab === "FP";
   const docText = isFP ? fpText : tmText;
@@ -90,14 +110,35 @@ export default function TemplatePreview({ selected, onSelect }) {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => {
+          onClick={async () => {
             const schema = isFP ? schemas.FP : schemas.TM;
             const text = isFP ? fpText : tmText;
             if (!schema || !text || !text.trim()) {
               alert("This template is not available. Please attach or select a valid template transcript first.");
               return;
             }
-            onSelect?.(isFP ? "FP" : "TM", schema, text);
+
+            // Best-effort to detect the exact URL we loaded for this transcript so parent can store it.
+            let url = "";
+            try {
+              const { getLatestTemplateAttachmentPaths } = await import("../services/exactTemplateExportService.js");
+              const paths = getLatestTemplateAttachmentPaths();
+              const list = isFP ? paths.FP : paths.TM;
+              for (const u of list) {
+                try {
+                  const r = await fetch(u);
+                  if (r.ok) {
+                    const t = await r.text();
+                    if (t && t.trim() && t.trim().slice(0, 200) === text.trim().slice(0, 200)) {
+                      url = u;
+                      break;
+                    }
+                  }
+                } catch {}
+              }
+            } catch {}
+
+            onSelect?.(isFP ? "FP" : "TM", schema, text, url);
           }}
           disabled={isFP ? !schemas.FP || !fpText || !fpText.trim() : !schemas.TM || !tmText || !tmText.trim()}
           title={

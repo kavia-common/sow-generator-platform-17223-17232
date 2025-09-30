@@ -9,6 +9,8 @@ import React, { useCallback } from "react";
  *
  * Props:
  * - data: { meta?: { templateDocxUrl?: string, client?: string, title?: string }, templateData?: Record<string, any> }
+ * Notes:
+ * - meta.templateDocxUrl is set upstream on template selection/upload. If missing, UI will prompt to select/assign.
  */
 export default function DocxPreviewAndGenerate({ data }) {
   const onGenerateExact = useCallback(async () => {

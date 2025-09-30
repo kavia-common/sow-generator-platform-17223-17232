@@ -88,13 +88,39 @@ function App() {
           <>
             <TemplatePreview
               selected={selectedTemplate}
-              onSelect={(id, runtimeSchema, transcriptText) => {
-                setSelectedTemplate(id);
+              onSelect={(id, runtimeSchema, transcriptText, transcriptUrl) => {
+                // id is "FP" or "TM" when user chose explicitly from the tab; in other flows, it could be undefined
+                let appliedId = id;
+                if (!appliedId) {
+                  // Ambiguous path: ask the user which type to associate this uploaded template with
+                  const choice = window.prompt("Assign uploaded template to which type? Enter FP for Fixed Price or TM for Time & Material", "FP");
+                  const normalized = String(choice || "").toUpperCase().trim();
+                  if (normalized === "FP" || normalized === "TM") {
+                    appliedId = normalized;
+                  } else {
+                    alert("Template type not assigned. Please enter FP or TM.");
+                    return;
+                  }
+                }
+
+                setSelectedTemplate(appliedId);
                 const schema = runtimeSchema || null;
                 setSelectedTemplateSchema(schema);
+
                 setSowData((prev) => {
                   const next = scaffoldSOWFromTemplate(prev, schema);
-                  next.templateMeta = { ...(next.templateMeta || {}), transcriptText: transcriptText || "" };
+                  next.templateMeta = {
+                    ...(next.templateMeta || {}),
+                    transcriptText: transcriptText || "",
+                    selectedType: appliedId
+                  };
+                  // Critical: set the DOCX source URL to enable generation step
+                  next.meta = {
+                    ...(next.meta || {}),
+                    templateDocxUrl: transcriptUrl || (appliedId === "FP"
+                      ? "/attachments/20250930_181148_Fixed price_Supplier_SoW_Template(docx).txt"
+                      : "/attachments/20250930_181149_T&M_Supplier_SoW_Template(docx).txt")
+                  };
                   return next;
                 });
                 setCurrent("sowform");
@@ -156,6 +182,10 @@ function App() {
               ) : !(sowData?.templateMeta?.transcriptText && sowData.templateMeta.transcriptText.trim()) ? (
                 <div style={{ color: "var(--text-secondary)" }}>
                   No template content detected. Please select or upload the correct template transcript file.
+                </div>
+              ) : !sowData?.meta?.templateDocxUrl ? (
+                <div style={{ color: "var(--error)" }}>
+                  No DOCX template selected for export. Select a template in Preview and ensure it’s assigned to {selectedTemplate === "FP" ? "Fixed Price" : "T&M"}.
                 </div>
               ) : null}
             </div>
