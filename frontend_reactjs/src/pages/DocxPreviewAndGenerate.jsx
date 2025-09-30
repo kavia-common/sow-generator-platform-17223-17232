@@ -61,24 +61,35 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
     triggerDownload(blob, name);
   }
 
-  // Generate using EXACT uploaded template transcript with in-place interpolation
+  // Generate using the actual DOCX as base via docxtemplater (pixel-perfect)
   const onGenerateExact = useCallback(async () => {
     try {
+      // Determine which DOCX to load (FP/TM or provided URL)
       const tt = detectTemplateType(templateSchema);
-      const transcript = tt ? await loadTemplateTranscript(tt) : (transcriptText || "");
-      // Strict mapping: missing values return undefined so placeholders remain unchanged
-      const mapper = mapUserDataForTemplateStrict(data || {});
-      const merged = interpolateTranscriptStrict(transcript, mapper);
+      const { getLatestTemplateAttachmentPaths } = await import("../services/exactTemplateExportService.js");
+      const { loadDocxArrayBuffer, prepareTemplateData, mergeDocxWithData } = await import("../services/docxInPlaceTemplateMergeService.js");
 
-      const files = generateDocxFromTranscriptLines(merged, { logoDataUrl: data?.meta?.logoUrl || "" });
-      const blob = zipExactZip(files);
+      // In our current setup, attachments folder contains .txt (transcripts). For pixel-perfect, we require the actual .docx.
+      // If your UI uploads/holds a docx URL in data.meta.templateDocxUrl, prefer that. Otherwise, we cannot fetch a .docx from transcript,
+      // so this path expects data.meta.templateDocxUrl to be present.
+      const templateDocxUrl = data?.meta?.templateDocxUrl || null;
+      if (!templateDocxUrl) {
+        alert("No DOCX template file available. Please upload or provide meta.templateDocxUrl to export the exact template.");
+        return;
+      }
+
+      const ab = await loadDocxArrayBuffer(templateDocxUrl);
+
+      // Prepare data map for tags (only matching tags are replaced)
+      const dataMap = prepareTemplateData(data?.templateData || {});
+      const blob = mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true });
 
       const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
       triggerDownload(blob, name);
     } catch (e) {
-      alert(`Failed to generate DOCX from template: ${e?.message || e}`);
+      alert(`Failed to generate DOCX from exact template: ${e?.message || e}`);
     }
-  }, [templateSchema, data, transcriptText]);
+  }, [templateSchema, data]);
 
   function triggerDownload(blob, filename) {
     const link = document.createElement("a");
