@@ -3,7 +3,9 @@ import React from "react";
 /**
  * PUBLIC_INTERFACE
  * ExportWord
- * Builds a minimal .docx (Word) file client-side including headings, paragraphs, bullet lists,
+ * Legacy/manual layout generator (optional).
+ * Primary export path is the Preview & Generate screen, which uses the user-provided template with in-place interpolation.
+ * This component builds a minimal .docx (Word) file client-side including headings, paragraphs, bullet lists,
  * and embedded images for logo and signatures (Supplier and Client). No external libraries.
  *
  * Props:

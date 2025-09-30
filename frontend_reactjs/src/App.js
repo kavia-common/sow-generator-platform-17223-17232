@@ -12,7 +12,7 @@ import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
 import ExportWord from "./pages/ExportWord";
 import DocxPreviewAndGenerate from "./pages/DocxPreviewAndGenerate";
-import ReviewScreen from "./pages/ReviewScreen";
+
 import { scaffoldSOWFromTemplate } from "./templates"; // kept for base scaffolding if needed
 
 // PUBLIC_INTERFACE
@@ -128,20 +128,11 @@ function App() {
               templateSchema={selectedTemplateSchema}
             />
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button className="btn btn-primary" type="button" onClick={() => setCurrent("review")}>Review</button>
+              <button className="btn btn-primary" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
             </div>
           </>
         );
-      case "review":
-        return (
-          <ReviewScreen
-            data={sowData}
-            templateSchema={selectedTemplateSchema}
-            transcriptText={sowData?.templateMeta?.transcriptText || ""}
-            onEdit={() => setCurrent("sowform")}
-            onConfirm={() => setCurrent("preview")}
-          />
-        );
+
       case "preview":
         return (
           <DocxPreviewAndGenerate
@@ -186,7 +177,7 @@ function App() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
               <button className="btn" type="button" onClick={() => setCurrent("template")}>Template</button>
               <button className="btn" type="button" onClick={() => setCurrent("sowform")}>Form</button>
-              <button className="btn" type="button" onClick={() => setCurrent("review")}>Review</button>
+
               <button className="btn" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
               <button className="btn" type="button" onClick={() => setCurrent("export")}>Export (.docx)</button>
               <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Reset</button>
