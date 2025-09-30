@@ -137,6 +137,9 @@ body {
   padding: 12px;
   box-shadow: var(--glow-purple);
 }
+embed[type="application/pdf"] {
+  background: #fff;
+}
 
 /* Responsive */
 @media (max-width: 980px){

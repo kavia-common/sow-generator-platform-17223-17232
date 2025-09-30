@@ -13,6 +13,7 @@ import AIChatWidget from "./components/AIChatWizard";
 import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
 import ExportWord from "./pages/ExportWord";
+import PDFTemplateSOW from "./pages/PDFTemplateSOW";
 import { getSOWTemplateSchema, scaffoldSOWFromTemplate } from "./templates";
 
 // PUBLIC_INTERFACE
@@ -151,6 +152,8 @@ function App() {
             onDraft={setDraft}
           />
         );
+      case "pdfSow":
+        return <PDFTemplateSOW />;
       case "review":
         return (
           <ReviewEdit
