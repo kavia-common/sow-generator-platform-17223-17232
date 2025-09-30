@@ -7,7 +7,7 @@ Elegant React UI for creating Statements of Work:
 - FP / T&M template selection
 - AI prompt panel as in-page right slide-over with right-side launcher icon
 - Review & edit
-- Export as Word (.docx) following the SOW template (headings, paragraphs, bullet lists)
+- Export as Word (.docx) using ONLY the provided DOCX template transcript: user data replaces matching placeholders in-place; unfilled placeholders remain unchanged; no extra fields, sections, or layout changes are added.
 
 IMPORTANT: OpenAI is not supported in this deployment. The AI features use only the local backend_express endpoints.
 

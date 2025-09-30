@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from "react";
 import { computeOverlaysFromFields, buildDocxWithBackgroundAndOverlays, zipSync as zipPreviewZip, makeTranscriptPreviewHtml } from "../services/docxTemplateService";
-import { loadTemplateTranscript, interpolateTranscript, generateExactDocxFromTranscript, zipSync as zipExactZip, mapUserDataForTemplate } from "../services/exactTemplateExportService";
+import { loadTemplateTranscript, interpolateTranscriptStrict, generateDocxFromTranscriptLines, zipSync as zipExactZip, mapUserDataForTemplateStrict } from "../services/strictDocxTemplateMergeService";
 
 /**
  * PUBLIC_INTERFACE
@@ -64,19 +64,18 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
   // Generate using EXACT uploaded template transcript with in-place interpolation
   const onGenerateExact = useCallback(async () => {
     try {
-      // Detect which template to load based on templateSchema id/title heuristics
       const tt = detectTemplateType(templateSchema);
       const transcript = tt ? await loadTemplateTranscript(tt) : (transcriptText || "");
-      const mapper = mapUserDataForTemplate(data || {});
-      const merged = interpolateTranscript(transcript, mapper);
+      // Strict mapping: missing values return undefined so placeholders remain unchanged
+      const mapper = mapUserDataForTemplateStrict(data || {});
+      const merged = interpolateTranscriptStrict(transcript, mapper);
 
-      const files = generateExactDocxFromTranscript(merged, { logoDataUrl: data?.meta?.logoUrl || "" });
+      const files = generateDocxFromTranscriptLines(merged, { logoDataUrl: data?.meta?.logoUrl || "" });
       const blob = zipExactZip(files);
 
       const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
       triggerDownload(blob, name);
     } catch (e) {
-      // eslint-disable-next-line no-alert
       alert(`Failed to generate DOCX from template: ${e?.message || e}`);
     }
   }, [templateSchema, data, transcriptText]);
