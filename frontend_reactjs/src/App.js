@@ -13,35 +13,21 @@ import SOWForm from "./pages/SOWForm";
 import ExportWord from "./pages/ExportWord";
 import DocxPreviewAndGenerate from "./pages/DocxPreviewAndGenerate";
 
-import { scaffoldSOWFromTemplate } from "./templates"; // kept for base scaffolding if needed
-import { hasUserTemplate } from "./services/templateStorage";
+import tmParsed from "./templates/parsed/tm_template_parsed.json";
+import fpParsed from "./templates/parsed/fixed_price_template_parsed.json";
 
 // PUBLIC_INTERFACE
 function App() {
   // Stage and step
   const [stage, setStage] = useState("landing"); // landing | builder
-  const [current, setCurrent] = useState("template"); // template | sowform | export
+  const [current, setCurrent] = useState("template"); // template | sowform | preview | export
 
-  // Selections
-  const [templates] = useState([
-    { id: "FP", name: "Fixed Price" },
-    { id: "TM", name: "Time & Material" },
-  ]);
+  // Selected SOW type: "FP" | "TM"
   const [selectedTemplate, setSelectedTemplate] = useState("");
-  const [selectedTemplateSchema, setSelectedTemplateSchema] = useState(null);
 
-  // Unified SOW JSON (holds meta/logo/signature & dynamic templateData)
+  // Unified SOW JSON (only meta and templateData are relevant to export; other sections are retained for compatibility but not rendered now)
   const [sowData, setSowData] = useState({
-    meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "", signatureUrl: "" },
-    background: { project_background: "", business_problem: "", objectives: "", success_criteria: "" },
-    scope: { in_scope: [], out_of_scope: [], assumptions: [], constraints: [], dependencies: [] },
-    deliverables: { items: [], milestones: [], timeline: [], acceptance_criteria: "" },
-    roles: { sponsor: "", pm: "", tech_lead: "", team: [], client_responsibilities: "" },
-    approach: { solution_overview: "", tech_stack: [], data_sources: [], security: "", qa_strategy: "" },
-    governance: { comm_plan: "", reporting: "", meetings: "", risk_mgmt: "", change_control: "" },
-    commercials: { pricing_model: "", budget: "", payment_terms: "", invoicing: "" },
-    legal: { confidentiality: "", ip: "", sla: "", termination: "", warranties: "" },
-    signoff: { signatories: [], date: "" },
+    meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "", signatureUrl: "", sowType: "", templateDocxUrl: "" },
     templateMeta: null,
     templateData: {}
   });
@@ -62,71 +48,44 @@ function App() {
   );
 
   const onRefreshAll = () => {
-    // Clear all inputs and reset to template selection
     setSowData({
-      meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "", signatureUrl: "" },
-      background: { project_background: "", business_problem: "", objectives: "", success_criteria: "" },
-      scope: { in_scope: [], out_of_scope: [], assumptions: [], constraints: [], dependencies: [] },
-      deliverables: { items: [], milestones: [], timeline: [], acceptance_criteria: "" },
-      roles: { sponsor: "", pm: "", tech_lead: "", team: [], client_responsibilities: "" },
-      approach: { solution_overview: "", tech_stack: [], data_sources: [], security: "", qa_strategy: "" },
-      governance: { comm_plan: "", reporting: "", meetings: "", risk_mgmt: "", change_control: "" },
-      commercials: { pricing_model: "", budget: "", payment_terms: "", invoicing: "" },
-      legal: { confidentiality: "", ip: "", sla: "", termination: "", warranties: "" },
-      signoff: { signatories: [], date: "" },
+      meta: { title: "", client: "", date: "", version: "", prepared_by: "", stakeholders: [], logoUrl: "", logoName: "", signatureUrl: "", sowType: "", templateDocxUrl: "" },
       templateMeta: null,
       templateData: {}
     });
     setSelectedTemplate("");
-    setSelectedTemplateSchema(null);
     setCurrent("template");
   };
+
+  // Derive schema from parsed JSONs strictly by selectedTemplate
+  const selectedTemplateSchema = useMemo(() => {
+    if (selectedTemplate === "TM") return tmParsed?.parsed || null;
+    if (selectedTemplate === "FP") return fpParsed?.parsed || null;
+    return null;
+  }, [selectedTemplate]);
+
+  // When selectedTemplate changes, set meta.sowType and internal template docx URL hint
+  useEffect(() => {
+    async function syncDocxUrl() {
+      const { getBundledTemplateInfoByType } = await import("./services/bundledTemplates.js");
+      const info = getBundledTemplateInfoByType(selectedTemplate);
+      setSowData(prev => {
+        const next = { ...(prev || {}) };
+        next.meta = { ...(next.meta || {}) };
+        next.meta.sowType = selectedTemplate || "";
+        next.meta.templateDocxUrl = info?.docxUrl || "";
+        return next;
+      });
+    }
+    if (selectedTemplate) syncDocxUrl();
+  }, [selectedTemplate]);
 
   const renderStep = () => {
     switch (current) {
       case "template":
         return (
           <>
-            <TemplatePreview
-              selected={selectedTemplate}
-              onSelect={(id, runtimeSchema, transcriptText, transcriptUrl) => {
-                // id is "FP" or "TM" when user chose explicitly from the tab; in other flows, it could be undefined
-                let appliedId = id;
-                if (!appliedId) {
-                  // Ambiguous path: ask the user which type to associate this uploaded template with
-                  const choice = window.prompt("Assign uploaded template to which type? Enter FP for Fixed Price or TM for Time & Material", "FP");
-                  const normalized = String(choice || "").toUpperCase().trim();
-                  if (normalized === "FP" || normalized === "TM") {
-                    appliedId = normalized;
-                  } else {
-                    alert("Template type not assigned. Please enter FP or TM.");
-                    return;
-                  }
-                }
-
-                setSelectedTemplate(appliedId);
-                const schema = runtimeSchema || null;
-                setSelectedTemplateSchema(schema);
-
-                setSowData((prev) => {
-                  const next = scaffoldSOWFromTemplate(prev, schema);
-                  next.templateMeta = {
-                    ...(next.templateMeta || {}),
-                    transcriptText: transcriptText || "",
-                    selectedType: appliedId
-                  };
-                  // Critical: set the DOCX source URL to enable generation step
-                  next.meta = {
-                    ...(next.meta || {}),
-                    templateDocxUrl: transcriptUrl || (appliedId === "FP"
-                      ? "/attachments/20250930_181148_Fixed price_Supplier_SoW_Template(docx).txt"
-                      : "/attachments/20250930_181149_T&M_Supplier_SoW_Template(docx).txt")
-                  };
-                  return next;
-                });
-                setCurrent("sowform");
-              }}
-            />
+            <TemplatePreview />
             <div className="panel" style={{ marginTop: 12 }}>
               <TemplateSelect
                 selected={selectedTemplate}
@@ -159,50 +118,21 @@ function App() {
                 className="btn btn-primary"
                 type="button"
                 onClick={() => setCurrent("preview")}
-                disabled={
-                  !selectedTemplate ||
-                  !selectedTemplateSchema ||
-                  !(sowData?.templateMeta?.transcriptText && sowData.templateMeta.transcriptText.trim())
-                }
-                title={
-                  !selectedTemplate
-                    ? "Please select T&M or Fixed Price first."
-                    : !selectedTemplateSchema
-                    ? "Template fields are not loaded. Select a template from Preview Templates."
-                    : !(sowData?.templateMeta?.transcriptText && sowData.templateMeta.transcriptText.trim())
-                    ? "Template source is missing. Select or attach a template to continue."
-                    : "Preview & Generate"
-                }
+                disabled={!selectedTemplate || !selectedTemplateSchema}
+                title={!selectedTemplate ? "Please select T&M or Fixed Price first." : !selectedTemplateSchema ? "Template fields are not available." : "Preview & Generate"}
               >
                 Preview & Generate
               </button>
-              {(!selectedTemplate || !selectedTemplateSchema) ? (
-                <div style={{ color: "var(--text-secondary)" }}>
-                  Select a template above to load its fields. Choose "Fixed Price" or "T&M" in Preview Templates.
-                </div>
-              ) : !(sowData?.templateMeta?.transcriptText && sowData.templateMeta.transcriptText.trim()) ? (
-                <div style={{ color: "var(--text-secondary)" }}>
-                  No template content detected. Please select or upload the correct template transcript file.
-                </div>
-              ) : !sowData?.meta?.templateDocxUrl ? (
-                <div style={{ color: "var(--error)" }}>
-                  No DOCX template selected for export. Select a template in Preview and ensure it’s assigned to {selectedTemplate === "FP" ? "Fixed Price" : "T&M"}.
-                </div>
-              ) : null}
             </div>
           </>
         );
-
       case "preview":
         return (
           <DocxPreviewAndGenerate
-            transcriptText={sowData?.templateMeta?.transcriptText || ""}
-            templateSchema={selectedTemplateSchema}
             data={sowData}
           />
         );
       case "export":
-        // Keep legacy export as an optional path if needed
         return <ExportWord value={sowData} meta={meta} />;
       default:
         return null;
@@ -220,18 +150,9 @@ function App() {
       <BackgroundWaves />
       <div className="app-shell">
         <GlassHeader
-          templates={templates}
-          selectedTemplate={selectedTemplate}
-          onTemplateChange={(id) => {
-            setSelectedTemplate(id);
-            setCurrent("sowform");
-          }}
           onSaveDraft={() => {
             localStorage.setItem("sow-data", JSON.stringify(sowData));
             alert("Draft saved locally.");
-          }}
-          onTemplateUploaded={(type, file) => {
-            alert(`Template uploaded for ${type}. Future exports for this type will use your uploaded DOCX (${file?.name || "file"}).`);
           }}
         />
         <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
@@ -240,7 +161,6 @@ function App() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
               <button className="btn" type="button" onClick={() => setCurrent("template")}>Template</button>
               <button className="btn" type="button" onClick={() => setCurrent("sowform")}>Form</button>
-
               <button className="btn" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
               <button className="btn" type="button" onClick={() => setCurrent("export")}>Export (.docx)</button>
               <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Reset</button>
@@ -250,7 +170,6 @@ function App() {
         </div>
       </div>
 
-      {/* Right-side floating AI icon that opens the in-page prompt panel */}
       <AIChatWidget
         projectTitle={currentProjectName}
         position="right"

@@ -3,56 +3,38 @@ import React, { useCallback } from "react";
 /**
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
- * Generates a .docx using bundled .docx by SOW type; if missing, falls back to transcript-rendered .docx.
+ * Generates a .docx using the internal bundled .docx by SOW type; if missing, falls back to transcript-rendered .docx.
  * Placeholders are replaced with provided values; unfilled remain unchanged.
  *
  * Props:
- * - data: { meta?: { templateDocxUrl?: string, client?: string, title?: string, sowType?: "TM"|"FP" }, templateData?: Record<string, any> }
+ * - data: { meta?: { client?: string, title?: string, sowType?: "TM"|"FP", templateDocxUrl?: string, logoUrl?: string }, templateData?: Record<string, any> }
  */
 export default function DocxPreviewAndGenerate({ data }) {
-  const onGenerateExact = useCallback(async () => {
+  const onGenerate = useCallback(async () => {
     try {
       const { loadDocxArrayBuffer, prepareTemplateData, mergeDocxWithData } = await import("../services/docxInPlaceTemplateMergeService.js");
-      const { ensureSampleDocxIfMissing } = await import("../services/bundledTemplates.js");
-      const { hasUserTemplate, getUserTemplateBlob } = await import("../services/templateStorage.js");
+      const { ensureSampleDocxIfMissing, getBundledTemplateInfoByType } = await import("../services/bundledTemplates.js");
 
-      // Determine selected type (prefer explicit selection from App state).
-      const explicitType = data?.templateMeta?.selectedType || data?.meta?.sowType || null;
-      const inferType = explicitType || (data?.templateMeta?.id?.includes("TM") ? "TM" : data?.templateMeta?.id?.includes("FIXED") ? "FP" : null);
-      const sowType = inferType === "FP" || inferType === "TM" ? inferType : null;
+      // Determine SOW type explicitly from App state/meta
+      const sowType = (data?.meta?.sowType === "FP" || data?.meta?.sowType === "TM") ? data.meta.sowType : "FP";
+      const bundle = getBundledTemplateInfoByType(sowType);
 
-      // 1) If user uploaded a template for this type, always use it.
-      if (sowType && hasUserTemplate(sowType)) {
-        const userBlob = getUserTemplateBlob(sowType);
-        if (userBlob) {
-          const ab = await userBlob.arrayBuffer();
-          const dataMap = prepareTemplateData(data?.templateData || {});
-          const out = mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true });
-          const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
-          triggerDownload(out, name);
-          return;
-        }
-      }
-
-      // 2) Else try bundled for the type (or fallback to transcript-generated)
-      const probe = await ensureSampleDocxIfMissing(sowType || (data?.meta?.templateDocxUrl ? null : null), data);
+      // Probe for bundled .docx, or build fallback from transcript
+      const probe = await ensureSampleDocxIfMissing(sowType, data);
       if (probe && probe.ok && probe.kind === "fallback" && probe.blob) {
         const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
         triggerDownload(probe.blob, name);
-        if (!data?.meta?.templateDocxUrl) {
-          setTimeout(() => alert("Bundled .docx not found. Generated using transcript fallback."), 0);
-        }
         return;
       }
 
-      // 3) If bundled is present, or meta.templateDocxUrl is set, then merge with docxtemplater
-      const templateDocxUrl = (probe && probe.ok && probe.url) || data?.meta?.templateDocxUrl || null;
+      const templateDocxUrl = (probe && probe.ok && probe.url) || bundle?.docxUrl || data?.meta?.templateDocxUrl || null;
       if (!templateDocxUrl) {
-        alert("No bundled .docx available for the selected type, and no .docx provided. Please upload a template or contact support.");
+        alert("No bundled .docx available for the selected type. Please contact support.");
         return;
       }
+
       const ab = await loadDocxArrayBuffer(templateDocxUrl);
-      const dataMap = prepareTemplateData(data?.templateData || {});
+      const dataMap = prepareTemplateData(data?.templateData || {}, { logoDataUrl: data?.meta?.logoUrl });
       const blob = mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true });
 
       const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
@@ -60,7 +42,7 @@ export default function DocxPreviewAndGenerate({ data }) {
     } catch (e) {
       const msg = String(e?.message || e || "");
       if (msg.includes("end of central directory") || msg.toLowerCase().includes("zip")) {
-        alert("Failed to generate DOCX: The bundled/selected file is not a valid DOCX (zip) package.");
+        alert("Failed to generate DOCX: The internal template file is not a valid DOCX (zip) package.");
       } else {
         alert(`Failed to generate DOCX from template: ${msg}`);
       }
@@ -86,20 +68,14 @@ export default function DocxPreviewAndGenerate({ data }) {
         <button
           className="btn btn-primary"
           type="button"
-          onClick={onGenerateExact}
-          disabled={!data?.meta?.templateDocxUrl}
-          title={data?.meta?.templateDocxUrl ? "Generate DOCX" : "Attach or select a DOCX template to enable generation"}
+          onClick={onGenerate}
+          title="Generate DOCX using the internal template for your selected SOW type"
         >
-          Generate DOCX (Exact Uploaded Template)
+          Generate DOCX
         </button>
         <div style={{ color: "var(--text-secondary)" }}>
-          Uses only your uploaded template file. Only your entered values replace placeholders. Nothing else is added.
+          Uses the internal {data?.meta?.sowType === "TM" ? "T&M" : "Fixed Price"} template. Your inputs and images (logo/signature) are merged into the document.
         </div>
-        {!data?.meta?.templateDocxUrl ? (
-          <div style={{ color: "var(--error)", fontSize: 13 }}>
-            No DOCX template selected. Please upload/select the correct template file to proceed.
-          </div>
-        ) : null}
       </div>
     </div>
   );

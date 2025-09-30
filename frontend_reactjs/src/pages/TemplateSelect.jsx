@@ -1,22 +1,21 @@
-import React, { useMemo } from "react";
-import { getActiveTemplateInfo } from "../services/templateStorage";
+import React from "react";
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * TemplateSelect
+ * Minimal chooser for Statement of Work type: Fixed Price (FP) or Time & Materials (TM).
+ * No upload or external selection is supported; the app uses internal templates.
+ */
 export default function TemplateSelect({ selected, onChange }) {
-  /** Choose SOW template between Fixed Price (FP) and Time & Material (T&M) */
-  const fpInfo = useMemo(() => getActiveTemplateInfo("FP"), []);
-  const tmInfo = useMemo(() => getActiveTemplateInfo("TM"), []);
   const opts = [
-    { id: "FP", title: "Fixed Price (FP)", desc: fpInfo.source === "user" ? "Using your uploaded DOCX template." : "Using bundled/default DOCX." },
-    { id: "TM", title: "Time & Material (T&M)", desc: tmInfo.source === "user" ? "Using your uploaded DOCX template." : "Using bundled/default DOCX." },
+    { id: "FP", title: "Fixed Price (FP)", desc: "Uses the internal Fixed Price SOW template." },
+    { id: "TM", title: "Time & Material (T&M)", desc: "Uses the internal T&M SOW template." },
   ];
+
   return (
     <div className="panel">
-      <div className="panel-title">Choose Template</div>
+      <div className="panel-title">SOW Type</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div style={{ gridColumn: "1 / -1", color: "var(--text-secondary)", marginBottom: 4 }}>
-          Selecting a template controls which SOW form fields you will see. The corresponding bundled .docx will be auto-selected for generation.
-        </div>
         {opts.map((o) => {
           const active = selected === o.id;
           return (
@@ -35,10 +34,6 @@ export default function TemplateSelect({ selected, onChange }) {
             >
               <div style={{ fontWeight: 800, marginBottom: 6, color: "var(--text-primary)" }}>{o.title}</div>
               <div style={{ color: "var(--text-secondary)" }}>{o.desc}</div>
-              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <span className="btn" style={{ pointerEvents: "none" }}>Preview above</span>
-                <span className="btn" style={{ pointerEvents: "none" }}>Select to continue</span>
-              </div>
             </button>
           );
         })}
