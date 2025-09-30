@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
-import { computeOverlaysFromFields, buildDocxWithBackgroundAndOverlays, zipSync, makeTranscriptPreviewHtml } from "../services/docxTemplateService";
+import React, { useMemo, useCallback } from "react";
+import { computeOverlaysFromFields, buildDocxWithBackgroundAndOverlays, zipSync as zipPreviewZip, makeTranscriptPreviewHtml } from "../services/docxTemplateService";
+import { loadTemplateTranscript, interpolateTranscript, generateExactDocxFromTranscript, zipSync as zipExactZip, mapUserDataForTemplate } from "../services/exactTemplateExportService";
 
 /**
  * PUBLIC_INTERFACE
@@ -47,25 +48,58 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
     return String(v);
   }
 
-  function onGenerate() {
-    // Single page dimensions (approx) for A4-like preview
+  // Generate using preview overlays (legacy visual approximation, kept for on-screen preview)
+  function onGeneratePreviewOverlay() {
     const pages = [{ widthPx: 794, heightPx: 1123 }];
     const files = buildDocxWithBackgroundAndOverlays({
       pages,
       overlays,
       logoDataUrl: data?.meta?.logoUrl || ""
     });
-    const blob = zipSync(files);
+    const blob = zipPreviewZip(files);
     const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
+    triggerDownload(blob, name);
+  }
+
+  // Generate using EXACT uploaded template transcript with in-place interpolation
+  const onGenerateExact = useCallback(async () => {
+    try {
+      // Detect which template to load based on templateSchema id/title heuristics
+      const tt = detectTemplateType(templateSchema);
+      const transcript = tt ? await loadTemplateTranscript(tt) : (transcriptText || "");
+      const mapper = mapUserDataForTemplate(data || {});
+      const merged = interpolateTranscript(transcript, mapper);
+
+      const files = generateExactDocxFromTranscript(merged, { logoDataUrl: data?.meta?.logoUrl || "" });
+      const blob = zipExactZip(files);
+
+      const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
+      triggerDownload(blob, name);
+    } catch (e) {
+      // eslint-disable-next-line no-alert
+      alert(`Failed to generate DOCX from template: ${e?.message || e}`);
+    }
+  }, [templateSchema, data, transcriptText]);
+
+  function triggerDownload(blob, filename) {
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = name;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     requestAnimationFrame(() => {
       URL.revokeObjectURL(link.href);
       link.remove();
     });
+  }
+
+  function detectTemplateType(schema) {
+    const id = (schema && schema.id) || "";
+    const title = (schema && schema.title) || "";
+    const t = `${id} ${title}`.toLowerCase();
+    if (t.includes("fixed")) return "FP";
+    if (t.includes("t&m") || t.includes("time") || t.includes("tm")) return "TM";
+    return null;
   }
 
   return (
@@ -120,10 +154,11 @@ export default function DocxPreviewAndGenerate({ transcriptText, templateSchema,
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button className="btn btn-primary" type="button" onClick={onGenerate}>Generate DOCX</button>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        <button className="btn btn-primary" type="button" onClick={onGenerateExact}>Generate DOCX (Exact Template)</button>
+        <button className="btn" type="button" onClick={onGeneratePreviewOverlay} title="Optional, for visual approximation preview only">Generate DOCX (Preview Overlay)</button>
         <div style={{ color: "var(--text-secondary)" }}>
-          This will merge your entries into the original template layout. Only .docx output is produced; no PDF or draft output.
+          The Exact Template option uses ONLY the provided template and replaces placeholders in-place.
         </div>
       </div>
     </div>

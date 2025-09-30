@@ -15,24 +15,31 @@ export default function TemplatePreview({ selected, onSelect }) {
   const [schemas, setSchemas] = useState({ FP: null, TM: null });
 
   useEffect(() => {
-    // Load the latest provided attachments from public path.
-    // These files were copied to public/attachments by the setup process.
-    Promise.all([
-      fetch("/attachments/20250930_035346_Fixed%20price_Supplier_SoW_Template(docx).txt").then((r) => (r.ok ? r.text() : "")),
-      fetch("/attachments/20250930_035345_T&M_Supplier_SoW_Template(docx).txt").then((r) => (r.ok ? r.text() : "")),
-    ])
-      .then(([fp, tm]) => {
-        setFpText(fp || "Unable to load Fixed Price template preview.");
-        setTmText(tm || "Unable to load T&M template preview.");
-        // Pre-build runtime schemas for both
-        const fpSchema = buildDynamicTemplateSchemaFromTranscript(fp, "FP", "Fixed Price");
-        const tmSchema = buildDynamicTemplateSchemaFromTranscript(tm, "TM", "Time & Materials");
-        setSchemas({ FP: fpSchema, TM: tmSchema });
-      })
-      .catch(() => {
-        setFpText("Unable to load Fixed Price template preview.");
-        setTmText("Unable to load T&M template preview.");
-      });
+    async function loadLatest() {
+      const { getLatestTemplateAttachmentPaths } = await import("../services/exactTemplateExportService.js");
+      const paths = getLatestTemplateAttachmentPaths();
+      const tryLoad = async (list) => {
+        for (const u of list) {
+          try {
+            const r = await fetch(u);
+            if (r.ok) {
+              const t = await r.text();
+              if (t && t.trim()) return t;
+            }
+          } catch {}
+        }
+        return "";
+      };
+
+      const [fp, tm] = await Promise.all([tryLoad(paths.FP), tryLoad(paths.TM)]);
+      setFpText(fp || "Unable to load Fixed Price template preview.");
+      setTmText(tm || "Unable to load T&M template preview.");
+
+      const fpSchema = buildDynamicTemplateSchemaFromTranscript(fp, "FP", "Fixed Price");
+      const tmSchema = buildDynamicTemplateSchemaFromTranscript(tm, "TM", "Time & Materials");
+      setSchemas({ FP: fpSchema, TM: tmSchema });
+    }
+    loadLatest();
   }, []);
 
   const isFP = tab === "FP";
