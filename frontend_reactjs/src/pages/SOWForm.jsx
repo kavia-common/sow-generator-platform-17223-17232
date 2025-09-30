@@ -1,58 +1,59 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import tmParsed from "../templates/parsed/tm_template_parsed.json";
+import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
 
 /**
  * PUBLIC_INTERFACE
  * SOWForm
- * Interactive data collection strictly based on detected placeholders from the selected DOCX template
- * (via templateSchema fields). Includes logo upload and separate Supplier & Client signature fields.
+ * Renders ONLY template-driven fields, dynamically grouped by sections, based on the selected template.
+ * Supports single-line, multi-line, object groups, lists, tables, checkboxes, uploads, and signatures.
+ *
+ * Props:
+ * - value: current SOW JSON { meta?, templateMeta?, templateData? }
+ * - onChange: (next) => void
+ * - selectedTemplate: "TM" | "FP"
+ * - templateSchema: Optional external schema; if not provided, we use parsed JSONs for the chosen template
  */
 export default function SOWForm({ value, onChange, selectedTemplate, templateSchema }) {
   const [data, setData] = useState(
     value || {
       meta: {
-        title: "",
-        client: "",
-        date: "",
-        version: "",
-        prepared_by: "",
-        stakeholders: [],
+        // Keep only minimal non-template meta needed in UI (logo for preview/export)
         logoUrl: "",
-        logoName: "",
-        // backward-compat field
-        signatureUrl: "",
-        // explicit signature URLs
-        supplierSignatureUrl: "",
-        clientSignatureUrl: ""
+        logoName: ""
       },
       templateMeta: value?.templateMeta || null,
       templateData: value?.templateData || {}
     }
   );
 
+  // Emit updates upward
   useEffect(() => {
     onChange?.(data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  // Sync local when parent value updates (e.g., after selecting a template)
+  // Sync from parent
   useEffect(() => {
     if (value) setData(value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
+
+  // Resolve sections/fields from parsed templates if templateSchema is not provided
+  const activeParsed = useMemo(() => {
+    if (templateSchema?.sections) return templateSchema; // already in grouped form
+    if (selectedTemplate === "TM") return tmParsed?.parsed || null;
+    if (selectedTemplate === "FP") return fpParsed?.parsed || null;
+    return null;
+  }, [templateSchema, selectedTemplate]);
+
+  const sections = activeParsed?.sections || [];
 
   const setTemplateField = (path, v) => {
     setData((prev) => {
       const next = structuredClone(prev);
       if (!next.templateData) next.templateData = {};
       setPath(next.templateData, path, v);
-      return next;
-    });
-  };
-
-  const setField = (path, v) => {
-    setData((prev) => {
-      const next = structuredClone(prev);
-      setPath(next, path, v);
       return next;
     });
   };
@@ -65,7 +66,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     reader.onload = () => {
       setData((prev) => ({
         ...prev,
-        meta: { ...prev.meta, logoUrl: reader.result, logoName: file.name }
+        meta: { ...(prev.meta || {}), logoUrl: reader.result, logoName: file.name }
       }));
     };
     reader.readAsDataURL(file);
@@ -79,56 +80,53 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
 
   return (
     <div className="panel">
-      <div className="panel-title">SOW Input — Only Template Fields</div>
+      <div className="panel-title">SOW Form</div>
 
-      {/* Meta essentials and logo */}
+      {/* Logo only (non-template meta retained) */}
       <div className="form-grid">
-        <div className="form-control">
-          <label className="label">Project Title</label>
-          <input className="input" value={data.meta.title} onChange={(e) => setField(["meta","title"], e.target.value)} placeholder="Project Phoenix" />
-        </div>
-        <div className="form-control">
-          <label className="label">Client / Organization</label>
-          <input className="input" value={data.meta.client} onChange={(e) => setField(["meta","client"], e.target.value)} placeholder="Acme Corp." />
-        </div>
-        <div className="form-control">
-          <label className="label">Date</label>
-          <input className="input" type="date" value={data.meta.date} onChange={(e) => setField(["meta","date"], e.target.value)} />
-        </div>
-
         <div className="form-control" style={{ gridColumn: "1 / -1" }}>
           <label className="label">Logo Upload</label>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button className="btn" type="button" onClick={() => logoInputRef.current?.click()}>Choose Logo</button>
             <input ref={logoInputRef} type="file" accept="image/*" onChange={onLogoPick} style={{ display: "none" }} />
-            <div style={{ color: "var(--text-secondary)" }}>{data.meta.logoName || "No file selected"}</div>
+            <div style={{ color: "var(--text-secondary)" }}>{data?.meta?.logoName || "No file selected"}</div>
             {logoPreview}
           </div>
         </div>
       </div>
 
-      {templateSchema ? (
-        <Section title={`Template Specific Fields — ${templateSchema.title}`}>
-          <div style={{ gridColumn: "1 / -1", color: "var(--text-secondary)", marginBottom: 8 }}>
-            Selected Template: {selectedTemplate || templateSchema.id}
-          </div>
-          {(templateSchema.fields || []).map((f) => (
-            <DynamicTemplateField
-              key={f.key}
-              field={f}
-              value={getPath(data.templateData || {}, [f.key])}
-              onChange={(v) => setTemplateField([f.key], v)}
-            />
-          ))}
-        </Section>
-      ) : (
+      {!sections.length ? (
         <div className="panel" style={{ marginTop: 12 }}>
           <div className="panel-title">No template selected</div>
-          <div style={{ color: "var(--text-secondary)" }}>Please select a template to display its fields.</div>
+          <div style={{ color: "var(--text-secondary)" }}>
+            Please select a template to display its fields.
+          </div>
         </div>
+      ) : (
+        sections.map((sec, idx) => (
+          <Section key={idx} title={sec.section}>
+            {(sec.fields || []).map((f) => (
+              <DynamicTemplateField
+                key={f.key}
+                field={f}
+                value={resolveValue(data?.templateData, f)}
+                onChange={(v) => writeValue(f, v)}
+              />
+            ))}
+          </Section>
+        ))
       )}
     </div>
   );
+
+  function resolveValue(root, field) {
+    if (!root) return undefined;
+    return root[field.key];
+  }
+
+  function writeValue(field, v) {
+    setTemplateField([field.key], v);
+  }
 }
 
 function Section({ title, children }) {
@@ -151,17 +149,18 @@ function Input({ label, value, onChange, type = "text", placeholder }) {
   );
 }
 
-function Field({ label, value, onChange }) {
+function Field({ label, value, onChange, rows = 5 }) {
   return (
     <div className="form-control" style={{ gridColumn: "1 / -1" }}>
       <label className="label">{label}</label>
-      <textarea className="textarea" value={value || ""} onChange={(e)=>onChange?.(e.target.value)} placeholder="" />
+      <textarea className="textarea" rows={rows} value={value || ""} onChange={(e)=>onChange?.(e.target.value)} placeholder="" />
     </div>
   );
 }
 
 /**
  * Dynamic field renderer strictly based on template fields.
+ * Recognizes "signature" type from parsed JSONs and renders an image uploader.
  */
 function DynamicTemplateField({ field, value, onChange }) {
   const common = { label: field.label || field.key };
@@ -174,7 +173,7 @@ function DynamicTemplateField({ field, value, onChange }) {
     case "date":
       return <Input {...common} type="date" value={value || ""} onChange={onChange} />;
     case "textarea":
-      return <Field {...common} value={value || ""} onChange={onChange} />;
+      return <Field {...common} value={value || ""} onChange={onChange} rows={Math.max(5, (field.minRows || 0))} />;
     case "select":
       return (
         <div className="form-control">
@@ -189,33 +188,7 @@ function DynamicTemplateField({ field, value, onChange }) {
       );
     case "list":
       return (
-        <div className="form-control" style={{ gridColumn: "1 / -1" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <label className="label">{common.label}</label>
-            <button
-              className="btn"
-              type="button"
-              onClick={() => {
-                const val = prompt("Add item:");
-                if (!val) return;
-                onChange([...(value || []), val]);
-              }}
-            >
-              Add
-            </button>
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            {(value || []).map((it, idx) => (
-              <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div className="input" style={{ flex: 1, background: "rgba(255,255,255,0.03)" }}>{String(it)}</div>
-                <button className="btn" type="button" onClick={() => onChange((value || []).filter((_, i) => i !== idx))} title="Remove">✕</button>
-              </div>
-            ))}
-            {!value || (value || []).length === 0 ? (
-              <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>No items yet. Click Add to insert.</div>
-            ) : null}
-          </div>
-        </div>
+        <ListEditor label={common.label} items={value || []} onChange={onChange} itemLabel={field.itemLabel} />
       );
     case "checkbox":
       return (
@@ -261,9 +234,45 @@ function DynamicTemplateField({ field, value, onChange }) {
           </div>
         </div>
       );
+    case "signature":
+      return (
+        <SignatureUploadLabeled label={common.label} value={value} onChange={onChange} />
+      );
     default:
       return <Input {...common} value={value || ""} onChange={onChange} />;
   }
+}
+
+function ListEditor({ label, items, onChange, itemLabel }) {
+  return (
+    <div className="form-control" style={{ gridColumn: "1 / -1" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <label className="label">{label}</label>
+        <button
+          className="btn"
+          type="button"
+          onClick={() => {
+            const val = prompt(itemLabel || "Add item:");
+            if (!val) return;
+            onChange([...(items || []), val]);
+          }}
+        >
+          Add
+        </button>
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {(items || []).map((it, idx) => (
+          <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="input" style={{ flex: 1, background: "rgba(255,255,255,0.03)" }}>{String(it)}</div>
+            <button className="btn" type="button" onClick={() => onChange((items || []).filter((_, i) => i !== idx))} title="Remove">✕</button>
+          </div>
+        ))}
+        {!items || (items || []).length === 0 ? (
+          <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>No items yet. Click Add to insert.</div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function DynamicTableField({ field, rows, onChange }) {
@@ -323,11 +332,9 @@ function DynamicTableField({ field, rows, onChange }) {
 function handleFilesToDataURLs(e, cb) {
   const files = Array.from(e.target.files || []);
   if (files.length === 0) return;
-  const readers = [];
   const out = [];
   files.forEach((file, idx) => {
     const reader = new FileReader();
-    readers.push(reader);
     reader.onload = () => {
       out[idx] = reader.result;
       if (out.filter(Boolean).length === files.length) cb(out);
@@ -337,7 +344,9 @@ function handleFilesToDataURLs(e, cb) {
 }
 
 /**
- * Labeled signature uploader (kept for compatibility in case schema wants image data via upload-list).
+ * PUBLIC_INTERFACE
+ * SignatureUploadLabeled
+ * Image uploader specialized for signatures used in authorization sections.
  */
 function SignatureUploadLabeled({ label, value, onChange }) {
   const [name, setName] = useState("");
@@ -372,9 +381,6 @@ function SignatureUploadLabeled({ label, value, onChange }) {
   );
 }
 
-function getPath(obj, path) {
-  return path.reduce((o, k) => (o ? o[k] : undefined), obj || {});
-}
 function setPath(obj, path, value) {
   let o = obj;
   for (let i = 0; i < path.length - 1; i++) {
