@@ -127,8 +127,37 @@ function App() {
               selectedTemplate={selectedTemplate}
               templateSchema={selectedTemplateSchema}
             />
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button className="btn btn-primary" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setCurrent("preview")}
+                disabled={
+                  !selectedTemplate ||
+                  !selectedTemplateSchema ||
+                  !(sowData?.templateMeta?.transcriptText && sowData.templateMeta.transcriptText.trim())
+                }
+                title={
+                  !selectedTemplate
+                    ? "Please select T&M or Fixed Price first."
+                    : !selectedTemplateSchema
+                    ? "Template fields are not loaded. Select a template from Preview Templates."
+                    : !(sowData?.templateMeta?.transcriptText && sowData.templateMeta.transcriptText.trim())
+                    ? "Template source is missing. Select or attach a template to continue."
+                    : "Preview & Generate"
+                }
+              >
+                Preview & Generate
+              </button>
+              {(!selectedTemplate || !selectedTemplateSchema) ? (
+                <div style={{ color: "var(--text-secondary)" }}>
+                  Select a template above to load its fields. Choose "Fixed Price" or "T&M" in Preview Templates.
+                </div>
+              ) : !(sowData?.templateMeta?.transcriptText && sowData.templateMeta.transcriptText.trim()) ? (
+                <div style={{ color: "var(--text-secondary)" }}>
+                  No template content detected. Please select or upload the correct template transcript file.
+                </div>
+              ) : null}
             </div>
           </>
         );

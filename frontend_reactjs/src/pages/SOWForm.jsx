@@ -99,7 +99,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         <div className="panel" style={{ marginTop: 12 }}>
           <div className="panel-title">No template selected</div>
           <div style={{ color: "var(--text-secondary)" }}>
-            Please select a template to display its fields.
+            Please select a template to display its fields. Choose "Fixed Price" or "T&M" in the Template step.
           </div>
         </div>
       ) : (

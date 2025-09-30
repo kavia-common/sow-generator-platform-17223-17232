@@ -18,6 +18,23 @@ export default function TemplatePreview({ selected, onSelect }) {
     async function loadLatest() {
       const { getLatestTemplateAttachmentPaths } = await import("../services/exactTemplateExportService.js");
       const paths = getLatestTemplateAttachmentPaths();
+
+      // Extend with the explicitly provided latest attachments from the request details as fallbacks.
+      const extended = {
+        FP: [
+          ...paths.FP,
+          "/attachments/20250930_181148_Fixed price_Supplier_SoW_Template(docx).txt",
+          "/attachments/20250930_160627_Fixed price_Supplier_SoW_Template(docx).txt",
+          "/attachments/20250930_035346_Fixed price_Supplier_SoW_Template(docx).txt"
+        ],
+        TM: [
+          ...paths.TM,
+          "/attachments/20250930_181149_T&M_Supplier_SoW_Template(docx).txt",
+          "/attachments/20250930_160627_T&M_Supplier_SoW_Template(docx).txt",
+          "/attachments/20250930_035345_T&M_Supplier_SoW_Template(docx).txt"
+        ]
+      };
+
       const tryLoad = async (list) => {
         for (const u of list) {
           try {
@@ -31,12 +48,12 @@ export default function TemplatePreview({ selected, onSelect }) {
         return "";
       };
 
-      const [fp, tm] = await Promise.all([tryLoad(paths.FP), tryLoad(paths.TM)]);
-      setFpText(fp || "Unable to load Fixed Price template preview.");
-      setTmText(tm || "Unable to load T&M template preview.");
+      const [fp, tm] = await Promise.all([tryLoad(extended.FP), tryLoad(extended.TM)]);
+      setFpText(fp || "");
+      setTmText(tm || "");
 
-      const fpSchema = buildDynamicTemplateSchemaFromTranscript(fp, "FP", "Fixed Price");
-      const tmSchema = buildDynamicTemplateSchemaFromTranscript(tm, "TM", "Time & Materials");
+      const fpSchema = fp ? buildDynamicTemplateSchemaFromTranscript(fp, "FP", "Fixed Price") : null;
+      const tmSchema = tm ? buildDynamicTemplateSchemaFromTranscript(tm, "TM", "Time & Materials") : null;
       setSchemas({ FP: fpSchema, TM: tmSchema });
     }
     loadLatest();
@@ -50,7 +67,7 @@ export default function TemplatePreview({ selected, onSelect }) {
     <div className="panel">
       <div className="panel-title">Preview Templates</div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
         <button
           type="button"
           className="btn"
@@ -73,11 +90,30 @@ export default function TemplatePreview({ selected, onSelect }) {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => onSelect?.(isFP ? "FP" : "TM", isFP ? schemas.FP : schemas.TM, isFP ? fpText : tmText)}
+          onClick={() => {
+            const schema = isFP ? schemas.FP : schemas.TM;
+            const text = isFP ? fpText : tmText;
+            if (!schema || !text || !text.trim()) {
+              alert("This template is not available. Please attach or select a valid template transcript first.");
+              return;
+            }
+            onSelect?.(isFP ? "FP" : "TM", schema, text);
+          }}
+          disabled={isFP ? !schemas.FP || !fpText || !fpText.trim() : !schemas.TM || !tmText || !tmText.trim()}
+          title={
+            isFP
+              ? (!schemas.FP || !fpText || !fpText.trim() ? "Fixed Price template not loaded. Please attach/select it." : "Select Fixed Price")
+              : (!schemas.TM || !tmText || !tmText.trim() ? "T&M template not loaded. Please attach/select it." : "Select T&M")
+          }
           aria-label={`Select ${isFP ? "FP" : "TM"} template`}
         >
           Select {isFP ? "FP" : "TM"}
         </button>
+        {isFP ? (
+          (!fpText || !fpText.trim()) ? <div style={{ color: "var(--text-secondary)" }}>No Fixed Price template loaded. Please attach or select the Fixed Price template transcript.</div> : null
+        ) : (
+          (!tmText || !tmText.trim()) ? <div style={{ color: "var(--text-secondary)" }}>No T&M template loaded. Please attach or select the T&M template transcript.</div> : null
+        )}
       </div>
 
       {/* Page-like read-only preview of the original transcript */}

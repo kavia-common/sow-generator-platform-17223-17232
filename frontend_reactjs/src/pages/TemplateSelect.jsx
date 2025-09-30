@@ -11,6 +11,9 @@ export default function TemplateSelect({ selected, onChange }) {
     <div className="panel">
       <div className="panel-title">Choose Template</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ gridColumn: "1 / -1", color: "var(--text-secondary)", marginBottom: 4 }}>
+          Selecting a template controls which SOW form fields you will see.
+        </div>
         {opts.map((o) => {
           const active = selected === o.id;
           return (

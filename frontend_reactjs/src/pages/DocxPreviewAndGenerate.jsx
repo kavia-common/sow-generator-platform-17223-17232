@@ -18,7 +18,7 @@ export default function DocxPreviewAndGenerate({ data }) {
       // Enforce: require the actual uploaded DOCX template URL
       const templateDocxUrl = data?.meta?.templateDocxUrl || null;
       if (!templateDocxUrl) {
-        alert("No DOCX template file available. Please upload or provide meta.templateDocxUrl to export.");
+        alert("A DOCX template is required. Please upload or select the correct template file before generating.");
         return;
       }
 
@@ -53,13 +53,24 @@ export default function DocxPreviewAndGenerate({ data }) {
   return (
     <div className="panel">
       <div className="panel-title">Generate DOCX</div>
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-        <button className="btn btn-primary" type="button" onClick={onGenerateExact}>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button
+          className="btn btn-primary"
+          type="button"
+          onClick={onGenerateExact}
+          disabled={!data?.meta?.templateDocxUrl}
+          title={data?.meta?.templateDocxUrl ? "Generate DOCX" : "Attach or select a DOCX template to enable generation"}
+        >
           Generate DOCX (Exact Uploaded Template)
         </button>
         <div style={{ color: "var(--text-secondary)" }}>
           Uses only your uploaded template file. Only your entered values replace placeholders. Nothing else is added.
         </div>
+        {!data?.meta?.templateDocxUrl ? (
+          <div style={{ color: "var(--error)", fontSize: 13 }}>
+            No DOCX template selected. Please upload/select the correct template file to proceed.
+          </div>
+        ) : null}
       </div>
     </div>
   );
