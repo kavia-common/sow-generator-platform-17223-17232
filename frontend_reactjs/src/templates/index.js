@@ -24,6 +24,31 @@ export function getSOWTemplateSchema(templateId) {
 
 /**
  * PUBLIC_INTERFACE
+ * getDynamicSchemaFromAttachment
+ * Build schema on the fly from provided attachment-based transcripts for specific known template ids:
+ * - SOW_TM_SUPPLIER -> attachments T&M
+ * - SOW_FIXED_PRICE_SUPPLIER -> attachments Fixed Price
+ */
+export async function getDynamicSchemaFromAttachment(templateId) {
+  const map = {
+    SOW_TM_SUPPLIER: { url: '/attachments/20250930_035345_T&M_Supplier_SoW_Template(docx).txt', title: 'Supplier SOW (T&M)' },
+    SOW_FIXED_PRICE_SUPPLIER: { url: '/attachments/20250930_035346_Fixed price_Supplier_SoW_Template(docx).txt', title: 'Supplier SOW (Fixed Price)' },
+  };
+  const arg = map[templateId];
+  if (!arg) return null;
+
+  const resp = await fetch(arg.url);
+  if (!resp.ok) return null;
+  const text = await resp.text();
+
+  const { parseSOWTranscriptToSections, buildDynamicSchemaFromSections } = await import('../services/sowTemplateParser.js');
+  const parsed = parseSOWTranscriptToSections(text);
+  const schema = buildDynamicSchemaFromSections(parsed, templateId, arg.title);
+  return { parsed, schema };
+}
+
+/**
+ * PUBLIC_INTERFACE
  * scaffoldSOWFromTemplate
  * Given an existing SOW JSON (may be empty) and a template schema, initialize/merge
  * fields that are required by the template so UI can render them.

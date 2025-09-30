@@ -518,3 +518,14 @@ export function computeOverlaysFromFields(fields) {
   });
   return overlays;
 }
+
+// PUBLIC_INTERFACE
+// parseTranscriptToSectionedSchema
+// Bridge to new sowTemplateParser for sectioned parsing + schema assembly.
+// This keeps docxTemplateService as the central facade for transcript operations.
+export async function parseTranscriptToSectionedSchema(transcriptText, templateId, title) {
+  const mod = await import('./sowTemplateParser.js');
+  const parsed = mod.parseSOWTranscriptToSections(transcriptText);
+  const schema = mod.buildDynamicSchemaFromSections(parsed, templateId, title);
+  return { parsed, schema };
+}
