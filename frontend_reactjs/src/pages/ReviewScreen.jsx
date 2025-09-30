@@ -1,22 +1,50 @@
 import React, { useMemo } from "react";
 import { makeTranscriptPreviewHtml, computeOverlaysFromFields } from "../services/docxTemplateService";
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * ReviewScreen
+ * Ensures the review renders overlays strictly derived from the selected template's schema.
+ * Accepts either a flat schema ({ fields: [...] }) or a sectioned schema ({ sections: [...] }).
+ */
 export default function ReviewScreen({ data, templateSchema, transcriptText, onEdit, onConfirm }) {
-  /** This screen shows the template text and overlays each captured field value inline, with a logo at the top-left. */
+  /** This screen shows the selected template transcript and overlays each captured field inline with a logo. */
   const previewHtml = useMemo(() => makeTranscriptPreviewHtml(transcriptText || ""), [transcriptText]);
 
+  // Normalize schema to a flat field list based on the provided templateSchema format.
+  const normalizedFields = useMemo(() => {
+    if (!templateSchema) return [];
+    // If schema has sections (from parsed transcript), flatten those fields preserving keys/labels/types
+    if (Array.isArray(templateSchema.sections)) {
+      const fields = [];
+      (templateSchema.sections || []).forEach((sec) => {
+        (sec.fields || []).forEach((f) => {
+          // Support object groups by lifting properties with composite keys "group.prop"
+          if (f.type === "object" && Array.isArray(f.properties)) {
+            f.properties.forEach((p) => {
+              fields.push({ key: `${f.key}.${p.key}`, label: `${f.label} — ${p.label}`, type: p.type });
+            });
+          } else {
+            fields.push({ key: f.key, label: f.label || f.key, type: f.type });
+          }
+        });
+      });
+      return fields;
+    }
+    // Else assume flat schema { fields: [...] }
+    return templateSchema.fields || [];
+  }, [templateSchema]);
+
+  // Compute overlays from the normalized fields and resolve values from templateData only.
   const overlays = useMemo(() => {
-    const fields = templateSchema?.fields || [];
-    const base = computeOverlaysFromFields(fields);
+    const base = computeOverlaysFromFields(normalizedFields);
+    const templateData = data?.templateData || {};
     return base.map((ov) => {
-      const rawVal = resolveValueByKey(data?.templateData || {}, ov.fieldKey);
-      return {
-        ...ov,
-        text: `${labelFor(fields, ov.fieldKey)}: ${formatValue(rawVal)}`
-      };
+      const rawVal = resolveValueByKey(templateData, ov.fieldKey);
+      const lbl = labelFor(normalizedFields, ov.fieldKey);
+      return { ...ov, text: `${lbl}: ${formatValue(rawVal)}` };
     });
-  }, [templateSchema, data]);
+  }, [normalizedFields, data]);
 
   return (
     <div className="panel">
@@ -106,13 +134,11 @@ function formatValue(v) {
 function resolveValueByKey(obj, key) {
   if (!obj) return undefined;
   if (!key) return undefined;
-  // Try dotted path first if present
   if (String(key).includes(".")) {
     const val = String(key)
       .split(".")
       .reduce((o, k) => (o ? o[k] : undefined), obj);
     if (val !== undefined) return val;
   }
-  // Fallback to flat key
   return obj[key];
 }
