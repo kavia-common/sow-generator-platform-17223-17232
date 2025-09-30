@@ -35,8 +35,32 @@ export default function DocxPreviewAndGenerate({ data }) {
 
       const ab = await loadDocxArrayBuffer(templateDocxUrl);
       // Only include fields that have input; keep unfilled tags intact in the document
-      const dataMap = prepareTemplateData(data?.templateData || {});
-      const blob = mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true });
+      const dataMap = prepareTemplateData(data?.templateData || {}, data?.meta || {});
+
+      // Try to locate signature from templateData (common paths)
+      const templateData = data?.templateData || {};
+      const auth = templateData.authorization_signatures || {};
+      const signatureDataUrl =
+        (typeof templateData.signature === "string" && templateData.signature) ||
+        (typeof auth.signature === "string" && auth.signature) ||
+        null;
+
+      // Provide fallback images hosted under public/assets (developers can replace these files)
+      const images = {
+        logoDataUrl: data?.meta?.logoUrl || null,
+        signatureDataUrl: signatureDataUrl || null,
+        fallbackLogoUrl: "/assets/default_logo.png",
+        fallbackSignatureUrl: "/assets/default_signature.png",
+      };
+
+      // Request image sizing: px width/height
+      const imageSize = {
+        logo: { w: 180, h: 56 },
+        signature: { w: 240, h: 80 },
+      };
+
+      // mergeDocxWithData returns Promise<Blob> when images are involved
+      const blob = await mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true, images, imageSize });
 
       const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
       triggerDownload(blob, name);
