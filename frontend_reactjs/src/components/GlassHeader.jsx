@@ -1,5 +1,6 @@
 import React from "react";
 import "./GlassHeader.css";
+import TemplateUploadControl from "./TemplateUploadControl";
 
 /**
  * PUBLIC_INTERFACE
@@ -11,7 +12,8 @@ export default function GlassHeader({
   templates = [],
   selectedTemplate,
   onTemplateChange,
-  onSaveDraft
+  onSaveDraft,
+  onTemplateUploaded // optional: notify parent to refresh UI state
 }) {
   return (
     <header className="site-header" role="banner" aria-label="Main navigation">
@@ -31,6 +33,8 @@ export default function GlassHeader({
             {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </nav>
+
+        <TemplateUploadControl onUploaded={onTemplateUploaded} />
 
         <div className="header-actions">
           <button className="btn btn-primary" onClick={onSaveDraft} title="Save current inputs locally">Save Progress</button>

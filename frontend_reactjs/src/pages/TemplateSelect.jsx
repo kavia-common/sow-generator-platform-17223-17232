@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useMemo } from "react";
+import { getActiveTemplateInfo } from "../services/templateStorage";
 
 // PUBLIC_INTERFACE
 export default function TemplateSelect({ selected, onChange }) {
   /** Choose SOW template between Fixed Price (FP) and Time & Material (T&M) */
+  const fpInfo = useMemo(() => getActiveTemplateInfo("FP"), []);
+  const tmInfo = useMemo(() => getActiveTemplateInfo("TM"), []);
   const opts = [
-    { id: "FP", title: "Fixed Price (FP)", desc: "Defined scope, fixed budget and timeline. Bundled DOCX will be used automatically." },
-    { id: "TM", title: "Time & Material (T&M)", desc: "Flexible scope, billable hours and materials. Bundled DOCX will be used automatically." },
+    { id: "FP", title: "Fixed Price (FP)", desc: fpInfo.source === "user" ? "Using your uploaded DOCX template." : "Using bundled/default DOCX." },
+    { id: "TM", title: "Time & Material (T&M)", desc: tmInfo.source === "user" ? "Using your uploaded DOCX template." : "Using bundled/default DOCX." },
   ];
   return (
     <div className="panel">

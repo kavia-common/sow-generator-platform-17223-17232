@@ -14,6 +14,7 @@ import ExportWord from "./pages/ExportWord";
 import DocxPreviewAndGenerate from "./pages/DocxPreviewAndGenerate";
 
 import { scaffoldSOWFromTemplate } from "./templates"; // kept for base scaffolding if needed
+import { hasUserTemplate } from "./services/templateStorage";
 
 // PUBLIC_INTERFACE
 function App() {
@@ -228,6 +229,9 @@ function App() {
           onSaveDraft={() => {
             localStorage.setItem("sow-data", JSON.stringify(sowData));
             alert("Draft saved locally.");
+          }}
+          onTemplateUploaded={(type, file) => {
+            alert(`Template uploaded for ${type}. Future exports for this type will use your uploaded DOCX (${file?.name || "file"}).`);
           }}
         />
         <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>

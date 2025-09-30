@@ -14,34 +14,46 @@ export default function DocxPreviewAndGenerate({ data }) {
     try {
       const { loadDocxArrayBuffer, prepareTemplateData, mergeDocxWithData } = await import("../services/docxInPlaceTemplateMergeService.js");
       const { ensureSampleDocxIfMissing } = await import("../services/bundledTemplates.js");
+      const { hasUserTemplate, getUserTemplateBlob } = await import("../services/templateStorage.js");
 
-      const sowType = data?.meta?.sowType || (data?.templateMeta?.id?.includes("TM") ? "TM" : data?.templateMeta?.id?.includes("FIXED") ? "FP" : null);
+      // Determine selected type (prefer explicit selection from App state).
+      const explicitType = data?.templateMeta?.selectedType || data?.meta?.sowType || null;
+      const inferType = explicitType || (data?.templateMeta?.id?.includes("TM") ? "TM" : data?.templateMeta?.id?.includes("FIXED") ? "FP" : null);
+      const sowType = inferType === "FP" || inferType === "TM" ? inferType : null;
 
-      // First, try to use bundled docx (or fallback to transcript-based docx if missing)
+      // 1) If user uploaded a template for this type, always use it.
+      if (sowType && hasUserTemplate(sowType)) {
+        const userBlob = getUserTemplateBlob(sowType);
+        if (userBlob) {
+          const ab = await userBlob.arrayBuffer();
+          const dataMap = prepareTemplateData(data?.templateData || {});
+          const out = mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true });
+          const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
+          triggerDownload(out, name);
+          return;
+        }
+      }
+
+      // 2) Else try bundled for the type (or fallback to transcript-generated)
       const probe = await ensureSampleDocxIfMissing(sowType || (data?.meta?.templateDocxUrl ? null : null), data);
       if (probe && probe.ok && probe.kind === "fallback" && probe.blob) {
         const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
         triggerDownload(probe.blob, name);
         if (!data?.meta?.templateDocxUrl) {
-          // notify user gently about fallback
           setTimeout(() => alert("Bundled .docx not found. Generated using transcript fallback."), 0);
         }
         return;
       }
 
-      // If bundled is present, or meta.templateDocxUrl is set, then merge with docxtemplater
+      // 3) If bundled is present, or meta.templateDocxUrl is set, then merge with docxtemplater
       const templateDocxUrl = (probe && probe.ok && probe.url) || data?.meta?.templateDocxUrl || null;
       if (!templateDocxUrl) {
-        alert("No bundled .docx available for the selected type, and no .docx provided. Please contact support.");
+        alert("No bundled .docx available for the selected type, and no .docx provided. Please upload a template or contact support.");
         return;
       }
       const ab = await loadDocxArrayBuffer(templateDocxUrl);
-
-      // Only user-entered values. No defaults. Prepare mapping and merge.
       const dataMap = prepareTemplateData(data?.templateData || {});
-      const blob = mergeDocxWithData(ab, dataMap, {
-        keepUnfilledTags: true
-      });
+      const blob = mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true });
 
       const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
       triggerDownload(blob, name);
