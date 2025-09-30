@@ -7,14 +7,15 @@ This app supports two ways to provide Word (.docx) templates used for Statement 
 ## Bundled Templates
 
 - Public templates directory: `public/templates`
-- The app expects the following files to be bundled:
-  - `/templates/sow_tm_supplier.docx` for Time & Material (T&M)
-  - `/templates/sow_fixed_price_supplier.docx` for Fixed Price (FP)
+- The app expects the following files to be bundled with EXACT names:
+  - `/templates/T&M_Supplier_SoW_Template.docx` for Time & Material (T&M)
+  - `/templates/Fixed price_Supplier_SoW_Template.docx` for Fixed Price (FP)
 
 If these DOCX files are not present at runtime, the generator will:
 - Use the corresponding `.txt` transcript from `public/attachments/*` to merge user data into placeholders.
+- For any missing values, it will insert a visible fill-in blank: `__________`.
 - Render a minimal DOCX that preserves the transcript text and any inserted values.
-- Present a one-time alert notifying the user that a fallback was used.
+- Present a clear alert notifying the user that a fallback was used and how to fix it.
 
 Recommended:
 - Replace the fallback by placing the original Word .docx templates in `public/templates` with the filenames listed above.

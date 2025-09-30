@@ -23,6 +23,7 @@ export default function DocxPreviewAndGenerate({ data, autoGenerate = false }) {
       // Probe for bundled .docx, or build fallback from transcript
       const probe = await ensureSampleDocxIfMissing(sowType, data);
       if (probe && probe.ok && probe.kind === "fallback" && probe.blob) {
+        alert("The exact .docx template was not found. Generated using transcript fallback. To remove this notice, place the exact template .docx under public/templates as named in the documentation.");
         const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
         triggerDownload(probe.blob, name);
         return;
@@ -30,7 +31,7 @@ export default function DocxPreviewAndGenerate({ data, autoGenerate = false }) {
 
       const templateDocxUrl = (probe && probe.ok && probe.url) || bundle?.docxUrl || data?.meta?.templateDocxUrl || null;
       if (!templateDocxUrl) {
-        alert("No bundled .docx available for the selected type. Please contact support.");
+        alert("Required template .docx missing.\n\nExpected one of:\n- /templates/T&M_Supplier_SoW_Template.docx (for T&M)\n- /templates/Fixed price_Supplier_SoW_Template.docx (for Fixed Price)\n\nPlease add the exact .docx file under public/templates, then retry.");
         return;
       }
 

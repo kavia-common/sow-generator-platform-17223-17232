@@ -79,14 +79,16 @@ export function extractPlaceholders(transcriptText) {
 export function interpolateTranscriptStrict(transcriptText, mapping) {
   const text = String(transcriptText || '');
 
+  // When there's no value, return a user-friendly fill-in line "__________"
+  const EMPTY_FILL = ' __________ ';
+
   function replaceToken(full, inner) {
     const raw = String(inner || '');
     const label = raw.replace(/\s+/g, ' ').trim();
     const key = normalizeKey(label);
     const val = mapping ? mapping(label, key) : undefined;
     if (val == null || String(val) === '') {
-      // leave placeholder as-is; return the original token
-      return full;
+      return EMPTY_FILL;
     }
     return String(val);
   }

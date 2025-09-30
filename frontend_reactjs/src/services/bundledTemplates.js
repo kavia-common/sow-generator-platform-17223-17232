@@ -6,14 +6,16 @@
 // - ensureSampleDocxIfMissing: runtime helper to gracefully fallback to a docx rendered from transcript lines when a real docx is missing.
 
 export function getBundledTemplateInfoByType(type) {
-  // We expect the app to ship with these docx files located under public/templates.
-  // If they are not present, generation helper will fallback to transcript-based docx creation.
+  // Use EXACT filenames supplied by the user, expected under public/templates
+  // - T&M -> T&M_Supplier_SoW_Template.docx
+  // - Fixed Price -> Fixed price_Supplier_SoW_Template.docx
   const map = {
     TM: {
       id: "SOW_TM_SUPPLIER",
       title: "Supplier SOW (T&M)",
-      docxUrl: "/templates/sow_tm_supplier.docx",
+      docxUrl: "/templates/T&M_Supplier_SoW_Template.docx",
       transcripts: [
+        "/attachments/20250930_185406_T&M_Supplier_SoW_Template(docx).txt",
         "/attachments/20250930_181149_T&M_Supplier_SoW_Template(docx).txt",
         "/attachments/20250930_160627_T&M_Supplier_SoW_Template(docx).txt",
         "/attachments/20250930_035345_T&M_Supplier_SoW_Template(docx).txt"
@@ -22,8 +24,9 @@ export function getBundledTemplateInfoByType(type) {
     FP: {
       id: "SOW_FIXED_PRICE_SUPPLIER",
       title: "Supplier SOW (Fixed Price)",
-      docxUrl: "/templates/sow_fixed_price_supplier.docx",
+      docxUrl: "/templates/Fixed price_Supplier_SoW_Template.docx",
       transcripts: [
+        "/attachments/20250930_185442_Fixed price_Supplier_SoW_Template(docx).txt",
         "/attachments/20250930_181148_Fixed price_Supplier_SoW_Template(docx).txt",
         "/attachments/20250930_160627_Fixed price_Supplier_SoW_Template(docx).txt",
         "/attachments/20250930_035346_Fixed price_Supplier_SoW_Template(docx).txt"

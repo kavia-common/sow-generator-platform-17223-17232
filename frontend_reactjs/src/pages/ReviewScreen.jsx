@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { makeTranscriptPreviewHtml, computeOverlaysFromFields } from "../services/docxTemplateService";
+import { makeTranscriptPreviewHtml } from "../services/docxTemplateService";
 
 /**
  * PUBLIC_INTERFACE
@@ -35,14 +35,12 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
     return templateSchema.fields || [];
   }, [templateSchema]);
 
-  // Compute overlays from the normalized fields and resolve values from templateData only.
-  const overlays = useMemo(() => {
-    const base = computeOverlaysFromFields(normalizedFields);
+  // Build a simple key:value list for quick review to keep UX simple and free of overlays/prompts.
+  const kvList = useMemo(() => {
     const templateData = data?.templateData || {};
-    return base.map((ov) => {
-      const rawVal = resolveValueByKey(templateData, ov.fieldKey);
-      const lbl = labelFor(normalizedFields, ov.fieldKey);
-      return { ...ov, text: `${lbl}: ${formatValue(rawVal)}` };
+    return (normalizedFields || []).map((f) => {
+      const rawVal = resolveValueByKey(templateData, f.key);
+      return { key: f.key, label: f.label || f.key, value: formatValue(rawVal) };
     });
   }, [normalizedFields, data]);
 
@@ -79,23 +77,16 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
 
           <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
 
-          <div aria-hidden style={{ position: "relative", marginTop: 8 }}>
-            {(overlays || []).map((ov, i) => (
-              <div
-                key={i}
-                style={{
-                  position: "relative",
-                  left: ov.xPx,
-                  top: ov.yPx,
-                  color: "#111",
-                  fontWeight: 500,
-                  marginBottom: 2
-                }}
-                title={ov.fieldKey}
-              >
-                {ov.text}
-              </div>
-            ))}
+          <div style={{ borderTop: "1px solid #eee", marginTop: 12, paddingTop: 8 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Your Entries</div>
+            <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", rowGap: 6, columnGap: 8 }}>
+              {(kvList || []).map((row, i) => (
+                <React.Fragment key={i}>
+                  <div style={{ color: "#444" }}>{row.label}</div>
+                  <div style={{ color: "#111" }}>{row.value || "—"}</div>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
       </div>
