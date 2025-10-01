@@ -1,7 +1,7 @@
-This folder contains image assets used at runtime by the DOCX generator.
+This folder may contain default assets referenced by the DOCX exporter.
 
-Placeholders included:
+Place optional files:
 - default_logo.png
 - default_signature.png
 
-If you wish to customize, replace these files with your brand images using the same filenames.
+If absent, the exporter will proceed without injecting fallback images.

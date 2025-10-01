@@ -27,15 +27,27 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     }
   );
 
-  // Emit updates upward
+  // Emit updates upward (debounced to prevent flicker on rapid keystrokes)
+  const emitTimer = useRef(null);
   useEffect(() => {
-    onChange?.(data);
+    if (!onChange) return;
+    if (emitTimer.current) clearTimeout(emitTimer.current);
+    emitTimer.current = setTimeout(() => {
+      onChange(data);
+    }, 50); // small debounce to avoid thrashing controlled inputs
+    return () => {
+      if (emitTimer.current) clearTimeout(emitTimer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  // Sync from parent
+  // Sync from parent only when reference actually changes to avoid value thrash
+  const lastValueRef = useRef(value);
   useEffect(() => {
-    if (value) setData(value);
+    if (value && value !== lastValueRef.current) {
+      lastValueRef.current = value;
+      setData(value);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
@@ -161,19 +173,23 @@ function Section({ title, children }) {
 }
 
 function Input({ label, value, onChange, type = "text", placeholder }) {
+  const v = value ?? "";
+  const handle = useMemo(() => (e) => onChange?.(e.target.value), [onChange]);
   return (
     <div className="form-control">
       <label className="label">{label}</label>
-      <input className="input" type={type} value={value || ""} placeholder={placeholder} onChange={(e)=>onChange?.(e.target.value)} />
+      <input className="input" type={type} value={v} placeholder={placeholder} onChange={handle} />
     </div>
   );
 }
 
 function Field({ label, value, onChange, rows = 5 }) {
+  const v = value ?? "";
+  const handle = useMemo(() => (e) => onChange?.(e.target.value), [onChange]);
   return (
     <div className="form-control" style={{ gridColumn: "1 / -1" }}>
       <label className="label">{label}</label>
-      <textarea className="textarea" rows={rows} value={value || ""} onChange={(e)=>onChange?.(e.target.value)} placeholder="" />
+      <textarea className="textarea" rows={rows} value={v} onChange={handle} placeholder="" />
     </div>
   );
 }
@@ -302,10 +318,10 @@ function DynamicTableField({ field, rows, onChange }) {
     cols.forEach((c) => (empty[c.key] = ""));
     onChange([...(rows || []), empty]);
   };
-  const setCell = (rIdx, key, val) => {
+  const setCell = useMemo(() => (rIdx, key, val) => {
     const next = (rows || []).map((r, i) => (i === rIdx ? { ...r, [key]: val } : r));
     onChange(next);
-  };
+  }, [rows, onChange]);
   const delRow = (rIdx) => {
     onChange((rows || []).filter((_, i) => i !== rIdx));
   };

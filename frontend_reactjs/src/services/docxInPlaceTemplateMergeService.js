@@ -7,6 +7,8 @@
 
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+// Note: Ensure these packages are installed in frontend_reactjs:
+//  npm install docxtemplater pizzip --save
 
 /**
  * PUBLIC_INTERFACE
@@ -134,20 +136,29 @@ export function prepareTemplateData(templateData, meta = {}) {
     out[k] = toStringValue(v);
   }
 
-  // Copy exact keys that have input
-  Object.keys(src).forEach((k) => {
-    putIfHasInput(k, src[k]);
-  });
+  // Deep walk templateData to produce dotted keys for all inputs
+  function walk(prefix, val) {
+    if (!hasInput(val)) return;
+    if (Array.isArray(val)) {
+      // For arrays, create both list and indexed tags
+      const listStr = val.map(toStringValue).join(", ");
+      putIfHasInput(prefix, listStr);
+      val.forEach((item, idx) => walk(`${prefix}[${idx}]`, item));
+      return;
+    }
+    if (typeof val === 'object') {
+      // Add stringified summary for whole object
+      putIfHasInput(prefix, toStringValue(val));
+      Object.keys(val).forEach((k) => walk(prefix ? `${prefix}.${k}` : k, val[k]));
+      return;
+    }
+    putIfHasInput(prefix, val);
+  }
+  Object.keys(src).forEach((k) => walk(k, src[k]));
 
   // Provide normalized variants for convenience (maps to {{normalized_key}} tags)
   Object.keys(src).forEach((k) => {
     putIfHasInput(normalizeKey(k), src[k]);
-  });
-
-  // Flatten nested authorization_signatures.* only for provided sub-keys
-  const auth = src.authorization_signatures || {};
-  Object.keys(auth).forEach((k) => {
-    putIfHasInput(`authorization_signatures.${k}`, auth[k]);
   });
 
   // Image placeholder hints (text keys act as hints; actual image bytes are provided via image module below)
@@ -156,8 +167,11 @@ export function prepareTemplateData(templateData, meta = {}) {
   }
   if (typeof src.signature === 'string' && src.signature.trim()) {
     out['signature'] = '[signature]';
-  } else if (typeof auth.signature === 'string' && auth.signature.trim()) {
-    out['signature'] = '[signature]';
+  } else {
+    const authLocal = src.authorization_signatures || {};
+    if (typeof authLocal.signature === 'string' && authLocal.signature.trim()) {
+      out['signature'] = '[signature]';
+    }
   }
 
   return out;

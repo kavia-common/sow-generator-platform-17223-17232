@@ -68,6 +68,10 @@ export default function DocxPreviewAndGenerate({ data, autoGenerate = false }) {
       triggerDownload(blob, name);
     } catch (e) {
       const msg = String(e?.message || e || "");
+      if (/module not found|cannot find module|docxtemplater|pizzip/i.test(msg)) {
+        alert("DOCX generation dependency is missing. Please install 'docxtemplater' and 'pizzip' in the frontend project.");
+        return;
+      }
       if (msg.includes("end of central directory") || msg.toLowerCase().includes("zip")) {
         alert("Failed to generate DOCX: The internal template file is not a valid DOCX (zip) package.");
       } else {
