@@ -1,97 +1,60 @@
-# SOW Template Merge, Review, and Export Verification Guide
+# SOW Export Verification Steps (QA Notes)
 
-This guide outlines the exact steps to verify that:
-1) User-entered SOW form data merges ONLY into the selected template.
-2) The Review screen reflects the selected template and user inputs.
-3) The exported Word document corresponds to the selected template with accurate data, using a valid DOCX package.
-4) The input fields do not flicker during typing.
+Purpose: Validate that the SOW export to Word includes all fields, the logo at the top-left, and a signature at the bottom.
 
 Pre-requisites:
-- App running at http://localhost:3000 (or the workspace URL shown in your environment).
-- Environment variables configured: REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_KEY in the .env file at the project root for the frontend container if authentication/data flows are used.
+- Frontend app running at http://localhost:3000 (or the provided preview URL).
+- Environment variables configured: REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_KEY (only required for flows touching Supabase).
+- Two images to upload during the test:
+  - Logo: a rectangular PNG/JPG approx 400x120 recommended
+  - Signature: a cropped transparent PNG of a signature approx 400x140
 
-DOCX Export Dependencies (must be installed):
-- Install required packages in the frontend project:
-  npm install docxtemplater pizzip --workspace ./frontend_reactjs
+Test Data:
+- SOW Type: TM
+- Client Name: Acme Corp
+- Project: Test Automation
+- Start Date: 2024-07-10
+- End Date: 2024-09-30
+- Fill all other fields with short realistic text.
 
-Template files (for exact template export; optional but recommended):
-- Place the exact template files to avoid fallback mode:
-  - frontend_reactjs/public/templates/T&M_Supplier_SoW_Template.docx
-  - frontend_reactjs/public/templates/Fixed price_Supplier_SoW_Template.docx
+Steps:
+1. Open the app and navigate to Template Select. Choose the TM template.
+2. Proceed to the SOW form. Fill the fields:
+   - SOW Type = TM
+   - Client Name = Acme Corp
+   - Project = Test Automation
+   - Start Date = 2024-07-10
+   - End Date = 2024-09-30
+   - Fill remaining sections (scope, deliverables, assumptions, pricing, billing, acceptance, change control, risks, contacts, etc.) with short realistic text.
+3. Upload images:
+   - Logo: select a sample image file from your local filesystem.
+   - Signature: select a sample signature image file from your local filesystem.
+4. Submit/Review: Proceed to Review/Export screen.
+5. Export to Word: Click Export/Generate DOCX and download the generated file.
+6. Visual validation (in the DOCX):
+   - Confirm all entered fields appear (no omissions).
+   - Confirm logo is placed in the top-left area of the first page header or title section.
+   - Confirm signature image is at the bottom or in the signature block of the last page and is visible at a reasonable size.
+   - Confirm dates, project, client name render correctly and formatting is consistent.
 
-Optional default assets:
-- frontend_reactjs/public/assets/default_logo.png
-- frontend_reactjs/public/assets/default_signature.png
-If absent, the exporter proceeds without fallback images.
+Expected Results:
+- The DOCX contains all filled data mapped into the template.
+- The logo appears in the top-left, not stretched or oversized.
+- The signature appears at the bottom section with proper spacing.
 
-Test Data (Sentinel Inputs):
-Use distinctive values to easily spot them in the review and in the exported document. For example:
-- Company Name: Zeta Orion Test Co.
-- Project Name: Nebula Integration - QA Run A
-- Project Description: End-to-end verification for template selection and merge.
-- Start Date: 2025-02-03
-- End Date: 2025-05-15
-- Location: Remote / EU
-- Billing Model: Time & Materials (for TM template) or Fixed Price (for FP template)
-- SOW Manager: Alex QA
-- Scope Highlights: "Implement API gateway with throttling; Migrate auth to Supabase."
+Issues to note if found:
+- Missing fields or unmapped placeholders.
+- Misplaced logo (not top-left) or incorrect scaling.
+- Signature missing, misplaced, or distorted.
+- Any rendering errors, clipped text, or pagination problems.
 
-Verification Steps:
+Troubleshooting:
+- If images do not appear, ensure file types are supported (PNG/JPG) and size under typical limits (e.g., < 5 MB).
+- If export fails, check browser console and the frontend logs for errors in docx builder services:
+  - src/services/sowDocxBuilder.js
+  - src/services/docxTemplateService.js
+  - src/services/strictDocxTemplateMergeService.js
+- If Supabase is required for specific flows, confirm environment variables are set and the app restarted.
 
-1) Select Template
-   - Navigate to Template Select page.
-   - Choose a specific template, e.g. "T&M Supplier SOW" or "Fixed Price Supplier SOW".
-   - Confirm the UI indicates your chosen template is "selected".
-   - Proceed to the SOW Form.
-
-2) Fill SOW Form (Verify no flicker)
-   - Enter all sentinel values from above.
-   - Ensure fields like Project Name, Dates, and Scope Highlights are clearly filled to appear in multiple sections.
-   - Typing should be smooth and stable (no flicker). If you see flicker, ensure you have the updated SOWForm.jsx with debounced parent onChange and stabilized handlers.
-   - Save/Continue.
-
-3) Review Screen Validation
-   - Confirm the Review Screen shows headings/sections that match ONLY the selected template (e.g., TM vs Fixed Price have different sections/labels).
-   - Verify all sentinel values appear in the review content:
-     - Company Name
-     - Project Name and Description
-     - Start/End Dates
-     - Location
-     - SOW Manager
-     - Scope Highlights
-   - Confirm there is no bleed-over from a different template (e.g., Fixed Price sections should NOT appear when TM is selected).
-
-4) Export to Word
-   - Click Generate DOCX in the Preview & Generate step.
-   - If exact templates are present under public/templates, a valid .docx will be generated via in-place merge.
-   - If exact templates are not present, the system gracefully falls back to a transcript-rendered DOCX and shows a notice.
-   - Open the .docx and confirm:
-     - The structure, section headings, and boilerplate match the selected template (or the transcript fallback notice if applicable).
-     - All sentinel inputs are present where expected.
-     - There are no sections from unselected templates.
-     - No "not a valid DOCX (zip) package" error occurs.
-
-5) Cross-Template Negative Check
-   - Repeat the above for BOTH templates (e.g., T&M and Fixed Price).
-   - Ensure that T&M selections never produce Fixed Price content and vice versa.
-
-Troubleshooting Hints (Code Pointers):
-- Template Selection
-  - src/pages/TemplateSelect.jsx: ensure selection state is persisted (via React Router state, context, or local state) and passed forward.
-- Form Data
-  - src/pages/SOWForm.jsx: verify the form is keyed to the selected template schema and stores data accordingly; no input flicker should occur with the updated debounced onChange and memoized handlers.
-- Export Generation
-  - src/pages/DocxPreviewAndGenerate.jsx: uses docxInPlaceTemplateMergeService; alerts if dependencies are missing or if a template file is invalid.
-  - src/services/docxInPlaceTemplateMergeService.js: robust DOCX validation and comprehensive data mapping (deep flattening to include all fields).
-  - src/services/bundledTemplates.js: registry for bundled template URLs and transcript fallbacks.
-- Removed Legacy Logic
-  - src/services/exactTemplateExportService.js was removed to prevent invalid DOCX packages.
-  - The app no longer relies on obsolete minimal-zip builders for export.
-
-Expected Result:
-- Review page and exported .docx match the selected template’s structure and include all user-entered sentinel data with no leakage from other templates.
-- Exported file opens in Word without errors.
-
-If you encounter a "Module not found: docxtemplater/pizzip" error:
-- Run: npm install docxtemplater pizzip --workspace ./frontend_reactjs
-- Rebuild/restart the app and retry the export.
+Notes:
+- This document is for QA guidance only. No code changes are needed for test execution.
