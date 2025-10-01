@@ -3,84 +3,21 @@ import React, { useCallback, useEffect } from "react";
 /**
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
- * Generates a .docx using the internal bundled .docx by SOW type; if missing, falls back to transcript-rendered .docx.
- * Placeholders are replaced with provided values; unfilled remain unchanged.
+ * Builds a fresh, valid DOCX directly from SOW form values without using any external .docx templates.
  *
  * Props:
- * - data: { meta?: { client?: string, title?: string, sowType?: "TM"|"FP", templateDocxUrl?: string, logoUrl?: string }, templateData?: Record<string, any> }
+ * - data: { meta?: { client?: string, title?: string, sowType?: "TM"|"FP", logoUrl?: string }, templateData?: Record<string, any> }
+ * - templateSchema?: sectioned or flat schema describing fields to list in the output
  * - autoGenerate?: boolean  If true, immediately trigger generation on mount/update (used for one-click submit).
  */
-export default function DocxPreviewAndGenerate({ data, autoGenerate = false }) {
+export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
   const onGenerate = useCallback(async () => {
-    try {
-      const { loadDocxArrayBuffer, prepareTemplateData, mergeDocxWithData } = await import("../services/docxInPlaceTemplateMergeService.js");
-      const { ensureSampleDocxIfMissing, getBundledTemplateInfoByType } = await import("../services/bundledTemplates.js");
+    const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
+    const blob = await buildSowDocx(data || {}, templateSchema || { fields: [] });
+    const name = makeSowDocxFilename(data || {});
+    triggerDownload(blob, name);
+  }, [data, templateSchema]);
 
-      // Determine SOW type explicitly from App state/meta
-      const sowType = (data?.meta?.sowType === "FP" || data?.meta?.sowType === "TM") ? data.meta.sowType : "FP";
-      const bundle = getBundledTemplateInfoByType(sowType);
-
-      // Probe for bundled .docx, or build fallback from transcript
-      const probe = await ensureSampleDocxIfMissing(sowType, data);
-      if (probe && probe.ok && probe.kind === "fallback" && probe.blob) {
-        alert("The exact .docx template was not found. Generated using transcript fallback. To remove this notice, place the exact template .docx under public/templates as named in the documentation.");
-        const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
-        triggerDownload(probe.blob, name);
-        return;
-      }
-
-      const templateDocxUrl = (probe && probe.ok && probe.url) || bundle?.docxUrl || data?.meta?.templateDocxUrl || null;
-      if (!templateDocxUrl) {
-        alert("Required template .docx missing.\n\nExpected one of:\n- /templates/T&M_Supplier_SoW_Template.docx (for T&M)\n- /templates/Fixed price_Supplier_SoW_Template.docx (for Fixed Price)\n\nPlease add the exact .docx file under public/templates, then retry.");
-        return;
-      }
-
-      const ab = await loadDocxArrayBuffer(templateDocxUrl);
-      // Only include fields that have input; keep unfilled tags intact in the document
-      const dataMap = prepareTemplateData(data?.templateData || {}, data?.meta || {});
-
-      // Try to locate signature from templateData (common paths)
-      const templateData = data?.templateData || {};
-      const auth = templateData.authorization_signatures || {};
-      const signatureDataUrl =
-        (typeof templateData.signature === "string" && templateData.signature) ||
-        (typeof auth.signature === "string" && auth.signature) ||
-        null;
-
-      // Provide fallback images hosted under public/assets (developers can replace these files)
-      const images = {
-        logoDataUrl: data?.meta?.logoUrl || null,
-        signatureDataUrl: signatureDataUrl || null,
-        fallbackLogoUrl: "/assets/default_logo.png",
-        fallbackSignatureUrl: "/assets/default_signature.png",
-      };
-
-      // Request image sizing: px width/height
-      const imageSize = {
-        logo: { w: 180, h: 56 },
-        signature: { w: 240, h: 80 },
-      };
-
-      // mergeDocxWithData returns Promise<Blob> when images are involved
-      const blob = await mergeDocxWithData(ab, dataMap, { keepUnfilledTags: true, images, imageSize });
-
-      const name = `SOW_${(data?.meta?.client || "Client").replace(/[^\w-]+/g, "_")}_${(data?.meta?.title || "Project").replace(/[^\w-]+/g, "_")}.docx`;
-      triggerDownload(blob, name);
-    } catch (e) {
-      const msg = String(e?.message || e || "");
-      if (/module not found|cannot find module|docxtemplater|pizzip/i.test(msg)) {
-        alert("DOCX generation dependency is missing. Please install 'docxtemplater' and 'pizzip' in the frontend project.");
-        return;
-      }
-      if (msg.includes("end of central directory") || msg.toLowerCase().includes("zip")) {
-        alert("Failed to generate DOCX: The internal template file is not a valid DOCX (zip) package.");
-      } else {
-        alert(`Failed to generate DOCX from template: ${msg}`);
-      }
-    }
-  }, [data]);
-
-  // Auto-generate on mount/update if requested (used after one-click submit)
   useEffect(() => {
     if (autoGenerate) {
       onGenerate();
@@ -107,12 +44,12 @@ export default function DocxPreviewAndGenerate({ data, autoGenerate = false }) {
           className="btn btn-primary"
           type="button"
           onClick={onGenerate}
-          title="Generate DOCX using the internal template for your selected SOW type"
+          title="Generate a new DOCX directly from your entries"
         >
           Generate DOCX
         </button>
         <div style={{ color: "var(--text-secondary)" }}>
-          Uses the internal {data?.meta?.sowType === "TM" ? "T&M" : "Fixed Price"} template. Your inputs and images (logo/signature) are merged into the document.
+          Generates a clean DOCX from your SOW entries. No templates are used.
         </div>
       </div>
     </div>
