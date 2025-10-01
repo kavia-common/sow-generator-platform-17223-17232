@@ -13,6 +13,7 @@ import React, { useCallback, useEffect } from "react";
 export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
   const onGenerate = useCallback(async () => {
     const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
+    // Pass templateSchema through as-is; builder will collect all fields from schema and data
     const blob = await buildSowDocx(data || {}, templateSchema || { fields: [] });
     const name = makeSowDocxFilename(data || {});
     triggerDownload(blob, name);

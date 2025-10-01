@@ -17,6 +17,17 @@ import {
 } from "docx";
 
 /**
+ * Normalize a label into a stable key-ish id.
+ */
+function normalizeLabel(label) {
+  return String(label || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+/**
  * Convert a data URL (image/*) to Uint8Array bytes.
  */
 function dataUrlToBytes(dataUrl) {
@@ -40,11 +51,19 @@ function cleanValue(v) {
 function formatValue(v) {
   if (v == null) return "";
   if (Array.isArray(v)) {
+    // If it's an array of primitives/objects, join with new lines for readability
     return v
-      .map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x)))
-      .join(", ");
+      .map((x) =>
+        x && typeof x === "object"
+          ? Object.keys(x)
+              .map((k) => `${k}: ${formatValue(x[k])}`)
+              .join(", ")
+          : String(x)
+      )
+      .join("\n");
   }
   if (typeof v === "object") {
+    // For objects, prefer a simple k: v; k2: v2 string
     try {
       return Object.keys(v)
         .map((k) => `${k}: ${formatValue(v[k])}`)
@@ -53,7 +72,114 @@ function formatValue(v) {
       return JSON.stringify(v);
     }
   }
+  // For data URLs (images), show a placeholder text
+  if (typeof v === "string" && /^data:image\//.test(v)) {
+    return "[Image]";
+  }
   return cleanValue(String(v));
+}
+
+/**
+ * Extract all fields (label/key/type) from either the provided templateSchema (prefer sections)
+ * or by inferring from templateData keys. Ensures no field is omitted.
+ */
+function collectAllFieldsForActions(templateSchema, templateData) {
+  const fields = [];
+  const seenKeys = new Set();
+
+  const pushField = (label, key, type = "text") => {
+    if (!key) key = normalizeLabel(label);
+    if (!label) label = key;
+    const sk = String(key);
+    if (seenKeys.has(sk)) return;
+    seenKeys.add(sk);
+    fields.push({ label, key: sk, type });
+  };
+
+  // 1) From schema.sections if available
+  if (templateSchema && Array.isArray(templateSchema.sections)) {
+    for (const sec of templateSchema.sections) {
+      for (const f of sec.fields || []) {
+        if (f.type === "object" && Array.isArray(f.properties)) {
+          // Add parent and properties as individual fields for Actions visibility
+          pushField(f.label || f.key, f.key, "object");
+          for (const p of f.properties) {
+            pushField(
+              `${f.label || f.key} - ${p.label || p.key}`,
+              `${f.key}.${p.key}`,
+              p.type || "text"
+            );
+          }
+        } else {
+          pushField(f.label || f.key, f.key, f.type || "text");
+        }
+      }
+    }
+  } else if (templateSchema && Array.isArray(templateSchema.fields)) {
+    // 2) From flat schema
+    for (const f of templateSchema.fields) {
+      if (f.type === "object" && Array.isArray(f.properties)) {
+        pushField(f.label || f.key, f.key, "object");
+        for (const p of f.properties) {
+          pushField(
+            `${f.label || f.key} - ${p.label || p.key}`,
+            `${f.key}.${p.key}`,
+            p.type || "text"
+          );
+        }
+      } else {
+        pushField(f.label || f.key, f.key, f.type || "text");
+      }
+    }
+  }
+
+  // 3) Ensure any keys present in templateData are included even if schema missed them
+  function walk(prefix, val) {
+    if (val == null) {
+      pushField(prefix, prefix, "text");
+      return;
+    }
+    if (Array.isArray(val)) {
+      pushField(prefix, prefix, "list");
+      val.forEach((item, idx) => {
+        const childKey = `${prefix}[${idx}]`;
+        if (typeof item === "object" && item !== null) {
+          walk(childKey, item);
+        } else {
+          pushField(`${prefix} [${idx}]`, childKey, "text");
+        }
+      });
+      return;
+    }
+    if (typeof val === "object") {
+      pushField(prefix, prefix, "object");
+      Object.keys(val).forEach((k) => walk(`${prefix}.${k}`, val[k]));
+      return;
+    }
+    pushField(prefix, prefix, "text");
+  }
+
+  if (templateData && typeof templateData === "object") {
+    Object.keys(templateData).forEach((k) => walk(k, templateData[k]));
+  }
+
+  return fields;
+}
+
+/**
+ * Get value by dotted path, supporting array indices like field[0].name.
+ */
+function getByPath(obj, path, fallback = "") {
+  if (!obj || !path) return fallback;
+  const tokens = String(path)
+    .replace(/\[(\d+)\]/g, ".$1")
+    .split(".");
+  let cur = obj;
+  for (const t of tokens) {
+    if (cur == null) return fallback;
+    cur = cur[t];
+  }
+  return cur == null ? fallback : cur;
 }
 
 /**
@@ -123,6 +249,47 @@ function tableFullWidth(rows) {
     borders: BORDER,
     rows: safeRows,
   });
+}
+
+/**
+ * Build an Actions table listing every field as Question (left) / Answer (right).
+ * Ensures consistent alignment: labels left, values left, with fixed 40/60 width split.
+ */
+function buildActionsTable({ templateSchema, templateData }) {
+  const L = 40;
+  const V = 60;
+  const rows = [];
+
+  // Header row spanning both columns
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          children: [para("Actions", { bold: true, size: 22, after: 40 })],
+          columnSpan: 2,
+        }),
+      ],
+    })
+  );
+
+  // Collect union of all fields from schema and current data
+  const allFields = collectAllFieldsForActions(templateSchema, templateData);
+
+  // Deduplicate by label+key (already handled in collect function)
+  for (const f of allFields) {
+    // Retrieve value
+    const raw = getByPath(templateData, f.key, "");
+    const display =
+      f.type === "date" ? formatDate(raw) : f.type === "currency" ? formatCurrency(raw) : formatValue(raw);
+
+    rows.push(
+      new TableRow({
+        children: [labelCell(f.label || f.key, L), valueCell(display || "", V)],
+      })
+    );
+  }
+
+  return tableFullWidth(rows);
 }
 
 function makeCell(
@@ -547,6 +714,9 @@ export async function buildSowDocx(data, templateSchema) {
 
   // Continuation 11..20
   children.push(buildContinuationTable({ templateData }));
+
+  // Actions table: include all user-entered fields with left/right alignment
+  children.push(buildActionsTable({ templateSchema, templateData }));
 
   // Authorization
   children.push(...buildAuthorization({ templateData }));
