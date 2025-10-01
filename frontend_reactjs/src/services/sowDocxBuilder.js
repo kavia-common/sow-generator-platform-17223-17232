@@ -13,7 +13,6 @@ import {
   Footer,
   Header,
   BorderStyle,
-  PageNumber,
   VerticalAlign,
 } from "docx";
 
@@ -67,7 +66,7 @@ function get(obj, path, fallback = "") {
 }
 
 /**
- * Borders and widths
+ * Common styles and helpers for neat layout, wrapping, and safe construction.
  */
 const BORDER_GRAY = "B5B5B5";
 const BORDER = {
@@ -79,27 +78,51 @@ const BORDER = {
   insideVertical: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
 };
 
+// Create a normal paragraph with wrapping and comfortable spacing
+function para(text, { bold = false, size = 21, align = AlignmentType.LEFT, after = 80 } = {}) {
+  return new Paragraph({
+    alignment: align,
+    spacing: { after },
+    children: [new TextRun({ text: cleanValue(text || ""), bold, size })],
+  });
+}
+
+// Convert arbitrarily long text to multiple paragraphs split by newlines safely
+function toParagraphs(text, { size = 21 } = {}) {
+  const s = text == null ? "" : String(text);
+  if (!s) return [para("", { size })];
+  const lines = s.split(/\r?\n/);
+  if (!Array.isArray(lines)) return [para(s, { size })];
+  if (lines.length === 0) return [para("", { size })];
+  return lines.map((ln) => para(ln, { size, after: 40 }));
+}
+
+// Full width table with borders; do not predefine row counts; let rows be passed directly
 function tableFullWidth(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: BORDER,
-    rows,
+    rows: safeRows,
+  });
+}
+
+// Table cell with padding and wrapping content
+function makeCell(children, { widthPct, vAlign = VerticalAlign.TOP, padding = 200 } = {}) {
+  const safeChildren = Array.isArray(children) ? children : [children];
+  return new TableCell({
+    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
+    verticalAlign: vAlign,
+    margins: { top: padding, bottom: padding, left: padding, right: padding },
+    children: safeChildren,
   });
 }
 
 function labelCell(text, widthPct) {
-  return new TableCell({
-    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
-    verticalAlign: VerticalAlign.CENTER,
-    children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 21 })] })],
-  });
+  return makeCell(para(text, { bold: true }), { widthPct, vAlign: VerticalAlign.CENTER });
 }
 function valueCell(text, widthPct) {
-  return new TableCell({
-    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
-    verticalAlign: VerticalAlign.TOP,
-    children: [new Paragraph({ children: [new TextRun({ text: cleanValue(text), size: 21 })] })],
-  });
+  return makeCell(toParagraphs(text), { widthPct, vAlign: VerticalAlign.TOP });
 }
 
 /**
@@ -156,19 +179,13 @@ function buildTopIntro({ meta = {}, templateData = {} }) {
     })
   );
 
-  // Intro paragraph (left aligned per notes)
+  // Intro paragraph
   const intro =
     `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${companyName}, and ${supplierName} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
     `Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. ` +
     `This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
 
-  nodes.push(
-    new Paragraph({
-      alignment: AlignmentType.LEFT,
-      spacing: { after: 240 }, // 12 pt before first table
-      children: [new TextRun({ text: intro, size: 21 })],
-    })
-  );
+  nodes.push(para(intro, { size: 21, after: 240 }));
 
   return nodes;
 }
@@ -184,7 +201,7 @@ function buildParametersTable({ templateData = {} }) {
     new TableRow({
       children: [
         new TableCell({
-          children: [new Paragraph({ children: [new TextRun({ text: "Work Order Parameters", bold: true, size: 22 })] })],
+          children: [para("Work Order Parameters", { bold: true, size: 22, after: 40 })],
           columnSpan: 2,
         }),
       ],
@@ -194,17 +211,19 @@ function buildParametersTable({ templateData = {} }) {
   const L = 38; // label width %
   const V = 62; // value width %
 
-  rows.push(
+  const safePush = (row) => rows.push(row);
+
+  safePush(
     new TableRow({
       children: [labelCell("1. Client Portfolio", L), valueCell(get(templateData, "client_portfolio"), V)],
     })
   );
-  rows.push(
+  safePush(
     new TableRow({
       children: [labelCell("2. Type of Project", L), valueCell(get(templateData, "project_type"), V)],
     })
   );
-  rows.push(
+  safePush(
     new TableRow({
       children: [
         labelCell("3. Engagement Number (Required for Fixed Price)", L),
@@ -212,22 +231,22 @@ function buildParametersTable({ templateData = {} }) {
       ],
     })
   );
-  rows.push(
+  safePush(
     new TableRow({
       children: [labelCell("4. Project Start Date", L), valueCell(formatDate(get(templateData, "start_date")), V)],
     })
   );
-  rows.push(
+  safePush(
     new TableRow({
       children: [labelCell("5. Project End Date", L), valueCell(formatDate(get(templateData, "end_date")), V)],
     })
   );
-  rows.push(
+  safePush(
     new TableRow({
       children: [labelCell("6. Planning Assumptions", L), valueCell(get(templateData, "planning_assumptions"), V)],
     })
   );
-  rows.push(
+  safePush(
     new TableRow({
       children: [labelCell("7. Scope of Work (Required for Fixed Price)", L), valueCell(get(templateData, "scope_of_work"), V)],
     })
@@ -241,18 +260,13 @@ function buildParametersTable({ templateData = {} }) {
  */
 function buildTwoColDescriptionTable(titleLeft, bindLeftText, rightHeader = "", rightValue = "") {
   const rows = [];
+
   // Header row
   rows.push(
     new TableRow({
       children: [
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [new Paragraph({ children: [new TextRun({ text: "Description", bold: true, size: 21 })] })],
-        }),
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [new Paragraph({ children: [new TextRun({ text: rightHeader || "", bold: true, size: 21 })] })],
-        }),
+        makeCell(para("Description", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para(rightHeader || "", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
       ],
     })
   );
@@ -266,16 +280,11 @@ function buildTwoColDescriptionTable(titleLeft, bindLeftText, rightHeader = "", 
   rows.push(
     new TableRow({
       children: [
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: leftParas.length
-            ? leftParas.map((p) => new Paragraph({ children: [new TextRun({ text: cleanValue(p), size: 21 })] }))
-            : [new Paragraph({ children: [new TextRun({ text: cleanValue(bindLeftText || ""), size: 21 })] })],
-        }),
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [new Paragraph({ children: [new TextRun({ text: cleanValue(rightValue || ""), size: 21 })] })],
-        }),
+        makeCell(
+          leftParas.length ? leftParas.map((p) => para(p)) : [para(bindLeftText || "")],
+          { widthPct: 50 }
+        ),
+        makeCell([para(rightValue || "")], { widthPct: 50 }),
       ],
     })
   );
@@ -295,14 +304,8 @@ function buildMilestonesFinancials({ templateData = {}, currency = "USD" }) {
   rows.push(
     new TableRow({
       children: [
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [new Paragraph({ children: [new TextRun({ text: "Description", bold: true, size: 21 })] })],
-        }),
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [new Paragraph({})], // empty header cell
-        }),
+        makeCell(para("Description", { bold: true }), { widthPct: 50 }),
+        makeCell(para(""), { widthPct: 50 }),
       ],
     })
   );
@@ -310,26 +313,16 @@ function buildMilestonesFinancials({ templateData = {}, currency = "USD" }) {
   rows.push(
     new TableRow({
       children: [
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [
-            ...String(leftDesc || "")
-              .split("\n")
-              .filter(Boolean)
-              .map((line) => new Paragraph({ children: [new TextRun({ text: cleanValue(line), size: 21 })] })),
+        makeCell(toParagraphs(leftDesc), { widthPct: 50 }),
+        makeCell(
+          [
+            para("Total Cost", { bold: true }),
+            para(totalCost),
+            para("Pricing/Rate", { bold: true }),
+            para(pricingRate),
           ],
-        }),
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [
-            new Paragraph({
-              children: [new TextRun({ text: "Total Cost", bold: true, size: 21 })],
-            }),
-            new Paragraph({ children: [new TextRun({ text: totalCost, size: 21 })] }),
-            new Paragraph({ children: [new TextRun({ text: "Pricing/Rate", bold: true, size: 21 })] }),
-            new Paragraph({ children: [new TextRun({ text: pricingRate, size: 21 })] }),
-          ],
-        }),
+          { widthPct: 50 }
+        ),
       ],
     })
   );
@@ -355,10 +348,7 @@ function buildContinuationTable({ templateData = {} }) {
 
   pushRow("11. Client Relationship", get(templateData, "client_relationship"));
   pushRow("12. Negative Relationship Changes", get(templateData, "negative_relationship_changes"));
-  pushRow(
-    "13. Change & Payment Structure (Fixed Price Only)",
-    get(templateData, "change_payment_structure")
-  );
+  pushRow("13. Change & Payment Structure (Fixed Price Only)", get(templateData, "change_payment_structure"));
   pushRow("14. Deliverable Rate / T&M", get(templateData, "rate_or_tnm"));
   pushRow("15. Key Client Personnel and Reportees", get(templateData, "key_client_personnel"));
   pushRow("16. Service Level Agreements", get(templateData, "slas") || defaults.slas);
@@ -383,13 +373,10 @@ function buildContinuationTable({ templateData = {} }) {
     new TableRow({
       children: [
         labelCell("20. Points of Contact for Communications", L),
-        new TableCell({
-          width: { size: V, type: WidthType.PERCENTAGE },
-          children:
-            lines.length > 0
-              ? lines.map((ln) => new Paragraph({ children: [new TextRun({ text: cleanValue(ln), size: 21 })] }))
-              : [new Paragraph({ children: [new TextRun({ text: cleanValue(poc || ""), size: 21 })] })],
-        }),
+        makeCell(
+          lines.length > 0 ? lines.map((ln) => para(ln)) : [para(poc || "")],
+          { widthPct: V }
+        ),
       ],
     })
   );
@@ -404,56 +391,53 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
   const companyName = cleanValue(
     get(templateData, "company_name") || get(meta, "client") || get(templateData, "client_name") || "Company"
   );
-  const supplierName = cleanValue(
-    get(templateData, "supplier_name") || get(meta, "supplier") || get(templateData, "vendor_name") || "Supplier"
+
+  const preface = para(
+    "An authorized representative of each party has executed this Work Order as of the date indicated under that representative’s signature.",
+    { size: 21, after: 200 }
   );
 
-  const preface = new Paragraph({
-    spacing: { before: 240, after: 200 },
-    children: [
-      new TextRun({
-        size: 21,
-        text:
-          "An authorized representative of each party has executed this Work Order as of the date indicated under that representative’s signature.",
-      }),
-    ],
-  });
-
   // Signature images
-  const supplierSig = get(templateData, "authorization_signatures.supplier_signature") || get(templateData, "supplier_signature") || "";
-  const companySig = get(templateData, "authorization_signatures.company_signature") || get(templateData, "company_signature") || "";
+  const supplierSig =
+    get(templateData, "authorization_signatures.supplier_signature") ||
+    get(templateData, "supplier_signature") ||
+    "";
+  const companySig =
+    get(templateData, "authorization_signatures.company_signature") ||
+    get(templateData, "company_signature") ||
+    "";
 
   const sigHeightPx = 77; // ~0.8"
   const leftColChildren = [
     new Paragraph({ children: [new TextRun({ text: "Supplier", bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
-    new Paragraph({ children: [new TextRun({ text: "Signature", bold: true, size: 21 })] }),
-    (supplierSig && /^data:image\//.test(supplierSig))
+    para("Signature", { bold: true }),
+    supplierSig && /^data:image\//.test(supplierSig)
       ? new Paragraph({
           children: [new ImageRun({ data: dataUrlToBytes(supplierSig), transformation: { width: 220, height: sigHeightPx } })],
         })
-      : new Paragraph({ children: [new TextRun({ text: "", size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: "Name", bold: true, size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "supplier_signer_name") || ""), size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: "Title", bold: true, size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "supplier_signer_title") || ""), size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: "Date", bold: true, size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "supplier_sign_date") || ""), size: 21 })] }),
+      : para(""),
+    para("Name", { bold: true }),
+    para(cleanValue(get(templateData, "supplier_signer_name") || "")),
+    para("Title", { bold: true }),
+    para(cleanValue(get(templateData, "supplier_signer_title") || "")),
+    para("Date", { bold: true }),
+    para(cleanValue(get(templateData, "supplier_sign_date") || "")),
   ];
 
   const rightColChildren = [
     new Paragraph({ children: [new TextRun({ text: companyName, bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
-    new Paragraph({ children: [new TextRun({ text: "Signature", bold: true, size: 21 })] }),
-    (companySig && /^data:image\//.test(companySig))
+    para("Signature", { bold: true }),
+    companySig && /^data:image\//.test(companySig)
       ? new Paragraph({
           children: [new ImageRun({ data: dataUrlToBytes(companySig), transformation: { width: 220, height: sigHeightPx } })],
         })
-      : new Paragraph({ children: [new TextRun({ text: "", size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: "Name", bold: true, size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "company_signer_name") || ""), size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: "Title", bold: true, size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "company_signer_title") || ""), size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: "Date", bold: true, size: 21 })] }),
-    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "company_sign_date") || ""), size: 21 })] }),
+      : para(""),
+    para("Name", { bold: true }),
+    para(cleanValue(get(templateData, "company_signer_name") || "")),
+    para("Title", { bold: true }),
+    para(cleanValue(get(templateData, "company_signer_title") || "")),
+    para("Date", { bold: true }),
+    para(cleanValue(get(templateData, "company_sign_date") || "")),
   ];
 
   const table = new Table({
@@ -462,14 +446,8 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
     rows: [
       new TableRow({
         children: [
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            children: leftColChildren,
-          }),
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            children: rightColChildren,
-          }),
+          makeCell(leftColChildren, { widthPct: 50 }),
+          makeCell(rightColChildren, { widthPct: 50 }),
         ],
       }),
     ],
@@ -501,8 +479,6 @@ function buildHeader({ meta = {}, templateData = {} }) {
     } catch {
       // ignore bad logo
     }
-  } else {
-    // No placeholder in final doc per checklist
   }
   return new Header({ children: headerChildren });
 }
@@ -521,7 +497,7 @@ export async function buildSowDocx(data, templateSchema) {
   children.push(...buildTopIntro({ meta, templateData }));
 
   // Work Order Parameters table
-  children.push(tableFullWidth(buildParametersTable({ templateData }).rows || []) || buildParametersTable({ templateData }));
+  children.push(buildParametersTable({ templateData }));
 
   // Supplier Deliverables
   const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
@@ -542,14 +518,12 @@ export async function buildSowDocx(data, templateSchema) {
   children.push(preface);
   children.push(table);
 
-  // Footer (thin line look not directly supported, keep page number off to match screenshot)
-  const footer = new Footer({
-    children: [],
-  });
+  // Footer: keep minimal to allow page content to flow; page numbers intentionally omitted
+  const footer = new Footer({ children: [] });
 
   const header = buildHeader({ meta, templateData });
 
-  // Page setup per notes: A4 portrait, margins top 1", bottom 0.75", left/right 0.75"
+  // Page setup: A4 portrait, margins top 1", bottom 0.75", left/right 0.75"
   const doc = new Document({
     sections: [
       {
@@ -557,10 +531,11 @@ export async function buildSowDocx(data, templateSchema) {
         footers: { default: footer },
         properties: {
           page: {
-            margin: { top: 1440, right: 1080, bottom: 1080, left: 1080 }, // 1" top, 0.75" others (1080 twips = 0.75")
-            size: { width: 11907, height: 16839 }, // A4 in twips
+            margin: { top: 1440, right: 1080, bottom: 1080, left: 1080 },
+            size: { width: 11907, height: 16839 },
           },
         },
+        // Important: children only; tables will naturally split across pages in docx library
         children,
       },
     ],
