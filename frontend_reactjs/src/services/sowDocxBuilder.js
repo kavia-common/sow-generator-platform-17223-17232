@@ -11,10 +11,10 @@ import {
   AlignmentType,
   ImageRun,
   Footer,
-  PageNumber,
-  TabStopType,
-  TabStopPosition,
+  Header,
   BorderStyle,
+  PageNumber,
+  VerticalAlign,
 } from "docx";
 
 /**
@@ -22,7 +22,7 @@ import {
  */
 function dataUrlToBytes(dataUrl) {
   const [head, b64] = String(dataUrl || "").split(",");
-  const bin = atob(b64 || "");
+  const bin = b64 ? atob(b64) : "";
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
@@ -34,18 +34,13 @@ function dataUrlToBytes(dataUrl) {
 function cleanValue(v) {
   if (v == null) return "";
   const s = String(v);
-  // Remove underscores-only or sequences used as placeholders
   if (/^_+$/.test(s)) return "";
   return s.replace(/_{2,}/g, " ").trim();
 }
 
 function formatValue(v) {
   if (v == null) return "";
-  if (Array.isArray(v)) {
-    return v
-      .map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x)))
-      .join(", ");
-  }
+  if (Array.isArray(v)) return v.map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
   if (typeof v === "object") {
     try {
       return Object.keys(v)
@@ -59,13 +54,12 @@ function formatValue(v) {
 }
 
 /**
- * Resolve dotted path (e.g., "a.b.c") values from an object.
+ * Dotted path get
  */
 function get(obj, path, fallback = "") {
   if (!obj || !path) return fallback;
-  const parts = String(path).split(".");
   let cur = obj;
-  for (const p of parts) {
+  for (const p of String(path).split(".")) {
     if (cur == null) return fallback;
     cur = cur[p];
   }
@@ -73,385 +67,501 @@ function get(obj, path, fallback = "") {
 }
 
 /**
- * Build a shaded header row cell.
+ * Borders and widths
  */
-function headerCell(text) {
-  return new TableCell({
-    children: [
-      new Paragraph({
-        children: [new TextRun({ text, bold: true, size: 21 })], // 10.5 pt
-      }),
-    ],
-  });
-}
+const BORDER_GRAY = "B5B5B5";
+const BORDER = {
+  top: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
+  bottom: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
+  left: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
+  right: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
+  insideHorizontal: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
+  insideVertical: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
+};
 
-/**
- * Create a full-width table with uniform borders.
- */
-function createBorderedTable(rows, { widthPct = 100 } = {}) {
-  const tableBorders = {
-    top: { style: BorderStyle.SINGLE, size: 6, color: "9B9B9B" }, // ~0.75pt
-    bottom: { style: BorderStyle.SINGLE, size: 6, color: "9B9B9B" },
-    left: { style: BorderStyle.SINGLE, size: 6, color: "9B9B9B" },
-    right: { style: BorderStyle.SINGLE, size: 6, color: "9B9B9B" },
-    insideHorizontal: { style: BorderStyle.SINGLE, size: 6, color: "9B9B9B" },
-    insideVertical: { style: BorderStyle.SINGLE, size: 6, color: "9B9B9B" },
-  };
+function tableFullWidth(rows) {
   return new Table({
-    width: { size: widthPct, type: WidthType.PERCENTAGE },
-    borders: tableBorders,
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: BORDER,
     rows,
   });
 }
 
-/**
- * Build the WORK ORDER PROVISIONS table with rows 1..7 and nested 2-col table for Deliverables.
- * Expects fields from templateData and meta.
- */
-function buildWorkOrderProvisions({ meta = {}, templateData = {} }) {
-  // Extract intended fields safely
-  const clientPortfolio = cleanValue(
-    get(templateData, "client_portfolio") || get(meta, "client") || ""
-  );
-  const sowType = cleanValue(meta.sowType || get(templateData, "sow_type") || "");
-  const engagementNumber = cleanValue(
-    get(templateData, "engagement_number") || ""
-  );
-  const includedProjects =
-    get(templateData, "included_projects") ||
-    get(templateData, "projects") ||
-    [];
-  const includedProjectsText = Array.isArray(includedProjects)
-    ? includedProjects.map(formatValue).join(", ")
-    : formatValue(includedProjects);
-
-  const planningAssumptions = cleanValue(
-    get(templateData, "planning_assumptions") || ""
-  );
-
-  // Scope of Work items may be list
-  const scopeIntro =
-    "This Work Order is issued to document the scope of the consulting & software services to be provided. Following is the scope of work:";
-  const scopeItems = get(templateData, "scope_of_work") || get(templateData, "scope.items") || [];
-  const scopeArray = Array.isArray(scopeItems)
-    ? scopeItems
-    : typeof scopeItems === "string" && scopeItems.includes("\n")
-    ? scopeItems.split("\n").map((s) => s.trim()).filter(Boolean)
-    : scopeItems
-    ? [scopeItems]
-    : [];
-
-  // Deliverables two-column data
-  const deliverables = get(templateData, "deliverables") || [];
-  const deliverablesArray = Array.isArray(deliverables)
-    ? deliverables
-    : typeof deliverables === "object"
-    ? Object.keys(deliverables).map((k) => ({ name: k, description: deliverables[k] }))
-    : [];
-
-  // Table header row (shaded)
-  const headerRow = new TableRow({
-    children: [
-      new TableCell({
-        children: [
-          new Paragraph({
-            children: [new TextRun({ text: "WORK ORDER PROVISIONS", bold: true, size: 21 })],
-          }),
-        ],
-        shading: { fill: "E6E6E6", color: "E6E6E6", type: "clear" },
-      }),
-    ],
+function labelCell(text, widthPct) {
+  return new TableCell({
+    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
+    verticalAlign: VerticalAlign.CENTER,
+    children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 21 })] })],
   });
+}
+function valueCell(text, widthPct) {
+  return new TableCell({
+    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
+    verticalAlign: VerticalAlign.TOP,
+    children: [new Paragraph({ children: [new TextRun({ text: cleanValue(text), size: 21 })] })],
+  });
+}
 
-  // Helper to make a body row with bold numbered label then content paragraphs
-  const makeRow = (label, contentParas) =>
+/**
+ * Date and currency helpers
+ */
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return cleanValue(dateStr);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mon = d.toLocaleString("en-US", { month: "short" });
+  const yyyy = d.getFullYear();
+  return `${dd} ${mon} ${yyyy}`;
+}
+
+function formatCurrency(val, currency = "USD") {
+  if (val == null || val === "") return "";
+  const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9.-]/g, ""));
+  if (isNaN(num)) return cleanValue(val);
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(num);
+  } catch {
+    return num.toFixed(2);
+  }
+}
+
+/**
+ * Build top title + subtitle + intro paragraph
+ */
+function buildTopIntro({ meta = {}, templateData = {} }) {
+  const companyName = cleanValue(
+    get(templateData, "company_name") || get(meta, "client") || get(templateData, "client_name") || ""
+  );
+  const supplierName = cleanValue(
+    get(templateData, "supplier_name") || get(meta, "supplier") || get(templateData, "vendor_name") || ""
+  );
+
+  const nodes = [];
+
+  // Titles
+  nodes.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 40 },
+      children: [new TextRun({ text: "Statement of Work", bold: true, size: 26 })],
+      heading: HeadingLevel.HEADING_1,
+    })
+  );
+  nodes.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 240 }, // 12 pt
+      children: [new TextRun({ text: "Master Services Agreement", size: 22 })],
+    })
+  );
+
+  // Intro paragraph (left aligned per notes)
+  const intro =
+    `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${companyName}, and ${supplierName} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
+    `Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. ` +
+    `This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
+
+  nodes.push(
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 240 }, // 12 pt before first table
+      children: [new TextRun({ text: intro, size: 21 })],
+    })
+  );
+
+  return nodes;
+}
+
+/**
+ * Build Work Order Parameters table (header + rows 1..7)
+ */
+function buildParametersTable({ templateData = {} }) {
+  const rows = [];
+
+  // Header spanning two columns
+  rows.push(
     new TableRow({
       children: [
         new TableCell({
-          children: [
-            new Paragraph({
-              children: [new TextRun({ text: label, bold: true, size: 21 })],
-            }),
-            ...contentParas,
-          ],
+          children: [new Paragraph({ children: [new TextRun({ text: "Work Order Parameters", bold: true, size: 22 })] })],
+          columnSpan: 2,
         }),
       ],
-    });
-
-  // Row 1: Client Portfolio
-  const row1 = makeRow("1. Client Portfolio:", [
-    new Paragraph({ children: [new TextRun({ text: clientPortfolio || "", size: 20 })] }),
-  ]);
-
-  // Row 2: Type of Project (SOW Type moved here)
-  const row2 = makeRow("2. Type of Project:", [
-    new Paragraph({ children: [new TextRun({ text: sowType || "", size: 20 })] }),
-  ]);
-
-  // Row 3: Engagement Number
-  const row3 = makeRow("3. Engagement Number: (Required for Fixed Price)", [
-    new Paragraph({ children: [new TextRun({ text: engagementNumber || "", size: 20 })] }),
-  ]);
-
-  // Row 4: Included Projects
-  const row4 = makeRow("4. Included Projects (Required for Fixed Price):", [
-    new Paragraph({ children: [new TextRun({ text: includedProjectsText || "", size: 20 })] }),
-  ]);
-
-  // Row 5: Planning Assumptions (with subtext guidance)
-  const row5 = makeRow("5. Planning Assumptions:", [
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: "A brief statement of resources assigned or to be assigned to the project.",
-          size: 20,
-        }),
-      ],
-    }),
-    new Paragraph({ children: [new TextRun({ text: planningAssumptions || "", size: 20 })] }),
-  ]);
-
-  // Row 6: Scope of Work/Services with intro and bullets
-  const row6Children = [
-    new Paragraph({
-      children: [new TextRun({ text: scopeIntro, size: 20 })],
-    }),
-  ];
-  if (scopeArray.length > 0) {
-    // Add bullet paragraphs
-    scopeArray.forEach((item) => {
-      const txt = cleanValue(formatValue(item));
-      row6Children.push(
-        new Paragraph({
-          children: [new TextRun({ text: txt, size: 20 })],
-          bullet: { level: 0 },
-        })
-      );
-    });
-  } else {
-    row6Children.push(new Paragraph({ children: [new TextRun({ text: "", size: 20 })] }));
-  }
-  const row6 = makeRow("6. Scope of Work/Services (1): Fixed Price:", row6Children);
-
-  // Row 7: Supplier Deliverables with nested 2-col table
-  const nestedHeader = new TableRow({
-    children: [
-      new TableCell({
-        width: { size: 40, type: WidthType.PERCENTAGE },
-        children: [
-          new Paragraph({ children: [new TextRun({ text: "Deliverables", bold: true, size: 20 })] }),
-        ],
-      }),
-      new TableCell({
-        width: { size: 60, type: WidthType.PERCENTAGE },
-        children: [
-          new Paragraph({ children: [new TextRun({ text: "Description", bold: true, size: 20 })] }),
-        ],
-      }),
-    ],
-  });
-
-  const nestedRows = (deliverablesArray.length ? deliverablesArray : [{ name: "", description: "" }]).map(
-    (d, idx) =>
-      new TableRow({
-        children: [
-          new TableCell({
-            width: { size: 40, type: WidthType.PERCENTAGE },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: cleanValue(d.name || d.title || d.deliverable || ""),
-                    size: 20,
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new TableCell({
-            width: { size: 60, type: WidthType.PERCENTAGE },
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: cleanValue(d.description || d.details || ""),
-                    size: 20,
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      })
+    })
   );
 
-  const nestedTable = createBorderedTable([nestedHeader, ...nestedRows]);
+  const L = 38; // label width %
+  const V = 62; // value width %
 
-  const row7 = new TableRow({
-    children: [
-      new TableCell({
-        children: [
-          new Paragraph({
-            children: [new TextRun({ text: "7. Supplier Deliverables", bold: true, size: 21 })],
-          }),
-          new Paragraph({ text: "" }),
-          nestedTable,
-        ],
-      }),
-    ],
-  });
+  rows.push(
+    new TableRow({
+      children: [labelCell("1. Client Portfolio", L), valueCell(get(templateData, "client_portfolio"), V)],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [labelCell("2. Type of Project", L), valueCell(get(templateData, "project_type"), V)],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [
+        labelCell("3. Engagement Number (Required for Fixed Price)", L),
+        valueCell(get(templateData, "engagement_number"), V),
+      ],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [labelCell("4. Project Start Date", L), valueCell(formatDate(get(templateData, "start_date")), V)],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [labelCell("5. Project End Date", L), valueCell(formatDate(get(templateData, "end_date")), V)],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [labelCell("6. Planning Assumptions", L), valueCell(get(templateData, "planning_assumptions"), V)],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [labelCell("7. Scope of Work (Required for Fixed Price)", L), valueCell(get(templateData, "scope_of_work"), V)],
+    })
+  );
 
-  return createBorderedTable([headerRow, row1, row2, row3, row4, row5, row6, row7]);
+  return tableFullWidth(rows);
 }
 
 /**
- * Build the legal paragraph text under the heading, injecting dynamic fields.
+ * Two-column tables: Supplier Deliverables, Client Deliverables
  */
-function buildLegalParagraph({ meta = {}, templateData = {} }) {
-  const msaDate =
-    cleanValue(get(meta, "msaDate") || get(templateData, "msa_date") || get(meta, "date") || "");
-  const clientName =
-    cleanValue(get(meta, "client") || get(templateData, "client_name") || get(templateData, "company_name") || "");
-  const supplierName =
-    cleanValue(get(meta, "supplier") || get(templateData, "supplier_name") || get(templateData, "vendor_name") || "");
+function buildTwoColDescriptionTable(titleLeft, bindLeftText, rightHeader = "", rightValue = "") {
+  const rows = [];
+  // Header row
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          children: [new Paragraph({ children: [new TextRun({ text: "Description", bold: true, size: 21 })] })],
+        }),
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          children: [new Paragraph({ children: [new TextRun({ text: rightHeader || "", bold: true, size: 21 })] })],
+        }),
+      ],
+    })
+  );
 
-  const legalText =
-    `This Statement of Work references and is executed subject to the terms and conditions of that certain Master Services Agreement dated ${msaDate} previously entered into by and between ${clientName} (“Client”), the limited liability company, and ${supplierName} (“Supplier”). The Work Order is effective when signed by Supplier’s authorized signatory as indicated below.`;
+  const leftParas = Array.isArray(bindLeftText)
+    ? bindLeftText
+    : typeof bindLeftText === "string"
+    ? bindLeftText.split("\n").filter(Boolean)
+    : [];
 
-  return new Paragraph({
-    children: [new TextRun({ text: legalText, size: 20 })], // 10 pt
-    alignment: AlignmentType.JUSTIFIED,
-    spacing: { before: 120, after: 200 }, // ~6pt before, 10pt after
-  });
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          children: leftParas.length
+            ? leftParas.map((p) => new Paragraph({ children: [new TextRun({ text: cleanValue(p), size: 21 })] }))
+            : [new Paragraph({ children: [new TextRun({ text: cleanValue(bindLeftText || ""), size: 21 })] })],
+        }),
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          children: [new Paragraph({ children: [new TextRun({ text: cleanValue(rightValue || ""), size: 21 })] })],
+        }),
+      ],
+    })
+  );
+
+  return tableFullWidth(rows);
 }
 
-// PUBLIC_INTERFACE
-export async function buildSowDocx(data, templateSchema) {
-  /**
-   * Build a DOCX Blob from given SOW data and schema.
-   * PUBLIC_INTERFACE
-   * Layout:
-   * - Logo (top-left) if provided.
-   * - Centered bold heading: "Statement of Work" (no SOW type appended).
-   * - Legal paragraph (justified) directly under heading.
-   * - WORK ORDER PROVISIONS table with numbered rows (SOW Type in row 2).
-   * - Signature block at the very bottom with image if available.
-   */
-  const meta = data?.meta || {};
-  const templateData = data?.templateData || {};
-  const bodyChildren = [];
+/**
+ * Milestones/Financials table (left Description; right stacked Total Cost and Pricing/Rate)
+ */
+function buildMilestonesFinancials({ templateData = {}, currency = "USD" }) {
+  const leftDesc = get(templateData, "milestones_description") || get(templateData, "milestones") || "";
+  const totalCost = formatCurrency(get(templateData, "total_cost"), get(templateData, "currency") || currency);
+  const pricingRate = cleanValue(get(templateData, "pricing_rate"));
 
-  // Logo at top-left (if provided)
-  if (typeof meta.logoUrl === "string" && /^data:image\//.test(meta.logoUrl)) {
-    try {
-      const bytes = dataUrlToBytes(meta.logoUrl);
-      bodyChildren.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 100 }, // small spacing after logo
-          children: [
-            new ImageRun({
-              data: bytes,
-              transformation: { width: 180, height: 56 },
-            }),
-          ],
-        })
-      );
-    } catch {
-      // ignore invalid logo
-    }
-  }
-
-  // Title - explicitly "Statement of Work" centered and bold
-  bodyChildren.push(
-    new Paragraph({
+  const rows = [];
+  rows.push(
+    new TableRow({
       children: [
-        new TextRun({ text: "Statement of Work", bold: true, size: 26 }), // ~13 pt
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          children: [new Paragraph({ children: [new TextRun({ text: "Description", bold: true, size: 21 })] })],
+        }),
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          children: [new Paragraph({})], // empty header cell
+        }),
       ],
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 120, after: 120 }, // ~6pt before/after
     })
   );
 
-  // Legal paragraph directly under the heading
-  bodyChildren.push(buildLegalParagraph({ meta, templateData }));
-
-  // Space between legal paragraph and main table: ~10 pt (already after in paragraph)
-  // Build the WORK ORDER PROVISIONS table
-  const provisions = buildWorkOrderProvisions({ meta, templateData });
-  bodyChildren.push(provisions);
-
-  // Spacing before signature block
-  bodyChildren.push(new Paragraph({ text: "", spacing: { before: 280, after: 140 } })); // ~14-18pt
-
-  // Signature block at bottom
-  const signatureDataUrl =
-    (typeof templateData.signature === "string" && templateData.signature) ||
-    (typeof templateData.authorization_signatures?.signature === "string" &&
-      templateData.authorization_signatures.signature) ||
-    null;
-
-  // Build a simple signature section at the end (not in footer)
-  bodyChildren.push(
-    new Paragraph({
-      children: [new TextRun({ text: "Authorized Signature:", bold: true, size: 20 })],
-      spacing: { after: 100 },
-    })
-  );
-
-  if (signatureDataUrl && /^data:image\//.test(signatureDataUrl)) {
-    try {
-      const sigBytes = dataUrlToBytes(signatureDataUrl);
-      bodyChildren.push(
-        new Paragraph({
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
           children: [
-            new ImageRun({
-              data: sigBytes,
-              transformation: { width: 240, height: 80 }, // <= 2.5"
-            }),
+            ...String(leftDesc || "")
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => new Paragraph({ children: [new TextRun({ text: cleanValue(line), size: 21 })] })),
           ],
-          spacing: { after: 120 },
-          alignment: AlignmentType.LEFT,
-        })
-      );
-    } catch {
-      bodyChildren.push(
-        new Paragraph({
-          children: [new TextRun({ text: "Not signed", italics: true, size: 20 })],
-        })
-      );
-    }
-  } else {
-    // Leave space and add "Not signed"
-    bodyChildren.push(
-      new Paragraph({
-        children: [new TextRun({ text: "Not signed", italics: true, size: 20 })],
-      })
-    );
-  }
+        }),
+        new TableCell({
+          width: { size: 50, type: WidthType.PERCENTAGE },
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: "Total Cost", bold: true, size: 21 })],
+            }),
+            new Paragraph({ children: [new TextRun({ text: totalCost, size: 21 })] }),
+            new Paragraph({ children: [new TextRun({ text: "Pricing/Rate", bold: true, size: 21 })] }),
+            new Paragraph({ children: [new TextRun({ text: pricingRate, size: 21 })] }),
+          ],
+        }),
+      ],
+    })
+  );
 
-  // Footer with page number only (signature is above as per design)
-  const footer = new Footer({
+  return tableFullWidth(rows);
+}
+
+/**
+ * Continuation parameters (items 11..20)
+ */
+function buildContinuationTable({ templateData = {} }) {
+  const L = 38;
+  const V = 62;
+
+  const defaults = {
+    slas: "N/A",
+    communication_paths: "As defined in the Agreement.",
+  };
+
+  const rows = [];
+  const pushRow = (label, value) =>
+    rows.push(new TableRow({ children: [labelCell(label, L), valueCell(value ?? "", V)] }));
+
+  pushRow("11. Client Relationship", get(templateData, "client_relationship"));
+  pushRow("12. Negative Relationship Changes", get(templateData, "negative_relationship_changes"));
+  pushRow(
+    "13. Change & Payment Structure (Fixed Price Only)",
+    get(templateData, "change_payment_structure")
+  );
+  pushRow("14. Deliverable Rate / T&M", get(templateData, "rate_or_tnm"));
+  pushRow("15. Key Client Personnel and Reportees", get(templateData, "key_client_personnel"));
+  pushRow("16. Service Level Agreements", get(templateData, "slas") || defaults.slas);
+  pushRow("17. Communication Paths", get(templateData, "communication_paths") || defaults.communication_paths);
+  pushRow("18. Service Locations", get(templateData, "service_locations"));
+  pushRow("19. Escalation Contact", get(templateData, "escalation_contact"));
+
+  // 20. Points of Contact for Communications – render name/contact/email/address per line
+  const poc = get(templateData, "poc_for_communications") || [];
+  const lines = Array.isArray(poc)
+    ? poc.map((p) => {
+        const n = p?.name || p?.employee || "";
+        const c = p?.contact || "";
+        const e = p?.email || "";
+        const a = p?.address || "";
+        return [n, c, e, a].filter(Boolean).join(", ");
+      })
+    : typeof poc === "string"
+    ? poc.split("\n")
+    : [];
+  rows.push(
+    new TableRow({
+      children: [
+        labelCell("20. Points of Contact for Communications", L),
+        new TableCell({
+          width: { size: V, type: WidthType.PERCENTAGE },
+          children:
+            lines.length > 0
+              ? lines.map((ln) => new Paragraph({ children: [new TextRun({ text: cleanValue(ln), size: 21 })] }))
+              : [new Paragraph({ children: [new TextRun({ text: cleanValue(poc || ""), size: 21 })] })],
+        }),
+      ],
+    })
+  );
+
+  return tableFullWidth(rows);
+}
+
+/**
+ * Authorization section: preface paragraph and two-column signature table
+ */
+function buildAuthorization({ meta = {}, templateData = {} }) {
+  const companyName = cleanValue(
+    get(templateData, "company_name") || get(meta, "client") || get(templateData, "client_name") || "Company"
+  );
+  const supplierName = cleanValue(
+    get(templateData, "supplier_name") || get(meta, "supplier") || get(templateData, "vendor_name") || "Supplier"
+  );
+
+  const preface = new Paragraph({
+    spacing: { before: 240, after: 200 },
     children: [
-      new Paragraph({
-        children: [new TextRun({ text: "Page " }), new TextRun({ children: [PageNumber.CURRENT] })],
-        alignment: AlignmentType.RIGHT,
+      new TextRun({
+        size: 21,
+        text:
+          "An authorized representative of each party has executed this Work Order as of the date indicated under that representative’s signature.",
       }),
     ],
   });
 
+  // Signature images
+  const supplierSig = get(templateData, "authorization_signatures.supplier_signature") || get(templateData, "supplier_signature") || "";
+  const companySig = get(templateData, "authorization_signatures.company_signature") || get(templateData, "company_signature") || "";
+
+  const sigHeightPx = 77; // ~0.8"
+  const leftColChildren = [
+    new Paragraph({ children: [new TextRun({ text: "Supplier", bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
+    new Paragraph({ children: [new TextRun({ text: "Signature", bold: true, size: 21 })] }),
+    (supplierSig && /^data:image\//.test(supplierSig))
+      ? new Paragraph({
+          children: [new ImageRun({ data: dataUrlToBytes(supplierSig), transformation: { width: 220, height: sigHeightPx } })],
+        })
+      : new Paragraph({ children: [new TextRun({ text: "", size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: "Name", bold: true, size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "supplier_signer_name") || ""), size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: "Title", bold: true, size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "supplier_signer_title") || ""), size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: "Date", bold: true, size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "supplier_sign_date") || ""), size: 21 })] }),
+  ];
+
+  const rightColChildren = [
+    new Paragraph({ children: [new TextRun({ text: companyName, bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
+    new Paragraph({ children: [new TextRun({ text: "Signature", bold: true, size: 21 })] }),
+    (companySig && /^data:image\//.test(companySig))
+      ? new Paragraph({
+          children: [new ImageRun({ data: dataUrlToBytes(companySig), transformation: { width: 220, height: sigHeightPx } })],
+        })
+      : new Paragraph({ children: [new TextRun({ text: "", size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: "Name", bold: true, size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "company_signer_name") || ""), size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: "Title", bold: true, size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "company_signer_title") || ""), size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: "Date", bold: true, size: 21 })] }),
+    new Paragraph({ children: [new TextRun({ text: cleanValue(get(templateData, "company_sign_date") || ""), size: 21 })] }),
+  ];
+
+  const table = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: BORDER,
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            children: leftColChildren,
+          }),
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            children: rightColChildren,
+          }),
+        ],
+      }),
+    ],
+  });
+
+  return { preface, table };
+}
+
+/**
+ * Build page header with logo in top-left
+ */
+function buildHeader({ meta = {}, templateData = {} }) {
+  const logo = get(meta, "logoUrl") || get(templateData, "logo") || "";
+  const headerChildren = [];
+  if (logo && /^data:image\//.test(logo)) {
+    try {
+      headerChildren.push(
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          spacing: { after: 80 },
+          children: [
+            new ImageRun({
+              data: dataUrlToBytes(logo),
+              transformation: { width: 120, height: 48 }, // ~1.25" x 0.5"
+            }),
+          ],
+        })
+      );
+    } catch {
+      // ignore bad logo
+    }
+  } else {
+    // No placeholder in final doc per checklist
+  }
+  return new Header({ children: headerChildren });
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * Build the final SOW DOCX blob
+ */
+// PUBLIC_INTERFACE
+export async function buildSowDocx(data, templateSchema) {
+  const meta = data?.meta || {};
+  const templateData = data?.templateData || {};
+  const children = [];
+
+  // Top titles and intro paragraph
+  children.push(...buildTopIntro({ meta, templateData }));
+
+  // Work Order Parameters table
+  children.push(tableFullWidth(buildParametersTable({ templateData }).rows || []) || buildParametersTable({ templateData }));
+
+  // Supplier Deliverables
+  const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
+  children.push(buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables));
+
+  // Client Deliverables
+  const clientDeliverables = get(templateData, "client_deliverables") || "";
+  children.push(buildTwoColDescriptionTable("Client Deliverables", clientDeliverables));
+
+  // Milestones / Financials
+  children.push(buildMilestonesFinancials({ templateData }));
+
+  // Continuation table (11..20)
+  children.push(buildContinuationTable({ templateData }));
+
+  // Authorization preface + table
+  const { preface, table } = buildAuthorization({ meta, templateData });
+  children.push(preface);
+  children.push(table);
+
+  // Footer (thin line look not directly supported, keep page number off to match screenshot)
+  const footer = new Footer({
+    children: [],
+  });
+
+  const header = buildHeader({ meta, templateData });
+
+  // Page setup per notes: A4 portrait, margins top 1", bottom 0.75", left/right 0.75"
   const doc = new Document({
     sections: [
       {
-        headers: {},
+        headers: { default: header },
         footers: { default: footer },
         properties: {
           page: {
-            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }, // 1 inch margins
+            margin: { top: 1440, right: 1080, bottom: 1080, left: 1080 }, // 1" top, 0.75" others (1080 twips = 0.75")
+            size: { width: 11907, height: 16839 }, // A4 in twips
           },
         },
-        children: bodyChildren,
+        children,
       },
     ],
   });
@@ -460,18 +570,19 @@ export async function buildSowDocx(data, templateSchema) {
   return blob;
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Generate a filename
+ */
 // PUBLIC_INTERFACE
 export function makeSowDocxFilename(data) {
-  /**
-   * Generate a meaningful filename like SOW_<client>_<title>_<YYYYMMDD>.docx
-   * PUBLIC_INTERFACE
-   */
   const meta = data?.meta || {};
   const client = (meta.client || "Client").replace(/[^\w-]+/g, "_");
   const title = (meta.title || meta.project || "Statement_of_Work").replace(/[^\w-]+/g, "_");
   const now = new Date();
-  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
-    now.getDate()
-  ).padStart(2, "0")}`;
+  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(
+    2,
+    "0"
+  )}`;
   return `SOW_${client}_${title}_${yyyymmdd}.docx`;
 }
