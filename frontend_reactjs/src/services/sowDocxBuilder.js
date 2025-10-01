@@ -39,7 +39,11 @@ function cleanValue(v) {
 
 function formatValue(v) {
   if (v == null) return "";
-  if (Array.isArray(v)) return v.map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
+  if (Array.isArray(v)) {
+    return v
+      .map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x)))
+      .join(", ");
+  }
   if (typeof v === "object") {
     try {
       return Object.keys(v)
@@ -66,7 +70,7 @@ function get(obj, path, fallback = "") {
 }
 
 /**
- * Common styles and helpers for neat layout, wrapping, and safe construction.
+ * Common styles and helpers for layout
  */
 const BORDER_GRAY = "B5B5B5";
 const BORDER = {
@@ -78,8 +82,10 @@ const BORDER = {
   insideVertical: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
 };
 
-// Create a normal paragraph with wrapping and comfortable spacing
-function para(text, { bold = false, size = 21, align = AlignmentType.LEFT, after = 80 } = {}) {
+function para(
+  text,
+  { bold = false, size = 21, align = AlignmentType.LEFT, after = 80 } = {}
+) {
   return new Paragraph({
     alignment: align,
     spacing: { after },
@@ -87,17 +93,29 @@ function para(text, { bold = false, size = 21, align = AlignmentType.LEFT, after
   });
 }
 
-// Convert arbitrarily long text to multiple paragraphs split by newlines safely
-function toParagraphs(text, { size = 21, align = AlignmentType.RIGHT } = {}) {
+function toParagraphs(text, { size = 21, align = AlignmentType.LEFT } = {}) {
   const s = text == null ? "" : String(text);
-  if (!s) return [new Paragraph({ alignment: align, children: [new TextRun({ text: "", size })] })];
+  if (!s)
+    return [
+      new Paragraph({ alignment: align, children: [new TextRun({ text: "", size })] }),
+    ];
   const lines = s.split(/\r?\n/);
-  if (!Array.isArray(lines)) return [new Paragraph({ alignment: align, children: [new TextRun({ text: s, size })] })];
-  if (lines.length === 0) return [new Paragraph({ alignment: align, children: [new TextRun({ text: "", size })] })];
-  return lines.map((ln) => new Paragraph({ alignment: align, spacing: { after: 40 }, children: [new TextRun({ text: ln, size })] }));
+  if (!Array.isArray(lines))
+    return [new Paragraph({ alignment: align, children: [new TextRun({ text: s, size })] })];
+  if (lines.length === 0)
+    return [
+      new Paragraph({ alignment: align, children: [new TextRun({ text: "", size })] }),
+    ];
+  return lines.map(
+    (ln) =>
+      new Paragraph({
+        alignment: align,
+        spacing: { after: 40 },
+        children: [new TextRun({ text: ln, size })],
+      })
+  );
 }
 
-// Full width table with borders; do not predefine row counts; let rows be passed directly
 function tableFullWidth(rows) {
   const safeRows = Array.isArray(rows) ? rows : [];
   return new Table({
@@ -107,22 +125,31 @@ function tableFullWidth(rows) {
   });
 }
 
-// Table cell with padding and wrapping content
-function makeCell(children, { widthPct, vAlign = VerticalAlign.TOP, padding = 200 } = {}) {
+function makeCell(
+  children,
+  { widthPct, vAlign = VerticalAlign.TOP, padding = 200, opts = {} } = {}
+) {
   const safeChildren = Array.isArray(children) ? children : [children];
   return new TableCell({
     width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
     verticalAlign: vAlign,
     margins: { top: padding, bottom: padding, left: padding, right: padding },
     children: safeChildren,
+    ...opts,
   });
 }
 
 function labelCell(text, widthPct) {
-  return makeCell(para(text, { bold: true, align: AlignmentType.LEFT }), { widthPct, vAlign: VerticalAlign.CENTER });
+  return makeCell(para(text, { bold: true, align: AlignmentType.LEFT }), {
+    widthPct,
+    vAlign: VerticalAlign.CENTER,
+  });
 }
 function valueCell(text, widthPct) {
-  return makeCell(toParagraphs(text, { align: AlignmentType.RIGHT }), { widthPct, vAlign: VerticalAlign.TOP });
+  return makeCell(toParagraphs(text, { align: AlignmentType.LEFT }), {
+    widthPct,
+    vAlign: VerticalAlign.TOP,
+  });
 }
 
 /**
@@ -140,10 +167,13 @@ function formatDate(dateStr) {
 
 function formatCurrency(val, currency = "USD") {
   if (val == null || val === "") return "";
-  const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9.-]/g, ""));
+  const num =
+    typeof val === "number" ? val : Number(String(val).replace(/[^0-9.-]/g, ""));
   if (isNaN(num)) return cleanValue(val);
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(num);
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
+      num
+    );
   } catch {
     return num.toFixed(2);
   }
@@ -153,16 +183,18 @@ function formatCurrency(val, currency = "USD") {
  * Build top title + subtitle + intro paragraph
  */
 function buildTopIntro({ meta = {}, templateData = {} }) {
-  const companyName = cleanValue(
-    get(templateData, "company_name") || get(meta, "client") || get(templateData, "client_name") || ""
-  );
-  const supplierName = cleanValue(
-    get(templateData, "supplier_name") || get(meta, "supplier") || get(templateData, "vendor_name") || ""
-  );
+  const companyName =
+    get(templateData, "company_name") ||
+    get(meta, "client") ||
+    get(templateData, "client_name") ||
+    "";
+  const supplierName =
+    get(templateData, "supplier_name") ||
+    get(meta, "supplier") ||
+    get(templateData, "vendor_name") ||
+    "";
 
   const nodes = [];
-
-  // Titles
   nodes.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -174,148 +206,197 @@ function buildTopIntro({ meta = {}, templateData = {} }) {
   nodes.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 240 }, // 12 pt
+      spacing: { after: 240 },
       children: [new TextRun({ text: "Master Services Agreement", size: 22 })],
     })
   );
 
-  // Intro paragraph
   const intro =
-    `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${companyName}, and ${supplierName} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
+    `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${cleanValue(
+      companyName
+    )}, and ${cleanValue(
+      supplierName
+    )} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
     `Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. ` +
     `This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
 
   nodes.push(para(intro, { size: 21, after: 240 }));
-
   return nodes;
 }
 
 /**
- * Build a unified two-column table for all fields in the same order they appear on the form.
- * Left column: field label/question (left aligned)
- * Right column: user-entered answer/value (right aligned)
+ * Parameters table: rows 1..7
  */
-function buildAllFieldsTable({ templateData = {}, templateSchema }) {
+function buildParametersTable({ templateData = {} }) {
+  const L = 40;
+  const V = 60;
   const rows = [];
 
-  // Table header
   rows.push(
     new TableRow({
       children: [
         new TableCell({
-          children: [para("SOW Details", { bold: true, size: 22, after: 40 })],
+          children: [para("Work Order Parameters", { bold: true, size: 22, after: 40 })],
           columnSpan: 2,
         }),
       ],
     })
   );
 
-  const L = 40;
-  const V = 60;
-
-  // Helper to push a standard row
   const pushRow = (label, value) => {
     rows.push(
       new TableRow({
-        children: [labelCell(label || "", L), valueCell(value ?? "", V)],
+        children: [labelCell(label, L), valueCell(value ?? "", V)],
       })
     );
   };
 
-  // Flatten fields in order (support both sectioned and flat schemas)
-  const orderedFields = [];
-  if (templateSchema?.sections?.length) {
-    for (const sec of templateSchema.sections) {
-      for (const f of sec.fields || []) {
-        orderedFields.push({ section: sec.section, ...f });
-      }
-    }
-  } else if (templateSchema?.fields?.length) {
-    for (const f of templateSchema.fields) {
-      orderedFields.push(f);
-    }
-  }
+  pushRow("1. Client Portfolio", cleanValue(templateData.client_portfolio));
+  pushRow("2. Type of Project", cleanValue(templateData.project_type));
+  pushRow(
+    "3. Engagement Number (Required for Fixed Price)",
+    cleanValue(templateData.engagement_number)
+  );
+  pushRow("4. Project Start Date", formatDate(templateData.start_date));
+  pushRow("5. Project End Date", formatDate(templateData.end_date));
+  pushRow(
+    "6. Planning Assumptions",
+    cleanValue(templateData.planning_assumptions)
+  );
+  pushRow("7. Scope of Work (Required for Fixed Price)", cleanValue(templateData.scope_of_work));
 
-  const seenKeys = new Set();
+  return tableFullWidth(rows);
+}
 
-  const getDisplayForField = (field) => {
-    const key = field.key;
-    const raw = templateData?.[key];
+/**
+ * Two-column description table for deliverables sections
+ */
+function buildTwoColDescriptionTable(title, leftText, rightHeader = "", rightValue = "") {
+  const rows = [];
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          children: [para(title, { bold: true, size: 22, after: 40 })],
+          columnSpan: 2,
+        }),
+      ],
+    })
+  );
 
-    switch (field.type) {
-      case "date":
-        return formatDate(raw);
-      case "currency":
-        return formatCurrency(raw);
-      case "list":
-        if (Array.isArray(raw)) return raw.map((x) => (x && typeof x === "object" ? JSON.stringify(x) : String(x))).join("\n");
-        return cleanValue(raw);
-      case "object":
-        if (!raw || typeof raw !== "object") return "";
-        // Render object sub-properties as multi-line "Label: value"
-        const parts = [];
-        for (const p of field.properties || []) {
-          const v = raw[p.key];
-          const lineVal =
-            p.type === "date" ? formatDate(v) :
-            p.type === "currency" ? formatCurrency(v) :
-            Array.isArray(v) ? v.join(", ") :
-            v ?? "";
-          parts.push(`${p.label || p.key}: ${cleanValue(String(lineVal))}`);
-        }
-        return parts.join("\n");
-      case "table":
-        // Render table rows as multi-line JSON-ish for readability
-        if (Array.isArray(raw) && raw.length) {
-          const colLabels = (field.columns || []).map((c) => c.label || c.key);
-          const lines = raw.map((row) => {
-            return (field.columns || [])
-              .map((c, idx) => `${colLabels[idx]}: ${cleanValue(String(row[c.key] ?? ""))}`)
-              .join(" | ");
-          });
-          return lines.join("\n");
-        }
-        return "";
-      case "signature":
-        // Display placeholder text; images are already handled in Authorization
-        return raw ? "[Signature Attached]" : "";
-      default:
-        return cleanValue(raw);
-    }
+  rows.push(
+    new TableRow({
+      children: [labelCell("Description", 40), valueCell("", 60)],
+    })
+  );
+
+  rows.push(
+    new TableRow({
+      children: [valueCell(leftText || "", 40), valueCell(rightHeader ? `${rightHeader}: ${rightValue || ""}` : "", 60)],
+    })
+  );
+
+  return tableFullWidth(rows);
+}
+
+/**
+ * Milestones and Financials (left: description, right: totals)
+ */
+function buildMilestonesFinancials({ templateData = {}, currency }) {
+  const rows = [];
+
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          children: [para("Project Milestones", { bold: true, size: 22, after: 40 })],
+          columnSpan: 2,
+        }),
+      ],
+    })
+  );
+
+  rows.push(
+    new TableRow({
+      children: [labelCell("Description", 40), valueCell("", 60)],
+    })
+  );
+
+  const desc = cleanValue(templateData.milestones_description || templateData.milestones);
+  const totalCost = formatCurrency(
+    templateData.total_cost ?? templateData.project_total ?? templateData.overall_cost,
+    currency || templateData.currency || "USD"
+  );
+  const pricing = cleanValue(
+    templateData.pricing_rate ??
+      templateData.rate ??
+      templateData.rate_card ??
+      templateData.contractor_rate ??
+      templateData.contractor_rate_per_hr
+  );
+
+  rows.push(
+    new TableRow({
+      children: [valueCell(desc, 40), valueCell(`Total Cost: ${totalCost}`, 60)],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [valueCell("", 40), valueCell(`Pricing/Rate: ${pricing}`, 60)],
+    })
+  );
+
+  return tableFullWidth(rows);
+}
+
+/**
+ * Continuation items 11..20
+ */
+function buildContinuationTable({ templateData = {} }) {
+  const L = 40;
+  const V = 60;
+  const rows = [];
+  const pushRow = (label, value) => {
+    rows.push(
+      new TableRow({
+        children: [labelCell(label, L), valueCell(value ?? "", V)],
+      })
+    );
   };
 
-  // Walk ordered fields and add rows
-  for (const f of orderedFields) {
-    if (!f || !f.key || seenKeys.has(f.key)) continue;
-    seenKeys.add(f.key);
-
-    // Include every field regardless of emptiness to ensure nothing is skipped
-    const label = f.label || f.key;
-    const value = getDisplayForField(f);
-    pushRow(label, value);
-  }
-
-  // Special financial fields: ensure we do not miss "Total Cost", "Pricing/Rate" by name variants
-  const totalCostKeys = ["total_cost", "project_total", "budget_total", "total", "overall_cost"];
-  const pricingRateKeys = ["pricing_rate", "rate", "rate_card", "contractor_rate", "contractor_rate_per_hr"];
-
-  // If schema already had them as fields we already included.
-  // But if they exist in templateData outside schema, append them to ensure no special field is missed.
-  const tryAppendIfPresent = (label, keys, formatter) => {
-    for (const k of keys) {
-      if (seenKeys.has(k)) continue;
-      const raw = get(templateData, k);
-      if (raw != null && raw !== "") {
-        const formatted = formatter ? formatter(raw) : cleanValue(raw);
-        pushRow(label, formatted);
-        seenKeys.add(k);
-        break;
-      }
-    }
-  };
-
-  tryAppendIfPresent("Total Cost", totalCostKeys, (v) => formatCurrency(v, templateData?.currency || "USD"));
-  tryAppendIfPresent("Pricing/Rate", pricingRateKeys, (v) => cleanValue(v));
+  pushRow("11. Client Relationship", cleanValue(templateData.client_relationship));
+  pushRow(
+    "12. Negative Relationship Changes",
+    cleanValue(templateData.negative_relationship_changes)
+  );
+  pushRow(
+    "13. Change & Payment Structure (Fixed Price Only)",
+    cleanValue(templateData.change_payment_structure)
+  );
+  pushRow("14. Deliverable Rate / T&M", cleanValue(templateData.rate_or_tnm));
+  pushRow(
+    "15. Key Client Personnel and Reportees",
+    cleanValue(templateData.key_client_personnel)
+  );
+  pushRow("16. Service Level Agreements", cleanValue(templateData.slas || "N/A"));
+  pushRow(
+    "17. Communication Paths",
+    cleanValue(templateData.communication_paths || "As defined in the Agreement.")
+  );
+  pushRow("18. Service Locations", cleanValue(templateData.service_locations));
+  pushRow("19. Escalation Contact", cleanValue(templateData.escalation_contact));
+  // For 20, allow multi-line or structured
+  const poc = Array.isArray(templateData.poc_for_communications)
+    ? templateData.poc_for_communications
+        .map((p) =>
+          [p.name, p.contact, p.email, p.address]
+            .filter(Boolean)
+            .map((x) => cleanValue(x))
+            .join(", ")
+        )
+        .join("\n")
+    : cleanValue(templateData.poc_for_communications);
+  pushRow("20. Points of Contact for Communications", poc);
 
   return tableFullWidth(rows);
 }
@@ -348,6 +429,83 @@ function buildHeader({ meta = {}, templateData = {} }) {
 }
 
 /**
+ * Authorization block with signatures
+ */
+function buildAuthorization({ templateData = {} }) {
+  const nodes = [];
+  nodes.push(
+    para(
+      "An authorized representative of each party has executed this Work Order as of the date indicated under that representative’s signature.",
+      { size: 21, after: 120 }
+    )
+  );
+
+  const supplierSig =
+    templateData?.supplier_signature ||
+    templateData?.authorization_signatures?.supplier_signature;
+  const clientSig =
+    templateData?.client_signature ||
+    templateData?.authorization_signatures?.client_signature;
+
+  const sigHeightPx = 77;
+
+  const supplierChildren = [
+    para("Supplier", { bold: true }),
+    supplierSig && /^data:image\//.test(supplierSig)
+      ? new Paragraph({
+          children: [
+            new ImageRun({
+              data: dataUrlToBytes(supplierSig),
+              transformation: { width: 220, height: sigHeightPx },
+            }),
+          ],
+        })
+      : para(""),
+    para("Name: " + cleanValue(templateData?.supplier_signer_name || "")),
+    para("Title: " + cleanValue(templateData?.supplier_signer_title || "")),
+    para("Date: " + cleanValue(templateData?.supplier_sign_date || "")),
+  ];
+
+  const clientChildren = [
+    para("Company", { bold: true }),
+    clientSig && /^data:image\//.test(clientSig)
+      ? new Paragraph({
+          children: [
+            new ImageRun({
+              data: dataUrlToBytes(clientSig),
+              transformation: { width: 220, height: sigHeightPx },
+            }),
+          ],
+        })
+      : para(""),
+    para("Name: " + cleanValue(templateData?.client_signer_name || "")),
+    para("Title: " + cleanValue(templateData?.client_signer_title || "")),
+    para("Date: " + cleanValue(templateData?.client_sign_date || "")),
+  ];
+
+  nodes.push(
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: BORDER,
+      rows: [
+        new TableRow({
+          children: [makeCell(supplierChildren, { widthPct: 50 }), makeCell(clientChildren, { widthPct: 50 })],
+        }),
+      ],
+    })
+  );
+
+  return nodes;
+}
+
+/**
+ * Footer (empty border line placeholder if needed)
+ */
+function buildFooter() {
+  return new Footer({ children: [] });
+}
+
+/**
  * PUBLIC_INTERFACE
  * Build the final SOW DOCX blob
  */
@@ -357,56 +515,45 @@ export async function buildSowDocx(data, templateSchema) {
   const templateData = data?.templateData || {};
   const children = [];
 
-  // Top titles and intro paragraph
+  // Top section
   children.push(...buildTopIntro({ meta, templateData }));
 
-  // Unified two-column table covering every field in order
-  children.push(buildAllFieldsTable({ templateData, templateSchema }));
+  // Parameters (1..7)
+  children.push(buildParametersTable({ templateData }));
 
-  // Authorization section: keep after the field table
-  const footer = new Footer({ children: [] });
+  // Supplier Deliverables
+  children.push(
+    buildTwoColDescriptionTable(
+      "Supplier Deliverables",
+      cleanValue(templateData.supplier_deliverables || "")
+    )
+  );
+
+  // Client Deliverables
+  children.push(
+    buildTwoColDescriptionTable(
+      "Client Deliverables",
+      cleanValue(templateData.client_deliverables || "")
+    )
+  );
+
+  // Milestones & Financials
+  children.push(
+    buildMilestonesFinancials({
+      templateData,
+      currency: templateData.currency || "USD",
+    })
+  );
+
+  // Continuation 11..20
+  children.push(buildContinuationTable({ templateData }));
+
+  // Authorization
+  children.push(...buildAuthorization({ templateData }));
+
+  const footer = buildFooter();
   const header = buildHeader({ meta, templateData });
 
-  // Add Authorization preface and (if signatures exist) a small note row in the table is already present for signature fields.
-  // We add a dedicated signature block for clarity, showing any uploaded signature images and signer details if present.
-  const authNote = para("Authorization", { bold: true, size: 22, after: 120 });
-  children.push(authNote);
-
-  // Build a compact two-column signature block if any signature-related fields exist
-  const supplierSig = templateData?.supplier_signature || templateData?.authorization_signatures?.supplier_signature;
-  const clientSig = templateData?.client_signature || templateData?.authorization_signatures?.client_signature;
-  if (supplierSig || clientSig) {
-    const sigHeightPx = 77;
-    const supplierChildren = [
-      para("Supplier", { bold: true }),
-      supplierSig && /^data:image\//.test(supplierSig)
-        ? new Paragraph({
-            children: [new ImageRun({ data: dataUrlToBytes(supplierSig), transformation: { width: 220, height: sigHeightPx } })],
-          })
-        : para(""),
-    ];
-    const clientChildren = [
-      para("Client", { bold: true }),
-      clientSig && /^data:image\//.test(clientSig)
-        ? new Paragraph({
-            children: [new ImageRun({ data: dataUrlToBytes(clientSig), transformation: { width: 220, height: sigHeightPx } })],
-          })
-        : para(""),
-    ];
-    children.push(
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: BORDER,
-        rows: [
-          new TableRow({
-            children: [makeCell(supplierChildren, { widthPct: 50 }), makeCell(clientChildren, { widthPct: 50 })],
-          }),
-        ],
-      })
-    );
-  }
-
-  // Page setup: A4 portrait, margins top 1", bottom 0.75", left/right 0.75"
   const doc = new Document({
     sections: [
       {
@@ -415,7 +562,7 @@ export async function buildSowDocx(data, templateSchema) {
         properties: {
           page: {
             margin: { top: 1440, right: 1080, bottom: 1080, left: 1080 },
-            size: { width: 11907, height: 16839 },
+            size: { width: 11907, height: 16839 }, // A4
           },
         },
         children,
@@ -435,11 +582,14 @@ export async function buildSowDocx(data, templateSchema) {
 export function makeSowDocxFilename(data) {
   const meta = data?.meta || {};
   const client = (meta.client || "Client").replace(/[^\w-]+/g, "_");
-  const title = (meta.title || meta.project || "Statement_of_Work").replace(/[^\w-]+/g, "_");
+  const title = (meta.title || meta.project || "Statement_of_Work").replace(
+    /[^\w-]+/g,
+    "_"
+  );
   const now = new Date();
-  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(
+  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(
     2,
     "0"
-  )}`;
+  )}${String(now.getDate()).padStart(2, "0")}`;
   return `SOW_${client}_${title}_${yyyymmdd}.docx`;
 }
