@@ -1,18 +1,4 @@
-//
-// PUBLIC_INTERFACE
-// buildSowDocx
-// Creates a fresh, valid DOCX document purely from SOW form values, with no templates.
-// Uses the "docx" library to build a Word document programmatically and returns a Blob.
-//
-// The document contains:
-// - Optional header with logo image if provided in meta.logoUrl (data URL)
-// - Title and meta info (Client, Project Title, Date, SOW Type) if available
-// - A table listing all captured fields from templateSchema with readable labels and values
-// - Signature image if provided in templateData.signature or templateData.authorization_signatures.signature
-//
-// Note: This service intentionally avoids template loading and any zip/package error messaging.
-//
-import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, ImageRun } from "docx";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, ImageRun, Footer, PageNumber, TabStopType, TabStopPosition } from "docx";
 
 /**
  * Convert a data URL (image/*) to Uint8Array bytes.
@@ -27,34 +13,38 @@ function dataUrlToBytes(dataUrl) {
 
 /**
  * Render a simple key/value table from normalized rows.
+ * Adds zebra striping, header row bolding, and full-width layout.
  */
 function renderKeyValueTable(rows) {
-  const tableRows = [
+  const header = new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 30, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: "Field", bold: true })] })],
+      }),
+      new TableCell({
+        width: { size: 70, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: "Value", bold: true })] })],
+      }),
+    ],
+  });
+
+  const body = rows.map((r, idx) =>
     new TableRow({
       children: [
         new TableCell({
-          width: { size: 30, type: WidthType.PERCENTAGE },
-          children: [new Paragraph({ children: [new TextRun({ text: "Field", bold: true })] })],
+          children: [new Paragraph({ children: [new TextRun({ text: r.label || r.key || "" })] })],
         }),
         new TableCell({
-          width: { size: 70, type: WidthType.PERCENTAGE },
-          children: [new Paragraph({ children: [new TextRun({ text: "Value", bold: true })] })],
+          children: [new Paragraph({ children: [new TextRun({ text: r.value ?? "" })] })],
         }),
       ],
-    }),
-    ...rows.map((r) =>
-      new TableRow({
-        children: [
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r.label || r.key || "" })] })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: r.value ?? "" })] })] }),
-        ],
-      })
-    ),
-  ];
+    })
+  );
 
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: tableRows,
+    rows: [header, ...body],
   });
 }
 
@@ -75,22 +65,92 @@ function formatValue(v) {
   return String(v);
 }
 
+/**
+ * Walk any JS object (templateData) and produce flattened key/value pairs such that every field
+ * from the form is included, regardless of label/grouping. We skip only binary/image-heavy lists
+ * that are not the dedicated logo/signature fields.
+ */
+function flattenAllFields(root, parentKey = "") {
+  const out = [];
+  const isLogoKey = (k) => /(^|[._-])logo(url|image)?$/i.test(k);
+  const isSignatureKey = (k) => /(^|[._-])signature$/i.test(k);
+
+  const pushKV = (k, v) => {
+    // Skip embedding raw data URL images except signature handled separately at the footer
+    if (typeof v === "string" && v.startsWith("data:image/")) {
+      if (isLogoKey(k) || isSignatureKey(k)) return; // handled elsewhere
+      // For any other image-like field, summarize instead of embedding
+      out.push({ key: k, label: k, value: "[image]" });
+      return;
+    }
+    out.push({ key: k, label: k, value: formatValue(v) });
+  };
+
+  const walk = (obj, base) => {
+    if (obj == null) return;
+    if (Array.isArray(obj)) {
+      // Arrays become comma-joined strings; also include per-index for completeness
+      pushKV(base, obj);
+      obj.forEach((item, idx) => {
+        const next = base ? `${base}[${idx}]` : `[${idx}]`;
+        if (item && typeof item === "object") {
+          walk(item, next);
+        } else {
+          pushKV(next, item);
+        }
+      });
+      return;
+    }
+    if (typeof obj === "object") {
+      const keys = Object.keys(obj);
+      if (keys.length === 0) {
+        pushKV(base, obj);
+        return;
+      }
+      keys.forEach((k) => {
+        const next = base ? `${base}.${k}` : k;
+        const val = obj[k];
+        if (val && typeof val === "object") {
+          walk(val, next);
+        } else {
+          pushKV(next, val);
+        }
+      });
+      return;
+    }
+    // primitives
+    pushKV(base, obj);
+  };
+
+  walk(root, parentKey);
+  return out;
+}
+
+/**
+ * Map schema to rows (maintain existing behavior), but we will also include any extra fields
+ * not present in schema by scanning templateData as a fallback.
+ */
 function normalizeSchemaToRows(templateSchema, templateData) {
-  if (!templateSchema) return [];
   const rows = [];
-  if (Array.isArray(templateSchema.sections)) {
+  const seen = new Set();
+
+  // From schema (labels preserved)
+  if (templateSchema && Array.isArray(templateSchema.sections)) {
     (templateSchema.sections || []).forEach((sec) => {
       (sec.fields || []).forEach((f) => {
         if (f.type === "object" && Array.isArray(f.properties)) {
           const objVal = (templateData || {})[f.key] || {};
           f.properties.forEach((p) => {
+            const key = `${f.key}.${p.key}`;
+            seen.add(key);
             rows.push({
-              key: `${f.key}.${p.key}`,
-              label: `${f.label} — ${p.label}`,
+              key,
+              label: `${f.label || f.key} — ${p.label || p.key}`,
               value: formatValue(objVal[p.key]),
             });
           });
         } else {
+          seen.add(f.key);
           rows.push({
             key: f.key,
             label: f.label || f.key,
@@ -99,8 +159,9 @@ function normalizeSchemaToRows(templateSchema, templateData) {
         }
       });
     });
-  } else if (Array.isArray(templateSchema.fields)) {
+  } else if (templateSchema && Array.isArray(templateSchema.fields)) {
     (templateSchema.fields || []).forEach((f) => {
+      seen.add(f.key);
       rows.push({
         key: f.key,
         label: f.label || f.key,
@@ -108,22 +169,41 @@ function normalizeSchemaToRows(templateSchema, templateData) {
       });
     });
   }
+
+  // Include any additional fields from templateData that weren't captured by schema
+  const allFlat = flattenAllFields(templateData || {});
+  allFlat.forEach((r) => {
+    if (!seen.has(r.key)) {
+      rows.push({
+        key: r.key,
+        label: r.key,
+        value: r.value,
+      });
+    }
+  });
+
   return rows;
 }
 
 // PUBLIC_INTERFACE
 export async function buildSowDocx(data, templateSchema) {
-  /** Build a DOCX Blob from given SOW data and schema. */
+  /**
+   * Build a DOCX Blob from given SOW data and schema.
+   * PUBLIC_INTERFACE
+   * - Includes every form field as label: value pairs (except raw logo/signature fields which are embedded).
+   * - Embeds company logo (top-left) if provided via meta.logoUrl (dataURL).
+   * - Places signature image at bottom/footer if provided in templateData (signature or authorization_signatures.signature).
+   * - Layout includes: Title, header meta, "All Fields" section, and signature section. No external templates used.
+   */
   const meta = data?.meta || {};
   const templateData = data?.templateData || {};
+  const bodyChildren = [];
 
-  const children = [];
-
-  // Optional logo at top
-  if (typeof meta.logoUrl === "string" && meta.logoUrl.startsWith("data:image/")) {
+  // Top-left logo
+  if (typeof meta.logoUrl === "string" && /^data:image\//.test(meta.logoUrl)) {
     try {
       const bytes = dataUrlToBytes(meta.logoUrl);
-      children.push(
+      bodyChildren.push(
         new Paragraph({
           alignment: AlignmentType.LEFT,
           children: [
@@ -135,88 +215,130 @@ export async function buildSowDocx(data, templateSchema) {
         })
       );
     } catch {
-      // Ignore image decoding issues silently to avoid any template/error messaging.
+      // ignore invalid logo
     }
   }
 
-  // Title and meta header
+  // Title
   const titleText = meta.title || "Statement of Work";
-  children.push(
+  bodyChildren.push(
     new Paragraph({
       text: titleText,
       heading: HeadingLevel.HEADING_1,
     })
   );
 
-  const headerMeta = [
+  // Header meta line(s)
+  const headerParts = [
     meta.client ? `Client: ${meta.client}` : null,
     meta.project ? `Project: ${meta.project}` : null,
     meta.sowType ? `SOW Type: ${meta.sowType}` : null,
     meta.date ? `Date: ${meta.date}` : null,
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  ].filter(Boolean);
 
-  if (headerMeta) {
-    children.push(
+  if (headerParts.length) {
+    bodyChildren.push(
       new Paragraph({
-        children: [new TextRun({ text: headerMeta })],
+        children: [new TextRun({ text: headerParts.join(" | ") })],
       })
     );
   }
 
   // Spacer
-  children.push(new Paragraph({ text: "" }));
+  bodyChildren.push(new Paragraph({ text: "" }));
 
-  // Fields table
-  const rows = normalizeSchemaToRows(templateSchema, templateData);
-  if (rows.length > 0) {
-    children.push(
+  // All fields from schema + any additional fields from the actual data
+  const allRows = normalizeSchemaToRows(templateSchema, templateData);
+  if (allRows.length > 0) {
+    bodyChildren.push(
       new Paragraph({
-        text: "Captured Fields",
+        text: "All Fields",
         heading: HeadingLevel.HEADING_2,
       })
     );
-    children.push(renderKeyValueTable(rows));
+    bodyChildren.push(renderKeyValueTable(allRows));
   }
 
-  // Signature section
+  // Spacer before signature
+  bodyChildren.push(new Paragraph({ text: "" }));
+
+  // Signature detection
   const signatureDataUrl =
     (typeof templateData.signature === "string" && templateData.signature) ||
     (typeof templateData.authorization_signatures?.signature === "string" && templateData.authorization_signatures.signature) ||
     null;
 
-  if (signatureDataUrl && signatureDataUrl.startsWith("data:image/")) {
-    children.push(new Paragraph({ text: "" }));
-    children.push(
-      new Paragraph({
-        text: "Authorization",
-        heading: HeadingLevel.HEADING_2,
-      })
-    );
+  // Footer with signature image if provided, else leave page number only
+  let footer;
+  if (signatureDataUrl && /^data:image\//.test(signatureDataUrl)) {
     try {
-      const bytes = dataUrlToBytes(signatureDataUrl);
-      children.push(
+      const sigBytes = dataUrlToBytes(signatureDataUrl);
+      footer = new Footer({
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Authorized Signature:", bold: true }),
+            ],
+          }),
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: sigBytes,
+                transformation: { width: 240, height: 80 },
+              }),
+            ],
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "\t",
+              }),
+              new TextRun({
+                children: ["Page "],
+              }),
+              new TextRun({
+                children: [PageNumber.CURRENT],
+              }),
+            ],
+            tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
+          }),
+        ],
+      });
+    } catch {
+      // If signature cannot be decoded, fallback to a simple footer with page number
+      footer = new Footer({
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Page " }),
+              new TextRun({ children: [PageNumber.CURRENT] }),
+            ],
+            alignment: AlignmentType.RIGHT,
+          }),
+        ],
+      });
+    }
+  } else {
+    // Footer without signature
+    footer = new Footer({
+      children: [
         new Paragraph({
           children: [
-            new TextRun({ text: "Signature:" }),
-            new TextRun({ text: "  " }),
-            new ImageRun({
-              data: bytes,
-              transformation: { width: 240, height: 80 },
-            }),
+            new TextRun({ text: "Page " }),
+            new TextRun({ children: [PageNumber.CURRENT] }),
           ],
-        })
-      );
-    } catch {
-      // Ignore signature decoding problems
-    }
+          alignment: AlignmentType.RIGHT,
+        }),
+      ],
+    });
   }
 
   const doc = new Document({
     sections: [
       {
-        children,
+        headers: {},
+        footers: { default: footer },
+        children: bodyChildren,
       },
     ],
   });
@@ -227,7 +349,10 @@ export async function buildSowDocx(data, templateSchema) {
 
 // PUBLIC_INTERFACE
 export function makeSowDocxFilename(data) {
-  /** Generate a meaningful filename like SOW_<client>_<title>_<YYYYMMDD>.docx */
+  /**
+   * Generate a meaningful filename like SOW_<client>_<title>_<YYYYMMDD>.docx
+   * PUBLIC_INTERFACE
+   */
   const meta = data?.meta || {};
   const client = (meta.client || "Client").replace(/[^\w-]+/g, "_");
   const title = (meta.title || meta.project || "Project").replace(/[^\w-]+/g, "_");
