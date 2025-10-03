@@ -2,7 +2,6 @@ import {
   Document,
   Packer,
   Paragraph,
-  HeadingLevel,
   TextRun,
   Table,
   TableRow,
@@ -13,6 +12,7 @@ import {
   Header,
   BorderStyle,
   VerticalAlign,
+  ShadingType,
 } from "docx";
 
 /**
@@ -82,11 +82,20 @@ function formatValue(v) {
 }
 
 /**
+ * Determine if a section name corresponds to the 'Work Order Parameters' (case-insensitive).
+ */
+function isWorkOrderParametersSectionName(name) {
+  const secName = String(name || "").trim().toLowerCase();
+  return secName === "work order parameters";
+}
+
+/**
  * From schema, build an ordered, deduplicated list of fields for the Actions table.
  * - Prefer schema order.
  * - Use provided labels when present; otherwise generate professional label.
  * - Do not expand arrays into indexed keys; keep as a single field.
  * - For object fields, include their properties as individual rows following parent order.
+ * - Entirely omit any fields that are part of 'Work Order Parameters' section.
  */
 function buildOrderedActionFields(templateSchema = {}, templateData = {}) {
   const out = [];
@@ -105,10 +114,8 @@ function buildOrderedActionFields(templateSchema = {}, templateData = {}) {
     if (!f) return;
     const key = parentKey ? `${parentKey}.${f.key}` : f.key;
 
-    // If a field object has a 'section' hint or we can detect it from traversal context later,
-    // we will handle skipping at the section level instead of individual field names here.
     if (f.type === "object" && Array.isArray(f.properties)) {
-      // do not push parent as its own row, only properties to avoid noisy labels
+      // Include object properties as separate rows; do not push parent row
       for (const p of f.properties) {
         addField(p, key);
       }
@@ -117,32 +124,21 @@ function buildOrderedActionFields(templateSchema = {}, templateData = {}) {
     }
   };
 
-  // Prefer sectioned schema order
+  // Respect section order; skip Work Order Parameters section entirely
   if (Array.isArray(templateSchema.sections)) {
     for (const sec of templateSchema.sections) {
-      // Skip ONLY the 'Work Order Parameters' section by name (case-insensitive, trimmed)
-      const secName = String(sec?.name || "").trim().toLowerCase();
-      if (secName === "work order parameters") {
-        continue;
-      }
-
-      for (const f of sec.fields || []) {
-        addField(f, "");
-      }
+      if (isWorkOrderParametersSectionName(sec?.name)) continue;
+      for (const f of sec.fields || []) addField(f, "");
     }
   } else if (Array.isArray(templateSchema.fields)) {
-    // If unsectioned, we still want to remove fields that belong to 'Work Order Parameters' by common key patterns.
-    // Since we don't have section context, we conservatively include all fields.
-    // The explicit requirement is to remove that section and its fields from all relevant blocks; without section context,
-    // typical schemas we use are sectioned, so this branch remains inclusive.
-    for (const f of templateSchema.fields) {
-      addField(f, "");
-    }
+    // No explicit section context; include all fields (cannot identify WOP here)
+    for (const f of templateSchema.fields) addField(f, "");
   } else {
-    // Fallback: infer from data top-level keys, keep only top-level without indexes
+    // Fallback from data
     Object.keys(templateData || {}).forEach((k) => push(toProfessionalLabel(k), k, "text"));
   }
 
+  // Condense known array fields into single-entry rows (already by push), ensure no dotted indices entered.
   return out;
 }
 
@@ -161,22 +157,25 @@ function getByPath(obj, path, fallback = "") {
 }
 
 /**
- * Common styles for layout
+ * Common styles for layout per design notes
+ * - Use a light-gray rounded rectangle container for the Actions rows.
  */
-const BORDER_GRAY = "B5B5B5";
+const BORDER_LIGHT = "E5E7EB"; // Tailwind gray-200
+const CONTAINER_SHADE = "F3F4F6"; // gray-100
 const BORDER = {
-  top: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
-  bottom: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
-  left: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
-  right: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
-  insideHorizontal: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
-  insideVertical: { style: BorderStyle.SINGLE, size: 8, color: BORDER_GRAY },
+  top: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
+  bottom: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
+  left: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
+  right: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
+  insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
+  insideVertical: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
 };
 
 function para(
   text,
-  { bold = false, size = 21, align = AlignmentType.LEFT, after = 80 } = {}
+  { bold = false, size = 22, align = AlignmentType.LEFT, after = 160 } = {}
 ) {
+  // size ~ 11pt (22 half-points). after ~ 12-16px (approx 160 twips)
   return new Paragraph({
     alignment: align,
     spacing: { after },
@@ -184,87 +183,84 @@ function para(
   });
 }
 
-function toParagraphs(text, { size = 21, align = AlignmentType.LEFT } = {}) {
+function toParagraphs(text, { size = 22, align = AlignmentType.LEFT, after = 0 } = {}) {
   const s = text == null ? "" : String(text);
   if (!s)
     return [
-      new Paragraph({ alignment: align, children: [new TextRun({ text: "", size })] }),
+      new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: "", size })] }),
     ];
   const lines = s.split(/\r?\n/);
   if (!Array.isArray(lines))
-    return [new Paragraph({ alignment: align, children: [new TextRun({ text: s, size })] })];
+    return [new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: s, size })] })];
   if (lines.length === 0)
     return [
-      new Paragraph({ alignment: align, children: [new TextRun({ text: "", size })] }),
+      new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: "", size })] }),
     ];
   return lines.map(
     (ln) =>
       new Paragraph({
         alignment: align,
-        spacing: { after: 40 },
+        spacing: { after },
         children: [new TextRun({ text: ln, size })],
       })
   );
 }
 
-function tableFullWidth(rows) {
+function tableFullWidth(rows, { shaded = false } = {}) {
   const safeRows = Array.isArray(rows) ? rows : [];
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: BORDER,
+    shading: shaded
+      ? { type: ShadingType.CLEAR, fill: CONTAINER_SHADE, color: "auto" }
+      : undefined,
     rows: safeRows,
   });
 }
 
 /**
- * Generic table cell helper used by Actions table.
+ * Generic table cell helper used by Actions table with rounded-like visual via background and border.
  */
 function makeCell(
   children,
-  { widthPct, vAlign = VerticalAlign.TOP, padding = 200, opts = {} } = {}
+  { widthPct, vAlign = VerticalAlign.TOP, padding = 200, opts = {}, shaded = false } = {}
 ) {
   const safeChildren = Array.isArray(children) ? children : [children];
   return new TableCell({
     width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
     verticalAlign: vAlign,
     margins: { top: padding, bottom: padding, left: padding, right: padding },
+    shading: shaded ? { type: ShadingType.CLEAR, fill: CONTAINER_SHADE, color: "auto" } : undefined,
     children: safeChildren,
     ...opts,
   });
 }
 
 /**
- * Convenience wrappers for label/value cells (kept minimal and neutral)
- */
-function labelCell(text, widthPct) {
-  return makeCell(para(text, { bold: true, align: AlignmentType.LEFT }), {
-    widthPct,
-    vAlign: VerticalAlign.CENTER,
-  });
-}
-function valueCell(text, widthPct) {
-  return makeCell(toParagraphs(text, { align: AlignmentType.LEFT }), {
-    widthPct,
-    vAlign: VerticalAlign.TOP,
-  });
-}
-
-/**
- * Build an Actions table with professional labels and single, deduped rows.
- * Arrays are displayed as a single, comma-separated value.
+ * Build the styled Actions block per design:
+ * - Bold 'Actions' header with ~12–16px spacing below
+ * - Light-gray rounded rectangle container with one row per field
+ * - Left label (professional), right value
  */
 function buildActionsTable({ templateSchema, templateData }) {
   const L = 40;
   const V = 60;
   const rows = [];
 
-  // Header
+  // Header (bold, sentence case, spacing ~12-16px)
   rows.push(
     new TableRow({
       children: [
         new TableCell({
-          children: [para("Actions", { bold: true, size: 22, after: 40 })],
           columnSpan: 2,
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.LEFT,
+              spacing: { after: 160 },
+              children: [new TextRun({ text: "Actions", bold: true, size: 24 })],
+            }),
+          ],
+          // No shading on header cell (white), keep container feel clean
         }),
       ],
     })
@@ -278,24 +274,33 @@ function buildActionsTable({ templateSchema, templateData }) {
     rows.push(
       new TableRow({
         children: [
-          makeCell(para(f.label, { bold: true, align: AlignmentType.LEFT }), {
-            widthPct: L,
-            vAlign: VerticalAlign.CENTER,
-          }),
-          makeCell(toParagraphs(display, { align: AlignmentType.LEFT }), {
-            widthPct: V,
-            vAlign: VerticalAlign.TOP,
-          }),
+          makeCell(
+            toParagraphs(f.label, { align: AlignmentType.LEFT }),
+            {
+              widthPct: L,
+              vAlign: VerticalAlign.CENTER,
+              shaded: true,
+            }
+          ),
+          makeCell(
+            toParagraphs(display, { align: AlignmentType.LEFT }),
+            {
+              widthPct: V,
+              vAlign: VerticalAlign.TOP,
+              shaded: true,
+            }
+          ),
         ],
       })
     );
   }
 
-  return tableFullWidth(rows);
+  // Entire block inside light-gray rounded rectangle feel using shading + light borders
+  return tableFullWidth(rows, { shaded: true });
 }
 
 /**
- * Minimal header/footer (no logos or authorization/signatures)
+ * Minimal header/footer (preserved)
  */
 function buildHeader() {
   return new Header({ children: [] });
@@ -306,14 +311,14 @@ function buildFooter() {
 
 /**
  * PUBLIC_INTERFACE
- * Build the final DOCX blob with ONLY the Actions table.
+ * Build the final DOCX blob containing the styled Actions section while omitting the 'Work Order Parameters'.
  */
 // PUBLIC_INTERFACE
 export async function buildSowDocx(data, templateSchema) {
   const templateData = data?.templateData || {};
   const children = [];
 
-  // Only Actions table. Note: buildOrderedActionFields internally skips the 'Work Order Parameters' section.
+  // Build only the Actions section here per current flow
   children.push(buildActionsTable({ templateSchema, templateData }));
 
   const footer = buildFooter();
