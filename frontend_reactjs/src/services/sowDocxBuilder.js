@@ -22,11 +22,19 @@ import {
  * Convert a data URL (image/*) to Uint8Array bytes.
  */
 function dataUrlToBytes(dataUrl) {
-  const [head, b64] = String(dataUrl || "").split(",");
-  const bin = b64 ? atob(b64) : "";
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  const s = String(dataUrl || "");
+  if (!/^data:image\//.test(s)) return new Uint8Array();
+  const [head, b64] = s.split(",");
+  if (!b64) return new Uint8Array();
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  } catch (e) {
+    // Return empty bytes on decode failure; caller should handle fallback rendering
+    return new Uint8Array();
+  }
 }
 
 /**
@@ -34,9 +42,13 @@ function dataUrlToBytes(dataUrl) {
  */
 function cleanValue(v) {
   if (v == null) return "";
-  const s = String(v);
-  if (/^_+$/.test(s)) return "";
-  return s.replace(/_{2,}/g, " ").trim();
+  try {
+    const s = String(v);
+    if (/^_+$/.test(s)) return "";
+    return s.replace(/_{2,}/g, " ").trim();
+  } catch {
+    return "";
+  }
 }
 
 function formatValue(v) {
@@ -91,12 +103,15 @@ function para(text, { bold = false, size = 21, align = AlignmentType.LEFT, after
 
 // Convert arbitrarily long text to multiple paragraphs split by newlines safely
 function toParagraphs(text, { size = 21 } = {}) {
-  const s = text == null ? "" : String(text);
-  if (!s) return [para("", { size })];
-  const lines = s.split(/\r?\n/);
-  if (!Array.isArray(lines)) return [para(s, { size })];
-  if (lines.length === 0) return [para("", { size })];
-  return lines.map((ln) => para(ln, { size, after: 40 }));
+  try {
+    const s = text == null ? "" : String(text);
+    if (!s) return [para("", { size })];
+    const lines = s.split(/\r?\n/);
+    if (!Array.isArray(lines) || lines.length === 0) return [para(s, { size })];
+    return lines.map((ln) => para(ln, { size, after: 40 }));
+  } catch {
+    return [para("", { size })];
+  }
 }
 
 // Full width table with borders; do not predefine row counts; let rows be passed directly
@@ -111,7 +126,14 @@ function tableFullWidth(rows) {
 
 // Table cell with padding and wrapping content
 function makeCell(children, { widthPct, vAlign = VerticalAlign.TOP, padding = 200 } = {}) {
-  const safeChildren = Array.isArray(children) ? children : [children];
+  let safeChildren = [];
+  if (Array.isArray(children)) {
+    safeChildren = children.filter(Boolean);
+  } else if (children) {
+    safeChildren = [children];
+  } else {
+    safeChildren = [para("")];
+  }
   return new TableCell({
     width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
     verticalAlign: vAlign,
@@ -535,9 +557,17 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
     new Paragraph({ children: [new TextRun({ text: "Supplier", bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
     para("Signature", { bold: true }),
     supplierSig && /^data:image\//.test(supplierSig)
-      ? new Paragraph({
-          children: [new ImageRun({ data: dataUrlToBytes(supplierSig), transformation: { width: 220, height: sigHeightPx } })],
-        })
+      ? (() => {
+          try {
+            const bytes = dataUrlToBytes(supplierSig);
+            if (!bytes || !bytes.length) return para("");
+            return new Paragraph({
+              children: [new ImageRun({ data: bytes, transformation: { width: 220, height: sigHeightPx } })],
+            });
+          } catch {
+            return para("");
+          }
+        })()
       : para(""),
     // Ensure only the signature block shows these lines; do not repeat in Q/A table.
     para("Supplier:", { bold: false }),
@@ -577,9 +607,17 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
     new Paragraph({ children: [new TextRun({ text: companyName, bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
     para("Signature", { bold: true }),
     companySig && /^data:image\//.test(companySig)
-      ? new Paragraph({
-          children: [new ImageRun({ data: dataUrlToBytes(companySig), transformation: { width: 220, height: sigHeightPx } })],
-        })
+      ? (() => {
+          try {
+            const bytes = dataUrlToBytes(companySig);
+            if (!bytes || !bytes.length) return para("");
+            return new Paragraph({
+              children: [new ImageRun({ data: bytes, transformation: { width: 220, height: sigHeightPx } })],
+            });
+          } catch {
+            return para("");
+          }
+        })()
       : para(""),
     // Signature block must contain the readable lines; keep labels even if value blank.
     para("Company:", { bold: false }),
@@ -616,18 +654,21 @@ function buildHeader({ meta = {}, templateData = {} }) {
   const headerChildren = [];
   if (logo && /^data:image\//.test(logo)) {
     try {
-      headerChildren.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 80 },
-          children: [
-            new ImageRun({
-              data: dataUrlToBytes(logo),
-              transformation: { width: 120, height: 48 }, // ~1.25" x 0.5"
-            }),
-          ],
-        })
-      );
+      const bytes = dataUrlToBytes(logo);
+      if (bytes && bytes.length) {
+        headerChildren.push(
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            spacing: { after: 80 },
+            children: [
+              new ImageRun({
+                data: bytes,
+                transformation: { width: 120, height: 48 }, // ~1.25" x 0.5"
+              }),
+            ],
+          })
+        );
+      }
     } catch {
       // ignore bad logo
     }
@@ -641,68 +682,120 @@ function buildHeader({ meta = {}, templateData = {} }) {
  */
 // PUBLIC_INTERFACE
 export async function buildSowDocx(data, templateSchema) {
-  const meta = data?.meta || {};
-  const templateData = data?.templateData || {};
-  const children = [];
+  try {
+    const meta = data?.meta || {};
+    const templateData = data?.templateData || {};
+    const children = [];
 
-  // Top titles and intro paragraph
-  children.push(...buildTopIntro({ meta, templateData }));
+    // Top titles and intro paragraph
+    try {
+      children.push(...buildTopIntro({ meta, templateData }));
+    } catch (e) {
+      const err = new Error(`Failed to build header/intro section: ${e?.message || e}`);
+      err.userMessage = "Failed while building the Title/Intro of the document.";
+      throw err;
+    }
 
-  // Work Order Parameters table
-  children.push(buildParametersTable({ templateData }));
+    // Work Order Parameters table
+    try {
+      children.push(buildParametersTable({ templateData }));
+    } catch (e) {
+      const err = new Error(`Failed to build Work Order Parameters section: ${e?.message || e}`);
+      err.userMessage = "Failed while building the Work Order Parameters table.";
+      throw err;
+    }
 
-  // Supplier Deliverables
-  const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
-  children.push(buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables));
+    // Supplier Deliverables
+    try {
+      const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
+      children.push(buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables));
+    } catch (e) {
+      const err = new Error(`Failed to build Supplier Deliverables section: ${e?.message || e}`);
+      err.userMessage = "Failed while building the Supplier Deliverables section.";
+      throw err;
+    }
 
-  // Client Deliverables
-  const clientDeliverables = get(templateData, "client_deliverables") || "";
-  children.push(buildTwoColDescriptionTable("Client Deliverables", clientDeliverables));
+    // Client Deliverables
+    try {
+      const clientDeliverables = get(templateData, "client_deliverables") || "";
+      children.push(buildTwoColDescriptionTable("Client Deliverables", clientDeliverables));
+    } catch (e) {
+      const err = new Error(`Failed to build Client Deliverables section: ${e?.message || e}`);
+      err.userMessage = "Failed while building the Client Deliverables section.";
+      throw err;
+    }
 
-  // Milestones / Financials
-  children.push(buildMilestonesFinancials({ templateData }));
+    // Milestones / Financials
+    try {
+      children.push(buildMilestonesFinancials({ templateData }));
+    } catch (e) {
+      const err = new Error(`Failed to build Milestones/Financials section: ${e?.message || e}`);
+      err.userMessage = "Failed while building the Milestones/Financials section.";
+      throw err;
+    }
 
-  // Continuation table (11..20)
-  children.push(buildContinuationTable({ templateData }));
+    // Continuation table (11..20)
+    try {
+      children.push(buildContinuationTable({ templateData }));
+    } catch (e) {
+      const err = new Error(`Failed to build continuation parameters: ${e?.message || e}`);
+      err.userMessage = "Failed while building continuation parameters (items 11–20).";
+      throw err;
+    }
 
-  // Actions metadata table (Section A from assets/actions_section_docx_mapping.md)
-  // Per actions_section_docx_mapping.md and user request:
-  // - Only one Q/A table must appear.
-  // - Supplier/company signature details must not be duplicated in the Q/A table when images are present.
-  // - Preserve the strict order and alignment (labels left with underscores preserved; values right).
-  children.push(buildActionsMetadataTable({ templateData }));
+    // Actions metadata table (Section A)
+    try {
+      children.push(buildActionsMetadataTable({ templateData }));
+    } catch (e) {
+      const err = new Error(`Failed to build Actions/Metadata table: ${e?.message || e}`);
+      err.userMessage = "Failed while building the Actions/Metadata table.";
+      throw err;
+    }
 
-  // Authorization preface + table (Section B)
-  // Ensure signatures (name/title/date/image) are shown only in the dedicated signature block.
-  const { preface, table } = buildAuthorization({ meta, templateData });
-  children.push(preface);
-  children.push(table);
+    // Authorization preface + table (Section B)
+    let preface, table;
+    try {
+      ({ preface, table } = buildAuthorization({ meta, templateData }));
+      children.push(preface);
+      children.push(table);
+    } catch (e) {
+      const err = new Error(`Failed to build Authorization/signature section: ${e?.message || e}`);
+      err.userMessage = "Failed while building the Authorization/Signature section.";
+      throw err;
+    }
 
-  // Footer: keep minimal to allow page content to flow; page numbers intentionally omitted
-  const footer = new Footer({ children: [] });
+    // Footer and header
+    const footer = new Footer({ children: [] });
+    const header = buildHeader({ meta, templateData });
 
-  const header = buildHeader({ meta, templateData });
-
-  // Page setup: A4 portrait, margins top 1", bottom 0.75", left/right 0.75"
-  const doc = new Document({
-    sections: [
-      {
-        headers: { default: header },
-        footers: { default: footer },
-        properties: {
-          page: {
-            margin: { top: 1440, right: 1080, bottom: 1080, left: 1080 },
-            size: { width: 11907, height: 16839 },
+    // Page setup
+    const doc = new Document({
+      sections: [
+        {
+          headers: { default: header },
+          footers: { default: footer },
+          properties: {
+            page: {
+              margin: { top: 1440, right: 1080, bottom: 1080, left: 1080 },
+              size: { width: 11907, height: 16839 },
+            },
           },
+          children,
         },
-        // Important: children only; tables will naturally split across pages in docx library
-        children,
-      },
-    ],
-  });
+      ],
+    });
 
-  const blob = await Packer.toBlob(doc);
-  return blob;
+    const blob = await Packer.toBlob(doc);
+    return blob;
+  } catch (e) {
+    // Bubble up with both userMessage and full detail for console
+    const err = e instanceof Error ? e : new Error(String(e));
+    if (!err.userMessage) {
+      err.userMessage = "An unexpected error occurred during DOCX generation.";
+    }
+    console.error("buildSowDocx error:", err);
+    throw err;
+  }
 }
 
 /**
@@ -712,8 +805,8 @@ export async function buildSowDocx(data, templateSchema) {
 // PUBLIC_INTERFACE
 export function makeSowDocxFilename(data) {
   const meta = data?.meta || {};
-  const client = (meta.client || "Client").replace(/[^\w-]+/g, "_");
-  const title = (meta.title || meta.project || "Statement_of_Work").replace(/[^\w-]+/g, "_");
+  const client = String(meta.client || "Client").replace(/[^\w-]+/g, "_");
+  const title = String(meta.title || meta.project || "Statement_of_Work").replace(/[^\w-]+/g, "_");
   const now = new Date();
   const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(
     2,

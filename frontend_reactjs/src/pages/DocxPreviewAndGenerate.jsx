@@ -22,7 +22,9 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
     } catch (err) {
       // Provide immediate feedback if generation fails (e.g., missing 'docx' dependency or runtime error)
       console.error("DOCX generation failed:", err);
-      alert("Sorry, we couldn't generate the DOCX file. Please try again. If the problem persists, refresh the page.");
+      const msg = (err && (err.userMessage || err.message)) ? String(err.userMessage || err.message) : "";
+      const hint = "Sorry, we couldn't generate the DOCX file.";
+      alert(msg ? `${hint}\n\nDetails:\n${msg}` : `${hint} Please try again. If the problem persists, refresh the page.`);
     }
   }, [data, templateSchema]);
 
