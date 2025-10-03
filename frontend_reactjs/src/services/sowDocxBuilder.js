@@ -102,8 +102,11 @@ function buildOrderedActionFields(templateSchema = {}, templateData = {}) {
   };
 
   const addField = (f, parentKey = "") => {
-    const key = parentKey ? `${parentKey}.${f.key}` : f.key;
     if (!f) return;
+    const key = parentKey ? `${parentKey}.${f.key}` : f.key;
+
+    // If a field object has a 'section' hint or we can detect it from traversal context later,
+    // we will handle skipping at the section level instead of individual field names here.
     if (f.type === "object" && Array.isArray(f.properties)) {
       // do not push parent as its own row, only properties to avoid noisy labels
       for (const p of f.properties) {
@@ -117,11 +120,21 @@ function buildOrderedActionFields(templateSchema = {}, templateData = {}) {
   // Prefer sectioned schema order
   if (Array.isArray(templateSchema.sections)) {
     for (const sec of templateSchema.sections) {
+      // Skip ONLY the 'Work Order Parameters' section by name (case-insensitive, trimmed)
+      const secName = String(sec?.name || "").trim().toLowerCase();
+      if (secName === "work order parameters") {
+        continue;
+      }
+
       for (const f of sec.fields || []) {
         addField(f, "");
       }
     }
   } else if (Array.isArray(templateSchema.fields)) {
+    // If unsectioned, we still want to remove fields that belong to 'Work Order Parameters' by common key patterns.
+    // Since we don't have section context, we conservatively include all fields.
+    // The explicit requirement is to remove that section and its fields from all relevant blocks; without section context,
+    // typical schemas we use are sectioned, so this branch remains inclusive.
     for (const f of templateSchema.fields) {
       addField(f, "");
     }
@@ -300,7 +313,7 @@ export async function buildSowDocx(data, templateSchema) {
   const templateData = data?.templateData || {};
   const children = [];
 
-  // Only Actions table
+  // Only Actions table. Note: buildOrderedActionFields internally skips the 'Work Order Parameters' section.
   children.push(buildActionsTable({ templateSchema, templateData }));
 
   const footer = buildFooter();
