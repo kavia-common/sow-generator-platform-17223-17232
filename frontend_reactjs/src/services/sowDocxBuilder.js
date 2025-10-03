@@ -126,6 +126,105 @@ function valueCell(text, widthPct) {
 }
 
 /**
+ * Flatten and format values for schema-based table.
+ * Arrays: bullet-like list (comma-joined); Objects: key: value; Tables: each row as JSON line.
+ */
+function formatForSchema(value) {
+  if (value == null || value === "") return "";
+  if (Array.isArray(value)) {
+    // Array of scalars or objects
+    if (value.length === 0) return "";
+    const isObjArr = value.some((v) => v && typeof v === "object" && !Array.isArray(v));
+    if (isObjArr) {
+      return value
+        .map((row) => {
+          try {
+            return Object.keys(row).map((k) => `${k}: ${formatValue(row[k])}`).join("; ");
+          } catch {
+            return JSON.stringify(row);
+          }
+        })
+        .join("\n");
+    }
+    return value.map((v) => formatValue(v)).join(", ");
+  }
+  if (typeof value === "object") {
+    try {
+      return Object.keys(value)
+        .map((k) => `${k}: ${formatValue(value[k])}`)
+        .join("; ");
+    } catch {
+      return JSON.stringify(value);
+    }
+  }
+  return String(value);
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * enumerateFieldsFromSchema
+ * Walk a sectioned or flat templateSchema and return ordered label/value pairs for all fields.
+ * Includes fields even if empty to reflect schema presence; values shown as empty string when not provided.
+ */
+function enumerateFieldsFromSchema(templateSchema, templateData) {
+  const rows = [];
+  const data = templateData || {};
+  const pushRow = (label, val) => {
+    rows.push({ label: String(label || ""), value: formatForSchema(val) });
+  };
+
+  // If schema has sections
+  if (Array.isArray(templateSchema.sections)) {
+    (templateSchema.sections || []).forEach((sec) => {
+      (sec.fields || []).forEach((f) => {
+        if (f.type === "object" && Array.isArray(f.properties)) {
+          const objVal = data[f.key];
+          f.properties.forEach((p) => {
+            const label = `${f.label || f.key} — ${p.label || p.key}`;
+            const val = objVal ? objVal[p.key] : undefined;
+            pushRow(label, val);
+          });
+        } else if (f.type === "table" && Array.isArray(f.columns)) {
+          // tables are arrays of row objects under data[f.key]
+          const tableRows = data[f.key] || [];
+          const label = f.label || f.key;
+          pushRow(label, tableRows);
+        } else {
+          const label = f.label || f.key;
+          pushRow(label, data[f.key]);
+        }
+      });
+    });
+    return rows;
+  }
+
+  // Flat schema { fields: [] }
+  if (Array.isArray(templateSchema.fields)) {
+    (templateSchema.fields || []).forEach((f) => {
+      if (f.type === "object" && Array.isArray(f.properties)) {
+        const objVal = data[f.key];
+        f.properties.forEach((p) => {
+          const label = `${f.label || f.key} — ${p.label || p.key}`;
+          const val = objVal ? objVal[p.key] : undefined;
+          pushRow(label, val);
+        });
+      } else if (f.type === "table" && Array.isArray(f.columns)) {
+        const tableRows = data[f.key] || [];
+        const label = f.label || f.key;
+        pushRow(label, tableRows);
+      } else {
+        pushRow(f.label || f.key, data[f.key]);
+      }
+    });
+    return rows;
+  }
+
+  // Unknown schema shape; fallback to existing keys (order not guaranteed)
+  Object.keys(data || {}).forEach((k) => pushRow(k, data[k]));
+  return rows;
+}
+
+/**
  * Date and currency helpers
  */
 function formatDate(dateStr) {
@@ -669,6 +768,30 @@ export async function buildSowDocx(data, templateSchema) {
   // - Supplier/company signature details must not be duplicated in the Q/A table when images are present.
   // - Preserve the strict order and alignment (labels left with underscores preserved; values right).
   children.push(buildActionsMetadataTable({ templateData }));
+
+  // Dynamically enumerate ALL fields from the active schema and render them in schema order.
+  // This ensures no user-entered field is omitted regardless of conditionals or new fields.
+  if (templateSchema) {
+    const allRows = enumerateFieldsFromSchema(templateSchema, templateData);
+    if (allRows.length > 0) {
+      // Section header
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          spacing: { after: 120 },
+          children: [new TextRun({ text: "All Entered Fields", bold: true, size: 24 })],
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+      // Build a Q/A table in the same order as schema
+      const L = 38;
+      const V = 62;
+      const rows = allRows.map(({ label, value }) =>
+        new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
+      );
+      children.push(tableFullWidth(rows));
+    }
+  }
 
   // Authorization preface + table (Section B)
   // Ensure signatures (name/title/date/image) are shown only in the dedicated signature block.

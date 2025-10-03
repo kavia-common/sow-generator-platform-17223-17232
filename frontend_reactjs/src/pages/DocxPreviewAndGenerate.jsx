@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * PUBLIC_INTERFACE
@@ -11,28 +11,47 @@ import React, { useCallback, useEffect } from "react";
  * - autoGenerate?: boolean  If true, immediately trigger generation on mount/update (used for one-click submit).
  */
 export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
+  const [generating, setGenerating] = useState(false);
+  const rafRevokeRef = useRef(null);
+
   const onGenerate = useCallback(async () => {
-    const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
-    const blob = await buildSowDocx(data || {}, templateSchema || { fields: [] });
-    const name = makeSowDocxFilename(data || {});
-    triggerDownload(blob, name);
-  }, [data, templateSchema]);
+    if (generating) return; // prevent duplicate clicks
+    setGenerating(true);
+    try {
+      const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
+      // Always pass templateSchema so the builder can enumerate all fields in schema order
+      const blob = await buildSowDocx(data || {}, templateSchema || { fields: [] });
+      const name = makeSowDocxFilename(data || {});
+      triggerDownload(blob, name);
+    } finally {
+      // small delay to avoid immediate re-press while browser processes download
+      setTimeout(() => setGenerating(false), 300);
+    }
+  }, [data, templateSchema, generating]);
 
   useEffect(() => {
     if (autoGenerate) {
       onGenerate();
     }
-  }, [autoGenerate, onGenerate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGenerate]);
 
   function triggerDownload(blob, filename) {
+    // Ensure any prior URL is revoked before creating a new one
+    if (rafRevokeRef.current) {
+      cancelAnimationFrame(rafRevokeRef.current);
+      rafRevokeRef.current = null;
+    }
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    const href = URL.createObjectURL(blob);
+    link.href = href;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
-    requestAnimationFrame(() => {
-      URL.revokeObjectURL(link.href);
+    rafRevokeRef.current = requestAnimationFrame(() => {
+      URL.revokeObjectURL(href);
       link.remove();
+      rafRevokeRef.current = null;
     });
   }
 
@@ -45,8 +64,10 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
           type="button"
           onClick={onGenerate}
           title="Generate a new DOCX directly from your entries"
+          disabled={generating}
+          aria-busy={generating}
         >
-          Generate DOCX
+          {generating ? "Generating..." : "Generate DOCX"}
         </button>
         <div style={{ color: "var(--text-secondary)" }}>
           Generates a clean DOCX from your SOW entries. No templates are used.

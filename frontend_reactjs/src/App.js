@@ -119,12 +119,14 @@ function App() {
         return (
           <DocxPreviewAndGenerate
             data={sowData}
+            templateSchema={selectedTemplateSchema}
           />
         );
       case "preview_auto":
         return (
           <DocxPreviewAndGenerate
             data={sowData}
+            templateSchema={selectedTemplateSchema}
             autoGenerate={true}
           />
         );
