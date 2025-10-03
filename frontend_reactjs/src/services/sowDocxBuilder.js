@@ -48,8 +48,9 @@ export async function buildSowDocx(data, _templateSchema) {
   children.push(milestonesFinancialsTableStep38(td));
   children.push(continuationParametersTableStep38(td));
 
-  // Actions section listing all fields
-  children.push(actionsAllFieldsTableStep38(td));
+  // Actions section listing per mapping (Section A) + Signature block (Section B)
+  children.push(actionsDataTableFromMapping(td));
+  children.push(signatureBlockFromMapping(meta, td));
 
   // Authorization with signature handling as of step 38
   children.push(authorizationTableStep38(meta, td));
@@ -430,7 +431,24 @@ function formatPocListStep38(poc) {
   return cleanText(poc);
 }
 
-function actionsAllFieldsTableStep38(templateData) {
+/**
+ * Build the Actions data table using exact mapping/order and casing from assets/actions_section_docx_mapping.md
+ * Section A: Address + Signature Metadata (labels are the exact keys with underscores)
+ * - Only render non-empty values
+ * - Do not duplicate data that will be rendered in the signature image block
+ */
+function actionsDataTableFromMapping(templateData) {
+  const ACTIONS_ORDER = [
+    "address_block_address_supplier_name",
+    "address_block_address_supplier_address",
+    "address_block_address_postal",
+    "supplier_signature",
+    "supplier_signature_name",
+    "supplier_signature_date",
+    "other_company_name_signature_block",
+    "other_company_name_signature_date",
+  ];
+
   const rows = [];
 
   rows.push(
@@ -445,36 +463,126 @@ function actionsAllFieldsTableStep38(templateData) {
     })
   );
 
-  const keys = Object.keys(templateData || {});
-  keys.sort((a, b) => a.localeCompare(b));
-  const L = 38;
-  const V = 62;
+  const L = 50;
+  const V = 50;
 
-  for (const k of keys) {
-    const raw = templateData[k];
-    const valText = formatAnyValueStep38(raw);
+  // Determine if an actual image signature exists to avoid duplicate 'supplier_signature' text row
+  const hasSupplierSignatureImage =
+    templateData?.supplier_signature && String(templateData.supplier_signature).startsWith("data:image");
+
+  for (const key of ACTIONS_ORDER) {
+    // Skip supplier_signature text row if we have an actual image to avoid duplication per mapping note
+    if (key === "supplier_signature" && hasSupplierSignatureImage) continue;
+
+    const raw = templateData ? templateData[key] : undefined;
+    const normalized =
+      typeof raw === "string" ? raw.trim() : raw;
+
+    if (normalized === null || normalized === undefined) continue;
+    if (typeof normalized === "string" && normalized.trim() === "") continue;
+
+    const valueText = formatAnyValueStep38(raw);
+    if (!valueText) continue;
+
     rows.push(
       new TableRow({
         children: [
-          makeCell(para(k, { bold: true, align: AlignmentType.LEFT }), { widthPct: L, vAlign: VerticalAlign.CENTER }),
-          makeCell(toParagraphs(valText, { align: AlignmentType.LEFT }), { widthPct: V, vAlign: VerticalAlign.TOP }),
-        ],
-      })
-    );
-  }
-
-  if (rows.length === 1) {
-    rows.push(
-      new TableRow({
-        children: [
-          makeCell(para("No fields", { bold: true }), { widthPct: 38 }),
-          makeCell(para("No SOW fields were provided.", {}), { widthPct: 62 }),
+          makeCell(para(key, { bold: false, align: AlignmentType.LEFT }), {
+            widthPct: L,
+            vAlign: VerticalAlign.CENTER,
+          }),
+          makeCell(toParagraphs(valueText, { align: AlignmentType.LEFT }), {
+            widthPct: V,
+            vAlign: VerticalAlign.TOP,
+          }),
         ],
       })
     );
   }
 
   return tableFullWidth(rows);
+}
+
+/**
+ * Build Signature block (Section B) as a two-column bordered box:
+ * Left: Supplier. Right: Company.
+ * Labels must be 'Supplier:', 'Company:', 'Name:', 'Title:', 'Date:' with values inline.
+ * Displays signature images if provided; otherwise leaves blank space.
+ */
+function signatureBlockFromMapping(meta, td) {
+  // Prepare values according to mapping notes
+  const supplierCompany = td?.supplier_name || td?.supplier || "";
+  const supplierSignerName = td?.supplier_signature_name || td?.supplier_signer_name || "";
+  const supplierSignerTitle = td?.supplier_signature_title || td?.supplier_signer_title || "";
+  const supplierSignerDate = td?.supplier_signature_date || "";
+
+  const clientCompany =
+    meta?.companyName || td?.client_company_name_signature_block || td?.company_name || td?.other_company_name_signature_block || "";
+  const clientSignerName = td?.client_signature_name || td?.other_company_signature_name || "";
+  const clientSignerTitle = td?.client_signature_title || td?.other_company_signature_title || "";
+  const clientSignerDate = td?.other_company_name_signature_date || td?.client_signature_date || "";
+
+  const supplierSignatureImg =
+    td?.supplier_signature && String(td.supplier_signature).startsWith("data:image")
+      ? new ImageRun({
+          data: dataUrlToUint8Array(td.supplier_signature),
+          transformation: { width: 240, height: 90 },
+        })
+      : null;
+
+  const leftChildren = [
+    para("Signature", { bold: true, after: 60 }),
+    ...(supplierSignatureImg ? [new Paragraph({ children: [supplierSignatureImg] })] : [para("", { after: 120 })]),
+    // Label lines with inline values as per mapping (label with trailing colon + single space + value if present)
+    para(`Supplier:${supplierCompany ? " " + cleanText(supplierCompany) : ""}`),
+    para(`Name:${supplierSignerName ? " " + cleanText(supplierSignerName) : ""}`),
+    para(`Title:${supplierSignerTitle ? " " + cleanText(supplierSignerTitle) : ""}`),
+    para(`Date:${supplierSignerDate ? " " + cleanText(supplierSignerDate) : ""}`),
+  ];
+
+  const rightChildren = [
+    para("Signature", { bold: true, after: 60 }),
+    // No client signature image in mapping screenshots; if provided, we can render similarly
+    ...(td?.client_signature && String(td.client_signature).startsWith("data:image")
+      ? [
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: dataUrlToUint8Array(td.client_signature),
+                transformation: { width: 240, height: 90 },
+              }),
+            ],
+          }),
+        ]
+      : [para("", { after: 120 })]),
+    para(`Company:${clientCompany ? " " + cleanText(clientCompany) : ""}`),
+    para(`Name:${clientSignerName ? " " + cleanText(clientSignerName) : ""}`),
+    para(`Title:${clientSignerTitle ? " " + cleanText(clientSignerTitle) : ""}`),
+    para(`Date:${clientSignerDate ? " " + cleanText(clientSignerDate) : ""}`),
+  ];
+
+  const rows = [
+    new TableRow({
+      children: [
+        makeCell(leftChildren, {
+          widthPct: 50,
+          vAlign: VerticalAlign.TOP,
+          opts: { borders: BORDER },
+        }),
+        makeCell(rightChildren, {
+          widthPct: 50,
+          vAlign: VerticalAlign.TOP,
+          opts: { borders: BORDER },
+        }),
+      ],
+    }),
+  ];
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: BORDER,
+    rows,
+  });
 }
 
 function formatAnyValueStep38(v) {
