@@ -18,23 +18,15 @@ import {
 /**
  * PUBLIC_INTERFACE
  * buildSowDocx
- * Builds the complete SOW DOCX document mirroring the step 42 layout:
- * - Top header with logo (if present)
- * - Title + subtitle + intro paragraph (plain centered heading; no box around the title)
- * - Work Order Parameters table (header row + numbered items 1–7)
- * - Supplier Deliverables table
- * - Client Deliverables table
- * - Milestones/Financials table
- * - Continuation Parameters (items 11–20)
- * - Actions (all SOW form fields listed in a two-column table)
- * - Authorization/signature table at the bottom with signature images (if provided) directly under the signature area
+ * Restored to step 38: includes Actions section listing all SOW fields, classic headings,
+ * and signature fields/placement as in that revision.
  *
  * Inputs:
  * - data: {
  *     meta?: { client?: string, title?: string, sowType?: "TM"|"FP", logoUrl?: string, supplierName?: string, companyName?: string },
  *     templateData?: Record<string, any>
  *   }
- * - templateSchema?: ignored for layout; step 42 layout uses fixed structure/labels
+ * - templateSchema?: not used for fixed layout
  *
  * Returns: Blob (DOCX)
  */
@@ -45,37 +37,28 @@ export async function buildSowDocx(data, _templateSchema) {
 
   const children = [];
 
-  // Title block (render as plain heading; no special box/border)
-  children.push(titleBlock());
-  // Subtitle: "Master Services Agreement" is in titleBlock per reference.
-  children.push(introParagraph(meta, td));
+  // Title and intro
+  children.push(titleBlockStep38());
+  children.push(introParagraphStep38(meta, td));
 
-  // Work Order Parameters table (items 1–7) with exact labels/order from reference
-  children.push(workOrderParametersTable(td));
+  // Parameters and sections per step 38
+  children.push(workOrderParametersTableStep38(td));
+  children.push(simpleTwoColTableStep38("Supplier Deliverables", td.supplier_deliverables));
+  children.push(simpleTwoColTableStep38("Client Deliverables", td.client_deliverables));
+  children.push(milestonesFinancialsTableStep38(td));
+  children.push(continuationParametersTableStep38(td));
 
-  // Supplier Deliverables (exact header and subheader "Description")
-  children.push(simpleTwoColTable("Supplier Deliverables", td.supplier_deliverables));
+  // Actions section listing all fields
+  children.push(actionsAllFieldsTableStep38(td));
 
-  // Client Deliverables (exact header and subheader "Description")
-  children.push(simpleTwoColTable("Client Deliverables", td.client_deliverables));
-
-  // Project Milestones and Right column showing Total Cost / Pricing/Rate, with header "Project Milestones"
-  children.push(milestonesFinancialsTable(td));
-
-  // Parameters 11–20 with exact wording from reference
-  children.push(continuationParametersTable(td));
-
-  // Actions: include ALL SOW form fields as per "Actions" section in reference
-  children.push(actionsAllFieldsTable(td));
-
-  // Authorization / Signatures block with "Supplier | Company" headers as per reference
-  children.push(authorizationTable(meta, td));
+  // Authorization with signature handling as of step 38
+  children.push(authorizationTableStep38(meta, td));
 
   const doc = new Document({
     sections: [
       {
-        headers: { default: buildHeader(meta) },
-        footers: { default: buildFooter() },
+        headers: { default: buildHeaderStep38(meta) },
+        footers: { default: buildFooterStep38() },
         properties: {
           page: {
             margin: { top: inchesToTwips(1.0), right: inchesToTwips(0.75), bottom: inchesToTwips(0.75), left: inchesToTwips(0.75) },
@@ -93,13 +76,13 @@ export async function buildSowDocx(data, _templateSchema) {
 /**
  * PUBLIC_INTERFACE
  * makeSowDocxFilename
- * Generate a filename consistent with step 42 naming.
+ * Step 38 filename convention.
  */
 // PUBLIC_INTERFACE
 export function makeSowDocxFilename(data) {
   const meta = data?.meta || {};
   const client = (meta.client || "Client").replace(/[^\w-]+/g, "_");
-  const title = (meta.title || meta.project || "SOW").replace(/[^\w-]+/g, "_");
+  const title = (meta.title || meta.project || "Statement_of_Work").replace(/[^\w-]+/g, "_");
   const now = new Date();
   const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
     now.getDate()
@@ -108,10 +91,10 @@ export function makeSowDocxFilename(data) {
 }
 
 /* =========================
-   Helpers and layout blocks
+   Helpers (shared)
    ========================= */
 
-const BORDER_COLOR = "B5B5B5"; // step 42: medium gray borders
+const BORDER_COLOR = "B5B5B5";
 const BORDER = {
   top: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
   bottom: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
@@ -142,9 +125,6 @@ function toParagraphs(text, { size = 21, align = AlignmentType.LEFT, after = 0 }
     return [new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: "", size })] })];
   }
   const lines = s.split(/\r?\n/);
-  if (!lines.length) {
-    return [new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: s, size })] })];
-  }
   return lines.map(
     (ln) =>
       new Paragraph({
@@ -161,85 +141,6 @@ function tableFullWidth(rows) {
     borders: BORDER,
     rows: rows || [],
   });
-}
-
-/**
- * Build a two-column table that lists ALL keys from templateData under an "Actions" section.
- * Left column: field key (bold), Right column: value (stringified). Arrays and objects are formatted sensibly.
- * Matches rollback 42 approach of surfacing all fields "in action".
- */
-function actionsAllFieldsTable(templateData) {
-  const rows = [];
-
-  // Header row spanning two columns - exact label from reference
-  rows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          columnSpan: 2,
-          margins: { top: 120, bottom: 120, left: 120, right: 120 },
-          children: [para("Actions", { bold: true, size: 22, align: AlignmentType.LEFT })],
-        }),
-      ],
-    })
-  );
-
-  const keys = Object.keys(templateData || {});
-  keys.sort((a, b) => a.localeCompare(b));
-  const L = 38;
-  const V = 62;
-
-  for (const k of keys) {
-    const raw = templateData[k];
-    const valText = formatAnyValue(raw);
-    rows.push(
-      new TableRow({
-        children: [
-          makeCell(para(k, { bold: true, align: AlignmentType.LEFT }), { widthPct: L, vAlign: VerticalAlign.CENTER }),
-          makeCell(toParagraphs(valText, { align: AlignmentType.LEFT }), { widthPct: V, vAlign: VerticalAlign.TOP }),
-        ],
-      })
-    );
-  }
-
-  if (rows.length === 1) {
-    // No fields present; show hint row
-    rows.push(
-      new TableRow({
-        children: [
-          makeCell(para("No fields", { bold: true }), { widthPct: 38 }),
-          makeCell(para("No SOW fields were provided.", {}), { widthPct: 62 }),
-        ],
-      })
-    );
-  }
-
-  return tableFullWidth(rows);
-}
-
-function formatAnyValue(v) {
-  if (v == null) return "";
-  if (typeof v === "string") return cleanText(v);
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  if (Array.isArray(v)) {
-    // Join arrays by newline; stringify objects shallowly
-    return v
-      .map((item) => {
-        if (item == null) return "";
-        if (typeof item === "string") return cleanText(item);
-        if (typeof item === "number" || typeof item === "boolean") return String(item);
-        if (typeof item === "object") return Object.entries(item).map(([kk, vv]) => `${kk}: ${formatAnyValue(vv)}`).join(", ");
-        return String(item);
-      })
-      .filter(Boolean)
-      .join("\n");
-  }
-  if (typeof v === "object") {
-    return Object.entries(v)
-      .map(([kk, vv]) => `${kk}: ${formatAnyValue(vv)}`)
-      .join("\n");
-  }
-  return String(v);
 }
 
 function makeCell(
@@ -282,9 +183,11 @@ function dataUrlToUint8Array(dataUrl) {
   return arr;
 }
 
-/* Title and intro */
+/* =========================
+   Step 38 specific blocks
+   ========================= */
 
-function titleBlock() {
+function titleBlockStep38() {
   return tableFullWidth([
     new TableRow({
       children: [
@@ -308,7 +211,7 @@ function titleBlock() {
   ]);
 }
 
-function introParagraph(meta, td) {
+function introParagraphStep38(meta, td) {
   const company = meta.companyName || td.company_name || "[company name]";
   const supplier = meta.supplierName || td.supplier_name || "<supplier name>";
   const copy =
@@ -317,15 +220,12 @@ function introParagraph(meta, td) {
   return para(copy, { align: AlignmentType.LEFT, after: 240, size: 21 });
 }
 
-/* Work Order Parameters (1–7) */
-
-function workOrderParametersTable(td) {
+function workOrderParametersTableStep38(td) {
   const L = 38;
   const V = 62;
 
   const rows = [];
 
-  // Header row spanning two columns
   rows.push(
     new TableRow({
       children: [
@@ -386,12 +286,9 @@ function workOrderParametersTable(td) {
   return tableFullWidth(rows);
 }
 
-/* Supplier / Client Deliverables (simple two-column blocks with a header row) */
-
-function simpleTwoColTable(title, text) {
+function simpleTwoColTableStep38(title, text) {
   const rows = [];
 
-  // Header
   rows.push(
     new TableRow({
       children: [
@@ -404,7 +301,6 @@ function simpleTwoColTable(title, text) {
     })
   );
 
-  // Header for the two columns: "Description" | ""
   rows.push(
     new TableRow({
       children: [
@@ -414,7 +310,6 @@ function simpleTwoColTable(title, text) {
     })
   );
 
-  // Single content row (left carries most content, right optional)
   rows.push(
     new TableRow({
       children: [
@@ -427,9 +322,7 @@ function simpleTwoColTable(title, text) {
   return tableFullWidth(rows);
 }
 
-/* Milestones / Financials */
-
-function milestonesFinancialsTable(td) {
+function milestonesFinancialsTableStep38(td) {
   const rows = [];
   rows.push(
     new TableRow({
@@ -443,7 +336,6 @@ function milestonesFinancialsTable(td) {
     })
   );
 
-  // Left header "Description" | Right header blank
   rows.push(
     new TableRow({
       children: [
@@ -453,7 +345,6 @@ function milestonesFinancialsTable(td) {
     })
   );
 
-  // Content: left = milestones_description; right contains two stacked labeled rows: Total Cost, Pricing/Rate
   rows.push(
     new TableRow({
       children: [
@@ -477,9 +368,7 @@ function milestonesFinancialsTable(td) {
   return tableFullWidth(rows);
 }
 
-/* Continuation Parameters (11–20) */
-
-function continuationParametersTable(td) {
+function continuationParametersTableStep38(td) {
   const L = 38;
   const V = 62;
 
@@ -511,15 +400,14 @@ function continuationParametersTable(td) {
   rows.push(
     addRow(
       "20. Points of Contact for Communications",
-      formatPocList(td.poc_for_communications || td.points_of_contact_for_communications)
+      formatPocListStep38(td.poc_for_communications || td.points_of_contact_for_communications)
     )
   );
 
   return tableFullWidth(rows);
 }
 
-function formatPocList(poc) {
-  // Allow array or string. If array of objects, format "Name – Contact, Email, Address"
+function formatPocListStep38(poc) {
   if (!poc) return "";
   if (Array.isArray(poc)) {
     const lines = poc
@@ -542,12 +430,80 @@ function formatPocList(poc) {
   return cleanText(poc);
 }
 
-/* Authorization / Signatures */
-
-function authorizationTable(meta, td) {
+function actionsAllFieldsTableStep38(templateData) {
   const rows = [];
 
-  // Intro sentence above signature blocks
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 2,
+          margins: { top: 120, bottom: 120, left: 120, right: 120 },
+          children: [para("Actions", { bold: true, size: 22, align: AlignmentType.LEFT })],
+        }),
+      ],
+    })
+  );
+
+  const keys = Object.keys(templateData || {});
+  keys.sort((a, b) => a.localeCompare(b));
+  const L = 38;
+  const V = 62;
+
+  for (const k of keys) {
+    const raw = templateData[k];
+    const valText = formatAnyValueStep38(raw);
+    rows.push(
+      new TableRow({
+        children: [
+          makeCell(para(k, { bold: true, align: AlignmentType.LEFT }), { widthPct: L, vAlign: VerticalAlign.CENTER }),
+          makeCell(toParagraphs(valText, { align: AlignmentType.LEFT }), { widthPct: V, vAlign: VerticalAlign.TOP }),
+        ],
+      })
+    );
+  }
+
+  if (rows.length === 1) {
+    rows.push(
+      new TableRow({
+        children: [
+          makeCell(para("No fields", { bold: true }), { widthPct: 38 }),
+          makeCell(para("No SOW fields were provided.", {}), { widthPct: 62 }),
+        ],
+      })
+    );
+  }
+
+  return tableFullWidth(rows);
+}
+
+function formatAnyValueStep38(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return cleanText(v);
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) {
+    return v
+      .map((item) => {
+        if (item == null) return "";
+        if (typeof item === "string") return cleanText(item);
+        if (typeof item === "number" || typeof item === "boolean") return String(item);
+        if (typeof item === "object") return Object.entries(item).map(([kk, vv]) => `${kk}: ${formatAnyValueStep38(vv)}`).join(", ");
+        return String(item);
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (typeof v === "object") {
+    return Object.entries(v)
+      .map(([kk, vv]) => `${kk}: ${formatAnyValueStep38(vv)}`)
+      .join("\n");
+  }
+  return String(v);
+}
+
+function authorizationTableStep38(meta, td) {
+  const rows = [];
+
   rows.push(
     new TableRow({
       children: [
@@ -565,7 +521,6 @@ function authorizationTable(meta, td) {
     })
   );
 
-  // Column headers: Supplier | Company
   const company = meta.companyName || td.client_company_name_signature_block || td.company_name || "Company";
   rows.push(
     new TableRow({
@@ -588,11 +543,10 @@ function authorizationTable(meta, td) {
     })
   );
 
-  // Signature row with large empty space, followed by signature images if provided.
   const supplierSignatureImg = td?.supplier_signature && String(td.supplier_signature).startsWith("data:image")
     ? new ImageRun({
         data: dataUrlToUint8Array(td.supplier_signature),
-        transformation: { width: 240, height: 90 }, // sized to appear below signature area
+        transformation: { width: 240, height: 90 },
       })
     : null;
   const clientSignatureImg = td?.client_signature && String(td.client_signature).startsWith("data:image")
@@ -602,14 +556,12 @@ function authorizationTable(meta, td) {
       })
     : null;
 
-  // Signature label/area cells
   rows.push(
     new TableRow({
       children: [
         makeCell(
           [
             para("Signature", { bold: true }),
-            // if image exists, add it immediately under the signature area
             ...(supplierSignatureImg ? [new Paragraph({ children: [supplierSignatureImg] })] : []),
           ],
           {
@@ -633,7 +585,6 @@ function authorizationTable(meta, td) {
     })
   );
 
-  // Name
   rows.push(
     new TableRow({
       children: [
@@ -642,7 +593,6 @@ function authorizationTable(meta, td) {
       ],
     })
   );
-  // Title
   rows.push(
     new TableRow({
       children: [
@@ -651,7 +601,6 @@ function authorizationTable(meta, td) {
       ],
     })
   );
-  // Date
   rows.push(
     new TableRow({
       children: [
@@ -664,36 +613,23 @@ function authorizationTable(meta, td) {
   return tableFullWidth(rows);
 }
 
-/* Header / Footer (minimal per step 42 spec) */
-
-function buildHeader(meta) {
-  // Place logo (if provided) at the top-left of the document in the header.
-  // No signature area in header; signature block is placed at the bottom Authorization section.
+function buildHeaderStep38(meta) {
   const runs = [];
-
-  // Logo: use docx ImageRun only for data URLs (browser environment)
   const logoUrl = meta?.logoUrl;
   if (logoUrl && typeof logoUrl === "string" && logoUrl.startsWith("data:image")) {
     try {
       const imgRun = new ImageRun({
         data: dataUrlToUint8Array(logoUrl),
-        transformation: {
-          width: 180,
-          height: 56,
-        },
+        transformation: { width: 180, height: 56 },
       });
       runs.push(new Paragraph({ children: [imgRun] }));
     } catch {
-      // Fallback to text if data URL parsing fails
       runs.push(para("[logo]", { align: AlignmentType.LEFT }));
     }
-  } else {
-    // No logo; keep header minimal.
   }
-
   return new Header({ children: runs });
 }
-function buildFooter() {
-  // Thin rule not implemented to keep parity with previously shipped code snapshot that had empty footer.
+
+function buildFooterStep38() {
   return new Footer({ children: [] });
 }

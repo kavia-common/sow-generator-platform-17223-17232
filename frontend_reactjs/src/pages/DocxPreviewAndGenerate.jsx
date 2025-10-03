@@ -3,11 +3,11 @@ import React, { useCallback, useEffect } from "react";
 /**
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
- * Restored to step 42 behavior: builds the full SOW layout including Work Order Parameters and Authorization.
+ * Restored to step 38 behavior: builds SOW with Actions section and signature fields as of that revision.
  *
  * Props:
  * - data: { meta?: { client?: string, title?: string, sowType?: "TM"|"FP", logoUrl?: string }, templateData?: Record<string, any> }
- * - templateSchema?: unused for the fixed layout at step 42, but accepted for API compatibility
+ * - templateSchema?: unused for the fixed layout at step 38, but accepted for API compatibility
  * - autoGenerate?: boolean  If true, immediately trigger generation on mount/update (used for one-click submit).
  */
 export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
@@ -44,12 +44,12 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
           className="btn btn-primary"
           type="button"
           onClick={onGenerate}
-          title="Generate the step 42 SOW DOCX layout"
+          title="Generate the step 38 SOW DOCX layout"
         >
           Generate DOCX
         </button>
         <div style={{ color: "var(--text-secondary)" }}>
-          Restored full SOW layout with Work Order Parameters and Authorization as per step 42.
+          Restored SOW layout to step 38 (includes Actions section and signature fields as at that step).
         </div>
       </div>
     </div>
