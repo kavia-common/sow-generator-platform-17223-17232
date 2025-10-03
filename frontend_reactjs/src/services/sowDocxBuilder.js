@@ -47,27 +47,28 @@ export async function buildSowDocx(data, _templateSchema) {
 
   // Title block (render as plain heading; no special box/border)
   children.push(titleBlock());
+  // Subtitle: "Master Services Agreement" is in titleBlock per reference.
   children.push(introParagraph(meta, td));
 
-  // Work Order Parameters table (items 1–7)
+  // Work Order Parameters table (items 1–7) with exact labels/order from reference
   children.push(workOrderParametersTable(td));
 
-  // Supplier Deliverables
+  // Supplier Deliverables (exact header and subheader "Description")
   children.push(simpleTwoColTable("Supplier Deliverables", td.supplier_deliverables));
 
-  // Client Deliverables
+  // Client Deliverables (exact header and subheader "Description")
   children.push(simpleTwoColTable("Client Deliverables", td.client_deliverables));
 
-  // Milestones / Financials
+  // Project Milestones and Right column showing Total Cost / Pricing/Rate, with header "Project Milestones"
   children.push(milestonesFinancialsTable(td));
 
-  // Continuation Parameters (11–20)
+  // Parameters 11–20 with exact wording from reference
   children.push(continuationParametersTable(td));
 
-  // Actions: include ALL SOW form fields from templateData under a dedicated section
+  // Actions: include ALL SOW form fields as per "Actions" section in reference
   children.push(actionsAllFieldsTable(td));
 
-  // Authorization / Signatures
+  // Authorization / Signatures block with "Supplier | Company" headers as per reference
   children.push(authorizationTable(meta, td));
 
   const doc = new Document({
@@ -170,7 +171,7 @@ function tableFullWidth(rows) {
 function actionsAllFieldsTable(templateData) {
   const rows = [];
 
-  // Header row spanning two columns
+  // Header row spanning two columns - exact label from reference
   rows.push(
     new TableRow({
       children: [
@@ -311,7 +312,7 @@ function introParagraph(meta, td) {
   const company = meta.companyName || td.company_name || "[company name]";
   const supplier = meta.supplierName || td.supplier_name || "<supplier name>";
   const copy =
-    `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${company}, a [jurisdiction of incorporation, if used in your data model] company, and ${supplier} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
+    `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${company}, and ${supplier} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
     `Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
   return para(copy, { align: AlignmentType.LEFT, after: 240, size: 21 });
 }
@@ -352,7 +353,7 @@ function workOrderParametersTable(td) {
   };
 
   rows.push(addRow("1. Client Portfolio", td.client_portfolio || ""));
-  rows.push(addRow("2. Type of Project", td.project_type || ""));
+  rows.push(addRow("2. Type of Project", td.type_of_project || td.project_type || ""));
   rows.push(addRow("3. Engagement Number (Required for Fixed Price)", td.engagement_number || ""));
   rows.push(addRow("4. Project Start Date", td.start_date || "", { format: "date" }));
   rows.push(addRow("5. Project End Date", td.end_date || "", { format: "date" }));
@@ -436,7 +437,7 @@ function milestonesFinancialsTable(td) {
         new TableCell({
           columnSpan: 2,
           margins: { top: 120, bottom: 120, left: 120, right: 120 },
-          children: [para("Milestones / Financials", { bold: true, size: 22, align: AlignmentType.LEFT })],
+          children: [para("Project Milestones", { bold: true, size: 22, align: AlignmentType.LEFT })],
         }),
       ],
     })
@@ -462,8 +463,10 @@ function milestonesFinancialsTable(td) {
         }),
         makeCell(
           [
-            para(`Total Cost: ${cleanText(td.total_cost || "")}`, { align: AlignmentType.LEFT }),
-            para(`Pricing/Rate: ${cleanText(td.pricing_rate || "")}`, { align: AlignmentType.LEFT }),
+            para(`Total Cost:`, { align: AlignmentType.LEFT, bold: true, after: 60 }),
+            ...toParagraphs(cleanText(td.total_cost || ""), { align: AlignmentType.LEFT, after: 120 }),
+            para(`Pricing/Rate:`, { align: AlignmentType.LEFT, bold: true, after: 60 }),
+            ...toParagraphs(cleanText(td.pricing_rate || td.contractor_rate_tm_only || ""), { align: AlignmentType.LEFT }),
           ],
           { widthPct: 40, vAlign: VerticalAlign.TOP }
         ),
@@ -496,11 +499,11 @@ function continuationParametersTable(td) {
       ],
     });
 
-  rows.push(addRow("11. Client Relationship", td.client_relationship || ""));
+  rows.push(addRow("11. Client Relationship", td.client_relationship || td.client_relationship_managers || ""));
   rows.push(addRow("12. Negative Relationship Changes", td.negative_relationship_changes || ""));
-  rows.push(addRow("13. Change & Payment Structure (Fixed Price Only)", td.change_payment_structure || ""));
-  rows.push(addRow("14. Deliverable Rate / T&M", td.rate_or_tnm || ""));
-  rows.push(addRow("15. Key Client Personnel and Reportees", td.key_client_personnel || ""));
+  rows.push(addRow("13. Change & Payment Structure (Fixed Price Only)", td.charges_and_payment_schedule_fp || td.change_payment_structure || ""));
+  rows.push(addRow("14. Deliverable Rate / T&M", td.contractor_rate_tm_only || td.rate_or_tnm || ""));
+  rows.push(addRow("15. Key Client Personnel and Reportees", td.key_client_personnel_and_expert_roles || td.key_client_personnel || ""));
   rows.push(addRow("16. Service Level Agreements", td.slas || "N/A"));
   rows.push(addRow("17. Communication Paths", td.communication_paths || "As defined in the Agreement."));
   rows.push(addRow("18. Service Locations", td.service_locations || ""));
@@ -508,7 +511,7 @@ function continuationParametersTable(td) {
   rows.push(
     addRow(
       "20. Points of Contact for Communications",
-      formatPocList(td.poc_for_communications)
+      formatPocList(td.poc_for_communications || td.points_of_contact_for_communications)
     )
   );
 
@@ -563,7 +566,7 @@ function authorizationTable(meta, td) {
   );
 
   // Column headers: Supplier | Company
-  const company = meta.companyName || td.company_name || "Company";
+  const company = meta.companyName || td.client_company_name_signature_block || td.company_name || "Company";
   rows.push(
     new TableRow({
       children: [
@@ -634,8 +637,8 @@ function authorizationTable(meta, td) {
   rows.push(
     new TableRow({
       children: [
-        makeCell(para("Name", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
-        makeCell(para("Name", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Name:", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Name:", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
       ],
     })
   );
@@ -643,8 +646,8 @@ function authorizationTable(meta, td) {
   rows.push(
     new TableRow({
       children: [
-        makeCell(para("Title", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
-        makeCell(para("Title", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Title:", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Title:", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
       ],
     })
   );
@@ -652,8 +655,8 @@ function authorizationTable(meta, td) {
   rows.push(
     new TableRow({
       children: [
-        makeCell(para("Date", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
-        makeCell(para("Date", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Date:", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Date:", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
       ],
     })
   );
