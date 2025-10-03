@@ -19,7 +19,7 @@ import {
  * PUBLIC_INTERFACE
  * buildSowDocx
  * Builds the complete SOW DOCX document mirroring the step 42 layout:
- * - Top header with logo (if present) and small signature area directly under the logo
+ * - Top header with logo (if present)
  * - Title + subtitle + intro paragraph (plain centered heading; no box around the title)
  * - Work Order Parameters table (header row + numbered items 1–7)
  * - Supplier Deliverables table
@@ -27,7 +27,7 @@ import {
  * - Milestones/Financials table
  * - Continuation Parameters (items 11–20)
  * - Actions (all SOW form fields listed in a two-column table)
- * - Authorization/signature table
+ * - Authorization/signature table at the bottom with signature images (if provided) directly under the signature area
  *
  * Inputs:
  * - data: {
@@ -585,20 +585,47 @@ function authorizationTable(meta, td) {
     })
   );
 
-  // Signature row with large empty space
+  // Signature row with large empty space, followed by signature images if provided.
+  const supplierSignatureImg = td?.supplier_signature && String(td.supplier_signature).startsWith("data:image")
+    ? new ImageRun({
+        data: dataUrlToUint8Array(td.supplier_signature),
+        transformation: { width: 240, height: 90 }, // sized to appear below signature area
+      })
+    : null;
+  const clientSignatureImg = td?.client_signature && String(td.client_signature).startsWith("data:image")
+    ? new ImageRun({
+        data: dataUrlToUint8Array(td.client_signature),
+        transformation: { width: 240, height: 90 },
+      })
+    : null;
+
+  // Signature label/area cells
   rows.push(
     new TableRow({
       children: [
-        makeCell(para("Signature", { bold: true }), {
-          widthPct: 50,
-          vAlign: VerticalAlign.TOP,
-          opts: { margins: { top: inchesToTwips(0.2), bottom: inchesToTwips(1.0), left: 120, right: 120 } },
-        }),
-        makeCell(para("Signature", { bold: true }), {
-          widthPct: 50,
-          vAlign: VerticalAlign.TOP,
-          opts: { margins: { top: inchesToTwips(0.2), bottom: inchesToTwips(1.0), left: 120, right: 120 } },
-        }),
+        makeCell(
+          [
+            para("Signature", { bold: true }),
+            // if image exists, add it immediately under the signature area
+            ...(supplierSignatureImg ? [new Paragraph({ children: [supplierSignatureImg] })] : []),
+          ],
+          {
+            widthPct: 50,
+            vAlign: VerticalAlign.TOP,
+            opts: { margins: { top: inchesToTwips(0.2), bottom: inchesToTwips(0.8), left: 120, right: 120 } },
+          }
+        ),
+        makeCell(
+          [
+            para("Signature", { bold: true }),
+            ...(clientSignatureImg ? [new Paragraph({ children: [clientSignatureImg] })] : []),
+          ],
+          {
+            widthPct: 50,
+            vAlign: VerticalAlign.TOP,
+            opts: { margins: { top: inchesToTwips(0.2), bottom: inchesToTwips(0.8), left: 120, right: 120 } },
+          }
+        ),
       ],
     })
   );
@@ -637,8 +664,8 @@ function authorizationTable(meta, td) {
 /* Header / Footer (minimal per step 42 spec) */
 
 function buildHeader(meta) {
-  // Place logo (if provided) at the very top-left of the document in the header.
-  // Below the logo, add a small signature area text line to meet "signature area at the very top" requirement.
+  // Place logo (if provided) at the top-left of the document in the header.
+  // No signature area in header; signature block is placed at the bottom Authorization section.
   const runs = [];
 
   // Logo: use docx ImageRun only for data URLs (browser environment)
@@ -648,8 +675,8 @@ function buildHeader(meta) {
       const imgRun = new ImageRun({
         data: dataUrlToUint8Array(logoUrl),
         transformation: {
-          width: 180, // ~1.25" width at 144 DPI approximation
-          height: 56, // ~0.5" height
+          width: 180,
+          height: 56,
         },
       });
       runs.push(new Paragraph({ children: [imgRun] }));
@@ -658,19 +685,8 @@ function buildHeader(meta) {
       runs.push(para("[logo]", { align: AlignmentType.LEFT }));
     }
   } else {
-    // No logo; do not show placeholder text per checklist
+    // No logo; keep header minimal.
   }
-
-  // Signature area hint under logo (simple top signature area fields)
-  const company = meta?.companyName || "";
-  const supplier = meta?.supplierName || "";
-  const hint = company || supplier ? `Signature area: ${supplier ? "Supplier" : ""}${supplier && company ? " | " : ""}${company ? "Company" : ""}` : "Signature area";
-  runs.push(
-    new Paragraph({
-      spacing: { after: 120 },
-      children: [new TextRun({ text: hint, size: 18 })],
-    })
-  );
 
   return new Header({ children: runs });
 }
