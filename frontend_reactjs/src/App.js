@@ -10,7 +10,7 @@ import { applyThemeToRoot, oceanTheme } from "./theme";
 import AIChatWidget from "./components/AIChatWizard";
 import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
-import ExportWord from "./pages/ExportWord";
+
 import DocxPreviewAndGenerate from "./pages/DocxPreviewAndGenerate";
 
 import tmParsed from "./templates/parsed/tm_template_parsed.json";
@@ -20,7 +20,7 @@ import fpParsed from "./templates/parsed/fixed_price_template_parsed.json";
 function App() {
   // Stage and step
   const [stage, setStage] = useState("landing"); // landing | builder
-  const [current, setCurrent] = useState("template"); // template | sowform | preview | export
+  const [current, setCurrent] = useState("template"); // template | sowform | preview | preview_auto
 
   // Selected SOW type: "FP" | "TM"
   const [selectedTemplate, setSelectedTemplate] = useState("");
@@ -113,26 +113,6 @@ function App() {
               selectedTemplate={selectedTemplate}
               templateSchema={selectedTemplateSchema}
             />
-            <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <button
-                className="btn"
-                type="button"
-                onClick={() => setCurrent("preview")}
-                disabled={!selectedTemplate || !selectedTemplateSchema}
-                title={!selectedTemplate ? "Please select T&M or Fixed Price first." : !selectedTemplateSchema ? "Template fields are not available." : "Preview before generating"}
-              >
-                Preview
-              </button>
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={() => setCurrent("preview_auto")}
-                disabled={!selectedTemplate || !selectedTemplateSchema}
-                title="Submit & Export your SOW as a DOCX in one click"
-              >
-                Submit & Export
-              </button>
-            </div>
           </>
         );
       case "preview":
@@ -148,12 +128,17 @@ function App() {
             autoGenerate={true}
           />
         );
-      case "export":
-        return <ExportWord value={sowData} meta={meta} />;
       default:
         return null;
     }
   };
+
+  // Listen for a single action from SOWForm to trigger auto-generate navigation
+  useEffect(() => {
+    const handler = () => setCurrent("preview_auto");
+    window.addEventListener("sow:request-generate-docx", handler);
+    return () => window.removeEventListener("sow:request-generate-docx", handler);
+  }, []);
 
   if (stage === "landing") {
     return <LandingLogin onContinue={() => setStage("builder")} />;
@@ -177,8 +162,7 @@ function App() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
               <button className="btn" type="button" onClick={() => setCurrent("template")}>Template</button>
               <button className="btn" type="button" onClick={() => setCurrent("sowform")}>Form</button>
-              <button className="btn" type="button" onClick={() => setCurrent("preview")}>Preview & Generate</button>
-              <button className="btn" type="button" onClick={() => setCurrent("export")}>Export (.docx)</button>
+              <button className="btn" type="button" onClick={() => setCurrent("preview_auto")}>Generate DOCX</button>
               <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Reset</button>
             </div>
             {renderStep()}

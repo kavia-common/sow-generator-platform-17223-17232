@@ -18,7 +18,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   const [data, setData] = useState(
     value || {
       meta: {
-        // Keep only minimal non-template meta needed in UI (logo for preview/export)
+        // Keep only minimal non-template meta needed in UI (logo for document)
         logoUrl: "",
         logoName: ""
       },
@@ -148,6 +148,26 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           </Section>
         ))
       )}
+
+      {/* Actions: only one primary action - Generate DOCX */}
+      <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+        {/* Dispatch a custom event the App listens for to navigate to auto-generate. */}
+        <button
+          className="btn btn-primary"
+          type="button"
+          onClick={() => {
+            const evt = new CustomEvent("sow:request-generate-docx", { detail: { source: "SOWForm" } });
+            window.dispatchEvent(evt);
+          }}
+          title="Generate your SOW as a DOCX"
+          disabled={!selectedTemplate || !sections.length}
+        >
+          Generate DOCX
+        </button>
+        <div style={{ color: "var(--text-secondary)" }}>
+          Creates a Word document directly from your entries.
+        </div>
+      </div>
     </div>
   );
 
