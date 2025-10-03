@@ -12,18 +12,21 @@ import {
   Header,
   BorderStyle,
   VerticalAlign,
+  ImageRun,
 } from "docx";
 
 /**
  * PUBLIC_INTERFACE
  * buildSowDocx
  * Builds the complete SOW DOCX document mirroring the step 42 layout:
- * - Title + subtitle + intro paragraph
+ * - Top header with logo (if present) and small signature area directly under the logo
+ * - Title + subtitle + intro paragraph (plain centered heading; no box around the title)
  * - Work Order Parameters table (header row + numbered items 1–7)
  * - Supplier Deliverables table
  * - Client Deliverables table
  * - Milestones/Financials table
  * - Continuation Parameters (items 11–20)
+ * - Actions (all SOW form fields listed in a two-column table)
  * - Authorization/signature table
  *
  * Inputs:
@@ -42,7 +45,7 @@ export async function buildSowDocx(data, _templateSchema) {
 
   const children = [];
 
-  // Title block
+  // Title block (render as plain heading; no special box/border)
   children.push(titleBlock());
   children.push(introParagraph(meta, td));
 
@@ -60,6 +63,9 @@ export async function buildSowDocx(data, _templateSchema) {
 
   // Continuation Parameters (11–20)
   children.push(continuationParametersTable(td));
+
+  // Actions: include ALL SOW form fields from templateData under a dedicated section
+  children.push(actionsAllFieldsTable(td));
 
   // Authorization / Signatures
   children.push(authorizationTable(meta, td));
@@ -156,6 +162,85 @@ function tableFullWidth(rows) {
   });
 }
 
+/**
+ * Build a two-column table that lists ALL keys from templateData under an "Actions" section.
+ * Left column: field key (bold), Right column: value (stringified). Arrays and objects are formatted sensibly.
+ * Matches rollback 42 approach of surfacing all fields "in action".
+ */
+function actionsAllFieldsTable(templateData) {
+  const rows = [];
+
+  // Header row spanning two columns
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 2,
+          margins: { top: 120, bottom: 120, left: 120, right: 120 },
+          children: [para("Actions", { bold: true, size: 22, align: AlignmentType.LEFT })],
+        }),
+      ],
+    })
+  );
+
+  const keys = Object.keys(templateData || {});
+  keys.sort((a, b) => a.localeCompare(b));
+  const L = 38;
+  const V = 62;
+
+  for (const k of keys) {
+    const raw = templateData[k];
+    const valText = formatAnyValue(raw);
+    rows.push(
+      new TableRow({
+        children: [
+          makeCell(para(k, { bold: true, align: AlignmentType.LEFT }), { widthPct: L, vAlign: VerticalAlign.CENTER }),
+          makeCell(toParagraphs(valText, { align: AlignmentType.LEFT }), { widthPct: V, vAlign: VerticalAlign.TOP }),
+        ],
+      })
+    );
+  }
+
+  if (rows.length === 1) {
+    // No fields present; show hint row
+    rows.push(
+      new TableRow({
+        children: [
+          makeCell(para("No fields", { bold: true }), { widthPct: 38 }),
+          makeCell(para("No SOW fields were provided.", {}), { widthPct: 62 }),
+        ],
+      })
+    );
+  }
+
+  return tableFullWidth(rows);
+}
+
+function formatAnyValue(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return cleanText(v);
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) {
+    // Join arrays by newline; stringify objects shallowly
+    return v
+      .map((item) => {
+        if (item == null) return "";
+        if (typeof item === "string") return cleanText(item);
+        if (typeof item === "number" || typeof item === "boolean") return String(item);
+        if (typeof item === "object") return Object.entries(item).map(([kk, vv]) => `${kk}: ${formatAnyValue(vv)}`).join(", ");
+        return String(item);
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (typeof v === "object") {
+    return Object.entries(v)
+      .map(([kk, vv]) => `${kk}: ${formatAnyValue(vv)}`)
+      .join("\n");
+  }
+  return String(v);
+}
+
 function makeCell(
   children,
   { widthPct, vAlign = VerticalAlign.TOP, padding = 120, opts = {} } = {}
@@ -185,6 +270,15 @@ function formatDate(s) {
   const month = d.toLocaleString("en-US", { month: "short" });
   const year = d.getFullYear();
   return `${day} ${month} ${year}`;
+}
+
+function dataUrlToUint8Array(dataUrl) {
+  const [head, b64] = String(dataUrl || "").split(",");
+  const bin = atob(b64 || "");
+  const len = bin.length;
+  const arr = new Uint8Array(len);
+  for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
 }
 
 /* Title and intro */
@@ -542,9 +636,43 @@ function authorizationTable(meta, td) {
 
 /* Header / Footer (minimal per step 42 spec) */
 
-function buildHeader(_meta) {
-  // Step 42 retained a minimal header – logo handling was optional; keep empty for now to match behavior.
-  return new Header({ children: [] });
+function buildHeader(meta) {
+  // Place logo (if provided) at the very top-left of the document in the header.
+  // Below the logo, add a small signature area text line to meet "signature area at the very top" requirement.
+  const runs = [];
+
+  // Logo: use docx ImageRun only for data URLs (browser environment)
+  const logoUrl = meta?.logoUrl;
+  if (logoUrl && typeof logoUrl === "string" && logoUrl.startsWith("data:image")) {
+    try {
+      const imgRun = new ImageRun({
+        data: dataUrlToUint8Array(logoUrl),
+        transformation: {
+          width: 180, // ~1.25" width at 144 DPI approximation
+          height: 56, // ~0.5" height
+        },
+      });
+      runs.push(new Paragraph({ children: [imgRun] }));
+    } catch {
+      // Fallback to text if data URL parsing fails
+      runs.push(para("[logo]", { align: AlignmentType.LEFT }));
+    }
+  } else {
+    // No logo; do not show placeholder text per checklist
+  }
+
+  // Signature area hint under logo (simple top signature area fields)
+  const company = meta?.companyName || "";
+  const supplier = meta?.supplierName || "";
+  const hint = company || supplier ? `Signature area: ${supplier ? "Supplier" : ""}${supplier && company ? " | " : ""}${company ? "Company" : ""}` : "Signature area";
+  runs.push(
+    new Paragraph({
+      spacing: { after: 120 },
+      children: [new TextRun({ text: hint, size: 18 })],
+    })
+  );
+
+  return new Header({ children: runs });
 }
 function buildFooter() {
   // Thin rule not implemented to keep parity with previously shipped code snapshot that had empty footer.
