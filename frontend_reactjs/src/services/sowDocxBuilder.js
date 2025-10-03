@@ -15,6 +15,8 @@ import {
   BorderStyle,
   VerticalAlign,
 } from "docx";
+// Note: This module relies on the 'docx' package being installed. If generation fails at runtime,
+// verify 'docx' exists in frontend_reactjs/package.json dependencies and reinstall.
 
 /**
  * Convert a data URL (image/*) to Uint8Array bytes.

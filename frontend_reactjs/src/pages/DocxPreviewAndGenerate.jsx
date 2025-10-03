@@ -12,10 +12,18 @@ import React, { useCallback, useEffect } from "react";
  */
 export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
   const onGenerate = useCallback(async () => {
-    const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
-    const blob = await buildSowDocx(data || {}, templateSchema || { fields: [] });
-    const name = makeSowDocxFilename(data || {});
-    triggerDownload(blob, name);
+    try {
+      const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
+      const safeData = data || {};
+      const safeSchema = templateSchema || { fields: [] };
+      const blob = await buildSowDocx(safeData, safeSchema);
+      const name = makeSowDocxFilename(safeData);
+      triggerDownload(blob, name);
+    } catch (err) {
+      // Provide immediate feedback if generation fails (e.g., missing 'docx' dependency or runtime error)
+      console.error("DOCX generation failed:", err);
+      alert("Sorry, we couldn't generate the DOCX file. Please try again. If the problem persists, refresh the page.");
+    }
   }, [data, templateSchema]);
 
   useEffect(() => {
@@ -25,15 +33,21 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
   }, [autoGenerate, onGenerate]);
 
   function triggerDownload(blob, filename) {
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    requestAnimationFrame(() => {
-      URL.revokeObjectURL(link.href);
-      link.remove();
-    });
+    try {
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = filename || "SOW.docx";
+      document.body.appendChild(link);
+      link.click();
+      requestAnimationFrame(() => {
+        try { URL.revokeObjectURL(url); } catch {}
+        link.remove();
+      });
+    } catch (e) {
+      console.error("Failed to trigger download:", e);
+      alert("We built your file but couldn't start the download automatically. Please try again.");
+    }
   }
 
   return (
