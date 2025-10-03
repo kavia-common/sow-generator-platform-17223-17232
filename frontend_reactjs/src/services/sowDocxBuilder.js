@@ -398,6 +398,7 @@ function buildContinuationTable({ templateData = {} }) {
  */
 function buildActionsMetadataTable({ templateData = {} }) {
   // Mapping rules and order from assets/actions_section_docx_mapping.md
+  // Render ONLY these keys in this exact order. Skip empty values entirely.
   const ACTIONS_ORDER = [
     "address_block_address_supplier_name",
     "address_block_address_supplier_address",
@@ -409,61 +410,60 @@ function buildActionsMetadataTable({ templateData = {} }) {
     "other_company_name_signature_date",
   ];
 
-  // Collect possible sources for each field to ensure inclusion of all form-rendered fields.
-  // We read both canonical keys and aliases from parsed templates and SOW form schema.
+  // Resolve by key using known schema/aliases, preserving user-entered formatting.
   function resolveValueByKey(k) {
     switch (k) {
       case "address_block_address_supplier_name":
         return (
-          get(templateData, "address_block.address_supplier_name") ||
-          get(templateData, "address_supplier_name") ||
+          get(templateData, "address_block.address_supplier_name") ??
+          get(templateData, "address_supplier_name") ??
           get(templateData, "address_for_communications.supplier_name")
         );
       case "address_block_address_supplier_address":
+        // The mapping doc label suggests supplier address line (often contact name/address line in our schema)
         return (
-          get(templateData, "address_block.address_contact_name") ||
-          get(templateData, "address_contact_name") ||
+          get(templateData, "address_block.address_contact_name") ??
+          get(templateData, "address_contact_name") ??
           get(templateData, "address_for_communications.contact_name")
         );
       case "address_block_address_postal":
         return (
-          get(templateData, "address_block.address_postal") ||
-          get(templateData, "address_postal") ||
-          get(templateData, "address_for_communications.address") ||
-          get(templateData, "address_for_communications.email") // fallback if postal combined
+          get(templateData, "address_block.address_postal") ??
+          get(templateData, "address_postal") ??
+          get(templateData, "address_for_communications.address") ??
+          get(templateData, "address_for_communications.email")
         );
       case "supplier_signature":
-        // Only include text placeholder if present; omit when an image is present to avoid duplication
-        if (get(templateData, "supplier_signature") && /^data:image\//.test(get(templateData, "supplier_signature"))) {
-          return ""; // skip row in metadata table if it's an actual image
-        }
-        return (
-          get(templateData, "authorization_signatures.supplier_signature") ||
-          get(templateData, "supplier_signature")
-        );
+        // If an actual image is present, omit this row per mapping doc (image will appear in signature block)
+        const sigImg =
+          get(templateData, "authorization_signatures.supplier_signature") ??
+          get(templateData, "supplier_signature");
+        if (sigImg && /^data:image\//.test(sigImg)) return "";
+        return sigImg;
       case "supplier_signature_name":
         return (
-          get(templateData, "authorization_signatures.supplier_signature_name") ||
-          get(templateData, "supplier_signature_name") ||
+          get(templateData, "authorization_signatures.supplier_signature_name") ??
+          get(templateData, "supplier_signature_name") ??
           get(templateData, "supplier_signer_name")
         );
       case "supplier_signature_date":
+        // Preserve user-entered format; do not reformat here
         return (
-          get(templateData, "authorization_signatures.supplier_signature_date") ||
-          get(templateData, "supplier_signature_date") ||
+          get(templateData, "authorization_signatures.supplier_signature_date") ??
+          get(templateData, "supplier_signature_date") ??
           get(templateData, "supplier_sign_date")
         );
       case "other_company_name_signature_block":
         return (
-          get(templateData, "client_company_name_signature_block") ||
-          get(templateData, "company_name") ||
-          get(templateData, "client_company_name") ||
+          get(templateData, "client_company_name_signature_block") ??
+          get(templateData, "company_name") ??
+          get(templateData, "client_company_name") ??
           get(templateData, "client_name")
         );
       case "other_company_name_signature_date":
         return (
-          get(templateData, "authorization_signatures.client_signature_date") ||
-          get(templateData, "client_signature_date") ||
+          get(templateData, "authorization_signatures.client_signature_date") ??
+          get(templateData, "client_signature_date") ??
           get(templateData, "company_sign_date")
         );
       default:
@@ -471,30 +471,18 @@ function buildActionsMetadataTable({ templateData = {} }) {
     }
   }
 
+  // Build a tidy two-column Q/A table. No extra headings beyond what the mapping dictates.
+  const L = 50;
+  const V = 50;
   const rows = [];
-  // Header
-  rows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          children: [para("Actions", { bold: true, size: 22, after: 40 })],
-          columnSpan: 2,
-        }),
-      ],
-    })
-  );
 
   ACTIONS_ORDER.forEach((k) => {
-    const val = resolveValueByKey(k);
-    const text = cleanValue(val);
-    if (text && String(text).trim().length > 0) {
+    const raw = resolveValueByKey(k);
+    const text = cleanValue(raw);
+    if (text && text.trim().length > 0) {
       rows.push(
         new TableRow({
-          children: [
-            // Exact label = key string with underscores preserved (per mapping doc)
-            labelCell(k, 50),
-            valueCell(text, 50),
-          ],
+          children: [labelCell(k, L), valueCell(text, V)],
         })
       );
     }
@@ -549,6 +537,7 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
           children: [new ImageRun({ data: dataUrlToBytes(supplierSig), transformation: { width: 220, height: sigHeightPx } })],
         })
       : para(""),
+    // Ensure only the signature block shows these lines; do not repeat in Q/A table.
     para("Supplier:", { bold: false }),
     para(cleanValue(get(templateData, "supplier_name") || get(templateData, "supplier_company_name") || "")),
     para("Name:", { bold: false }),
@@ -590,6 +579,7 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
           children: [new ImageRun({ data: dataUrlToBytes(companySig), transformation: { width: 220, height: sigHeightPx } })],
         })
       : para(""),
+    // Signature block must contain the readable lines; keep labels even if value blank.
     para("Company:", { bold: false }),
     para(cleanValue(clientNameForBlock)),
     para("Name:", { bold: false }),
@@ -674,9 +664,14 @@ export async function buildSowDocx(data, templateSchema) {
   children.push(buildContinuationTable({ templateData }));
 
   // Actions metadata table (Section A from assets/actions_section_docx_mapping.md)
+  // Per actions_section_docx_mapping.md and user request:
+  // - Only one Q/A table must appear.
+  // - Supplier/company signature details must not be duplicated in the Q/A table when images are present.
+  // - Preserve the strict order and alignment (labels left with underscores preserved; values right).
   children.push(buildActionsMetadataTable({ templateData }));
 
   // Authorization preface + table (Section B)
+  // Ensure signatures (name/title/date/image) are shown only in the dedicated signature block.
   const { preface, table } = buildAuthorization({ meta, templateData });
   children.push(preface);
   children.push(table);
