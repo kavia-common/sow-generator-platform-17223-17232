@@ -213,42 +213,51 @@ function buildParametersTable({ templateData = {} }) {
 
   const safePush = (row) => rows.push(row);
 
+  const valueFor = (keys) => {
+    const list = Array.isArray(keys) ? keys : [keys];
+    for (const k of list) {
+      const v = get(templateData, k);
+      if (v != null && String(v).length > 0) return v;
+    }
+    return "";
+  };
+
   safePush(
     new TableRow({
-      children: [labelCell("1. Client Portfolio", L), valueCell(get(templateData, "client_portfolio"), V)],
+      children: [labelCell("1. Client Portfolio", L), valueCell(valueFor(["client_portfolio"]), V)],
     })
   );
   safePush(
     new TableRow({
-      children: [labelCell("2. Type of Project", L), valueCell(get(templateData, "project_type"), V)],
+      children: [labelCell("2. Type of Project", L), valueCell(valueFor(["project_type","type_of_project"]), V)],
     })
   );
   safePush(
     new TableRow({
       children: [
         labelCell("3. Engagement Number (Required for Fixed Price)", L),
-        valueCell(get(templateData, "engagement_number"), V),
+        valueCell(valueFor(["engagement_number"]), V),
       ],
     })
   );
   safePush(
     new TableRow({
-      children: [labelCell("4. Project Start Date", L), valueCell(formatDate(get(templateData, "start_date")), V)],
+      children: [labelCell("4. Project Start Date", L), valueCell(formatDate(valueFor(["start_date","project_duration.start_date","agreement_start_date"])), V)],
     })
   );
   safePush(
     new TableRow({
-      children: [labelCell("5. Project End Date", L), valueCell(formatDate(get(templateData, "end_date")), V)],
+      children: [labelCell("5. Project End Date", L), valueCell(formatDate(valueFor(["end_date","project_duration.end_date"])), V)],
     })
   );
   safePush(
     new TableRow({
-      children: [labelCell("6. Planning Assumptions", L), valueCell(get(templateData, "planning_assumptions"), V)],
+      children: [labelCell("6. Planning Assumptions", L), valueCell(valueFor(["planning_assumptions","project_schedule_and_milestones","schedule_milestones"]), V)],
     })
   );
   safePush(
     new TableRow({
-      children: [labelCell("7. Scope of Work (Required for Fixed Price)", L), valueCell(get(templateData, "scope_of_work"), V)],
+      children: [labelCell("7. Scope of Work (Required for Fixed Price)", L), valueCell(valueFor(["scope_of_work","scope_description"]), V)],
     })
   );
 
@@ -387,6 +396,113 @@ function buildContinuationTable({ templateData = {} }) {
 /**
  * Authorization section: preface paragraph and two-column signature table
  */
+function buildActionsMetadataTable({ templateData = {} }) {
+  // Mapping rules and order from assets/actions_section_docx_mapping.md
+  const ACTIONS_ORDER = [
+    "address_block_address_supplier_name",
+    "address_block_address_supplier_address",
+    "address_block_address_postal",
+    "supplier_signature",
+    "supplier_signature_name",
+    "supplier_signature_date",
+    "other_company_name_signature_block",
+    "other_company_name_signature_date",
+  ];
+
+  // Collect possible sources for each field to ensure inclusion of all form-rendered fields.
+  // We read both canonical keys and aliases from parsed templates and SOW form schema.
+  function resolveValueByKey(k) {
+    switch (k) {
+      case "address_block_address_supplier_name":
+        return (
+          get(templateData, "address_block.address_supplier_name") ||
+          get(templateData, "address_supplier_name") ||
+          get(templateData, "address_for_communications.supplier_name")
+        );
+      case "address_block_address_supplier_address":
+        return (
+          get(templateData, "address_block.address_contact_name") ||
+          get(templateData, "address_contact_name") ||
+          get(templateData, "address_for_communications.contact_name")
+        );
+      case "address_block_address_postal":
+        return (
+          get(templateData, "address_block.address_postal") ||
+          get(templateData, "address_postal") ||
+          get(templateData, "address_for_communications.address") ||
+          get(templateData, "address_for_communications.email") // fallback if postal combined
+        );
+      case "supplier_signature":
+        // Only include text placeholder if present; omit when an image is present to avoid duplication
+        if (get(templateData, "supplier_signature") && /^data:image\//.test(get(templateData, "supplier_signature"))) {
+          return ""; // skip row in metadata table if it's an actual image
+        }
+        return (
+          get(templateData, "authorization_signatures.supplier_signature") ||
+          get(templateData, "supplier_signature")
+        );
+      case "supplier_signature_name":
+        return (
+          get(templateData, "authorization_signatures.supplier_signature_name") ||
+          get(templateData, "supplier_signature_name") ||
+          get(templateData, "supplier_signer_name")
+        );
+      case "supplier_signature_date":
+        return (
+          get(templateData, "authorization_signatures.supplier_signature_date") ||
+          get(templateData, "supplier_signature_date") ||
+          get(templateData, "supplier_sign_date")
+        );
+      case "other_company_name_signature_block":
+        return (
+          get(templateData, "client_company_name_signature_block") ||
+          get(templateData, "company_name") ||
+          get(templateData, "client_company_name") ||
+          get(templateData, "client_name")
+        );
+      case "other_company_name_signature_date":
+        return (
+          get(templateData, "authorization_signatures.client_signature_date") ||
+          get(templateData, "client_signature_date") ||
+          get(templateData, "company_sign_date")
+        );
+      default:
+        return get(templateData, k);
+    }
+  }
+
+  const rows = [];
+  // Header
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          children: [para("Actions", { bold: true, size: 22, after: 40 })],
+          columnSpan: 2,
+        }),
+      ],
+    })
+  );
+
+  ACTIONS_ORDER.forEach((k) => {
+    const val = resolveValueByKey(k);
+    const text = cleanValue(val);
+    if (text && String(text).trim().length > 0) {
+      rows.push(
+        new TableRow({
+          children: [
+            // Exact label = key string with underscores preserved (per mapping doc)
+            labelCell(k, 50),
+            valueCell(text, 50),
+          ],
+        })
+      );
+    }
+  });
+
+  return tableFullWidth(rows);
+}
+
 function buildAuthorization({ meta = {}, templateData = {} }) {
   const companyName = cleanValue(
     get(templateData, "company_name") || get(meta, "client") || get(templateData, "client_name") || "Company"
@@ -403,11 +519,28 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
     get(templateData, "supplier_signature") ||
     "";
   const companySig =
-    get(templateData, "authorization_signatures.company_signature") ||
+    get(templateData, "authorization_signatures.client_signature") ||
+    get(templateData, "client_signature") ||
     get(templateData, "company_signature") ||
     "";
 
   const sigHeightPx = 77; // ~0.8"
+  const supplierName =
+    get(templateData, "authorization_signatures.supplier_signature_name") ||
+    get(templateData, "supplier_signature_name") ||
+    get(templateData, "supplier_signer_name") ||
+    "";
+  const supplierTitle =
+    get(templateData, "authorization_signatures.supplier_signature_title") ||
+    get(templateData, "supplier_signature_title") ||
+    get(templateData, "supplier_signer_title") ||
+    "";
+  const supplierDate =
+    get(templateData, "authorization_signatures.supplier_signature_date") ||
+    get(templateData, "supplier_signature_date") ||
+    get(templateData, "supplier_sign_date") ||
+    "";
+
   const leftColChildren = [
     new Paragraph({ children: [new TextRun({ text: "Supplier", bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
     para("Signature", { bold: true }),
@@ -416,13 +549,38 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
           children: [new ImageRun({ data: dataUrlToBytes(supplierSig), transformation: { width: 220, height: sigHeightPx } })],
         })
       : para(""),
-    para("Name", { bold: true }),
-    para(cleanValue(get(templateData, "supplier_signer_name") || "")),
-    para("Title", { bold: true }),
-    para(cleanValue(get(templateData, "supplier_signer_title") || "")),
-    para("Date", { bold: true }),
-    para(cleanValue(get(templateData, "supplier_sign_date") || "")),
+    para("Supplier:", { bold: false }),
+    para(cleanValue(get(templateData, "supplier_name") || get(templateData, "supplier_company_name") || "")),
+    para("Name:", { bold: false }),
+    para(cleanValue(supplierName)),
+    para("Title:", { bold: false }),
+    para(cleanValue(supplierTitle)),
+    para("Date:", { bold: false }),
+    para(cleanValue(supplierDate)),
   ];
+
+  const clientNameForBlock =
+    get(templateData, "client_company_name_signature_block") ||
+    get(templateData, "client_company_name") ||
+    get(templateData, "client_name") ||
+    companyName ||
+    "";
+
+  const companySignerName =
+    get(templateData, "authorization_signatures.client_signature_name") ||
+    get(templateData, "client_signature_name") ||
+    get(templateData, "company_signer_name") ||
+    "";
+  const companySignerTitle =
+    get(templateData, "authorization_signatures.client_signature_title") ||
+    get(templateData, "client_signature_title") ||
+    get(templateData, "company_signer_title") ||
+    "";
+  const companySignerDate =
+    get(templateData, "authorization_signatures.client_signature_date") ||
+    get(templateData, "client_signature_date") ||
+    get(templateData, "company_sign_date") ||
+    "";
 
   const rightColChildren = [
     new Paragraph({ children: [new TextRun({ text: companyName, bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
@@ -432,12 +590,14 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
           children: [new ImageRun({ data: dataUrlToBytes(companySig), transformation: { width: 220, height: sigHeightPx } })],
         })
       : para(""),
-    para("Name", { bold: true }),
-    para(cleanValue(get(templateData, "company_signer_name") || "")),
-    para("Title", { bold: true }),
-    para(cleanValue(get(templateData, "company_signer_title") || "")),
-    para("Date", { bold: true }),
-    para(cleanValue(get(templateData, "company_sign_date") || "")),
+    para("Company:", { bold: false }),
+    para(cleanValue(clientNameForBlock)),
+    para("Name:", { bold: false }),
+    para(cleanValue(companySignerName)),
+    para("Title:", { bold: false }),
+    para(cleanValue(companySignerTitle)),
+    para("Date:", { bold: false }),
+    para(cleanValue(companySignerDate)),
   ];
 
   const table = new Table({
@@ -513,7 +673,10 @@ export async function buildSowDocx(data, templateSchema) {
   // Continuation table (11..20)
   children.push(buildContinuationTable({ templateData }));
 
-  // Authorization preface + table
+  // Actions metadata table (Section A from assets/actions_section_docx_mapping.md)
+  children.push(buildActionsMetadataTable({ templateData }));
+
+  // Authorization preface + table (Section B)
   const { preface, table } = buildAuthorization({ meta, templateData });
   children.push(preface);
   children.push(table);
