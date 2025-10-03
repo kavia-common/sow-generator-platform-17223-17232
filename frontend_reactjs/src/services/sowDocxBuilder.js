@@ -12,326 +12,66 @@ import {
   Header,
   BorderStyle,
   VerticalAlign,
-  ShadingType,
 } from "docx";
 
 /**
- * Normalize a label into a stable key-ish id.
- */
-function normalizeLabel(label) {
-  return String(label || "")
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-/**
- * Clean display value: remove placeholder underscores and trim artifacts.
- */
-function cleanValue(v) {
-  if (v == null) return "";
-  const s = String(v);
-  if (/^_+$/.test(s)) return "";
-  return s.replace(/_{2,}/g, " ").trim();
-}
-
-/**
- * Turn a schema key into a professional label if label is not provided.
- * Examples: client_portfolio -> "Client Portfolio", included_projects -> "Included Projects"
- */
-function toProfessionalLabel(keyOrLabel) {
-  if (!keyOrLabel) return "";
-  // If it already contains spaces and some uppercase, assume it's a provided label
-  const hasSpace = /\s/.test(keyOrLabel);
-  const hasUpper = /[A-Z]/.test(keyOrLabel);
-  if (hasSpace && hasUpper) return keyOrLabel;
-
-  // Convert snake_case or dot.notation to spaced Title Case
-  const cleaned = String(keyOrLabel).replace(/[.\[\]\d]+/g, " ").replace(/_/g, " ").trim();
-  return cleaned
-    .split(/\s+/)
-    .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""))
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Format a field value for display. Arrays are displayed as comma-separated; objects flattened as key: value pairs.
- */
-function formatValue(v) {
-  if (v == null) return "";
-  if (Array.isArray(v)) {
-    const flat = v
-      .filter((x) => x != null && String(x).trim() !== "")
-      .map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x).trim()));
-    return flat.join(", ");
-  }
-  if (typeof v === "object") {
-    try {
-      const parts = Object.keys(v)
-        .map((k) => `${toProfessionalLabel(k)}: ${formatValue(v[k])}`)
-        .filter((s) => s.trim() !== "");
-      return parts.join("; ");
-    } catch {
-      return JSON.stringify(v);
-    }
-  }
-  return cleanValue(String(v));
-}
-
-/**
- * Determine if a section name corresponds to the 'Work Order Parameters' (case-insensitive).
- */
-function isWorkOrderParametersSectionName(name) {
-  const secName = String(name || "").trim().toLowerCase();
-  return secName === "work order parameters";
-}
-
-/**
- * From schema, build an ordered, deduplicated list of fields for the Actions table.
- * - Prefer schema order.
- * - Use provided labels when present; otherwise generate professional label.
- * - Do not expand arrays into indexed keys; keep as a single field.
- * - For object fields, include their properties as individual rows following parent order.
- * - Entirely omit any fields that are part of 'Work Order Parameters' section.
- */
-function buildOrderedActionFields(templateSchema = {}, templateData = {}) {
-  const out = [];
-  const seen = new Set();
-
-  const push = (label, key, type = "text") => {
-    const k = String(key || "").trim();
-    if (!k) return;
-    if (seen.has(k)) return;
-    seen.add(k);
-    const lbl = label && String(label).trim() ? label : toProfessionalLabel(k);
-    out.push({ label: lbl, key: k, type });
-  };
-
-  const addField = (f, parentKey = "") => {
-    if (!f) return;
-    const key = parentKey ? `${parentKey}.${f.key}` : f.key;
-
-    if (f.type === "object" && Array.isArray(f.properties)) {
-      // Include object properties as separate rows; do not push parent row
-      for (const p of f.properties) {
-        addField(p, key);
-      }
-    } else {
-      push(f.label || toProfessionalLabel(f.key), key, f.type || "text");
-    }
-  };
-
-  // Respect section order; skip Work Order Parameters section entirely
-  if (Array.isArray(templateSchema.sections)) {
-    for (const sec of templateSchema.sections) {
-      if (isWorkOrderParametersSectionName(sec?.name)) continue;
-      for (const f of sec.fields || []) addField(f, "");
-    }
-  } else if (Array.isArray(templateSchema.fields)) {
-    // No explicit section context; include all fields (cannot identify WOP here)
-    for (const f of templateSchema.fields) addField(f, "");
-  } else {
-    // Fallback from data
-    Object.keys(templateData || {}).forEach((k) => push(toProfessionalLabel(k), k, "text"));
-  }
-
-  // Condense known array fields into single-entry rows (already by push), ensure no dotted indices entered.
-  return out;
-}
-
-/**
- * Get value by dotted path.
- */
-function getByPath(obj, path, fallback = "") {
-  if (!obj || !path) return fallback;
-  const tokens = String(path).split(".");
-  let cur = obj;
-  for (const t of tokens) {
-    if (cur == null) return fallback;
-    cur = cur[t];
-  }
-  return cur == null ? fallback : cur;
-}
-
-/**
- * Common styles for layout per design notes
- * - Use a light-gray rounded rectangle container for the Actions rows.
- */
-const BORDER_LIGHT = "E5E7EB"; // Tailwind gray-200
-const CONTAINER_SHADE = "F3F4F6"; // gray-100
-const BORDER = {
-  top: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
-  bottom: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
-  left: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
-  right: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
-  insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
-  insideVertical: { style: BorderStyle.SINGLE, size: 4, color: BORDER_LIGHT },
-};
-
-function para(
-  text,
-  { bold = false, size = 22, align = AlignmentType.LEFT, after = 160 } = {}
-) {
-  // size ~ 11pt (22 half-points). after ~ 12-16px (approx 160 twips)
-  return new Paragraph({
-    alignment: align,
-    spacing: { after },
-    children: [new TextRun({ text: cleanValue(text || ""), bold, size })],
-  });
-}
-
-function toParagraphs(text, { size = 22, align = AlignmentType.LEFT, after = 0 } = {}) {
-  const s = text == null ? "" : String(text);
-  if (!s)
-    return [
-      new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: "", size })] }),
-    ];
-  const lines = s.split(/\r?\n/);
-  if (!Array.isArray(lines))
-    return [new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: s, size })] })];
-  if (lines.length === 0)
-    return [
-      new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: "", size })] }),
-    ];
-  return lines.map(
-    (ln) =>
-      new Paragraph({
-        alignment: align,
-        spacing: { after },
-        children: [new TextRun({ text: ln, size })],
-      })
-  );
-}
-
-function tableFullWidth(rows, { shaded = false } = {}) {
-  const safeRows = Array.isArray(rows) ? rows : [];
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    borders: BORDER,
-    shading: shaded
-      ? { type: ShadingType.CLEAR, fill: CONTAINER_SHADE, color: "auto" }
-      : undefined,
-    rows: safeRows,
-  });
-}
-
-/**
- * Generic table cell helper used by Actions table with rounded-like visual via background and border.
- */
-function makeCell(
-  children,
-  { widthPct, vAlign = VerticalAlign.TOP, padding = 200, opts = {}, shaded = false } = {}
-) {
-  const safeChildren = Array.isArray(children) ? children : [children];
-  return new TableCell({
-    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
-    verticalAlign: vAlign,
-    margins: { top: padding, bottom: padding, left: padding, right: padding },
-    shading: shaded ? { type: ShadingType.CLEAR, fill: CONTAINER_SHADE, color: "auto" } : undefined,
-    children: safeChildren,
-    ...opts,
-  });
-}
-
-/**
- * Build the styled Actions block per design:
- * - Bold 'Actions' header with ~12–16px spacing below
- * - Light-gray rounded rectangle container with one row per field
- * - Left label (professional), right value
- */
-function buildActionsTable({ templateSchema, templateData }) {
-  const L = 40;
-  const V = 60;
-  const rows = [];
-
-  // Header (bold, sentence case, spacing ~12-16px)
-  rows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          columnSpan: 2,
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.LEFT,
-              spacing: { after: 160 },
-              children: [new TextRun({ text: "Actions", bold: true, size: 24 })],
-            }),
-          ],
-          // No shading on header cell (white), keep container feel clean
-        }),
-      ],
-    })
-  );
-
-  const ordered = buildOrderedActionFields(templateSchema, templateData);
-
-  for (const f of ordered) {
-    const raw = getByPath(templateData, f.key, "");
-    const display = formatValue(raw);
-    rows.push(
-      new TableRow({
-        children: [
-          makeCell(
-            toParagraphs(f.label, { align: AlignmentType.LEFT }),
-            {
-              widthPct: L,
-              vAlign: VerticalAlign.CENTER,
-              shaded: true,
-            }
-          ),
-          makeCell(
-            toParagraphs(display, { align: AlignmentType.LEFT }),
-            {
-              widthPct: V,
-              vAlign: VerticalAlign.TOP,
-              shaded: true,
-            }
-          ),
-        ],
-      })
-    );
-  }
-
-  // Entire block inside light-gray rounded rectangle feel using shading + light borders
-  return tableFullWidth(rows, { shaded: true });
-}
-
-/**
- * Minimal header/footer (preserved)
- */
-function buildHeader() {
-  return new Header({ children: [] });
-}
-function buildFooter() {
-  return new Footer({ children: [] });
-}
-
-/**
  * PUBLIC_INTERFACE
- * Build the final DOCX blob containing the styled Actions section while omitting the 'Work Order Parameters'.
+ * buildSowDocx
+ * Builds the complete SOW DOCX document mirroring the step 42 layout:
+ * - Title + subtitle + intro paragraph
+ * - Work Order Parameters table (header row + numbered items 1–7)
+ * - Supplier Deliverables table
+ * - Client Deliverables table
+ * - Milestones/Financials table
+ * - Continuation Parameters (items 11–20)
+ * - Authorization/signature table
+ *
+ * Inputs:
+ * - data: {
+ *     meta?: { client?: string, title?: string, sowType?: "TM"|"FP", logoUrl?: string, supplierName?: string, companyName?: string },
+ *     templateData?: Record<string, any>
+ *   }
+ * - templateSchema?: ignored for layout; step 42 layout uses fixed structure/labels
+ *
+ * Returns: Blob (DOCX)
  */
 // PUBLIC_INTERFACE
-export async function buildSowDocx(data, templateSchema) {
-  const templateData = data?.templateData || {};
+export async function buildSowDocx(data, _templateSchema) {
+  const td = data?.templateData || {};
+  const meta = data?.meta || {};
+
   const children = [];
 
-  // Build only the Actions section here per current flow
-  children.push(buildActionsTable({ templateSchema, templateData }));
+  // Title block
+  children.push(titleBlock());
+  children.push(introParagraph(meta, td));
 
-  const footer = buildFooter();
-  const header = buildHeader();
+  // Work Order Parameters table (items 1–7)
+  children.push(workOrderParametersTable(td));
+
+  // Supplier Deliverables
+  children.push(simpleTwoColTable("Supplier Deliverables", td.supplier_deliverables));
+
+  // Client Deliverables
+  children.push(simpleTwoColTable("Client Deliverables", td.client_deliverables));
+
+  // Milestones / Financials
+  children.push(milestonesFinancialsTable(td));
+
+  // Continuation Parameters (11–20)
+  children.push(continuationParametersTable(td));
+
+  // Authorization / Signatures
+  children.push(authorizationTable(meta, td));
 
   const doc = new Document({
     sections: [
       {
-        headers: { default: header },
-        footers: { default: footer },
+        headers: { default: buildHeader(meta) },
+        footers: { default: buildFooter() },
         properties: {
           page: {
-            margin: { top: 1080, right: 1080, bottom: 1080, left: 1080 },
+            margin: { top: inchesToTwips(1.0), right: inchesToTwips(0.75), bottom: inchesToTwips(0.75), left: inchesToTwips(0.75) },
           },
         },
         children,
@@ -345,17 +85,468 @@ export async function buildSowDocx(data, templateSchema) {
 
 /**
  * PUBLIC_INTERFACE
- * Generate a filename
+ * makeSowDocxFilename
+ * Generate a filename consistent with step 42 naming.
  */
 // PUBLIC_INTERFACE
 export function makeSowDocxFilename(data) {
   const meta = data?.meta || {};
   const client = (meta.client || "Client").replace(/[^\w-]+/g, "_");
-  const title = (meta.title || meta.project || "Actions").replace(/[^\w-]+/g, "_");
+  const title = (meta.title || meta.project || "SOW").replace(/[^\w-]+/g, "_");
   const now = new Date();
-  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}${String(now.getDate()).padStart(2, "0")}`;
+  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
   return `SOW_${client}_${title}_${yyyymmdd}.docx`;
+}
+
+/* =========================
+   Helpers and layout blocks
+   ========================= */
+
+const BORDER_COLOR = "B5B5B5"; // step 42: medium gray borders
+const BORDER = {
+  top: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+  bottom: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+  left: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+  right: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+  insideHorizontal: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+  insideVertical: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+};
+
+function inchesToTwips(inches) {
+  return Math.round(inches * 1440);
+}
+
+function para(
+  text,
+  { bold = false, size = 21, align = AlignmentType.LEFT, after = 120 } = {}
+) {
+  return new Paragraph({
+    alignment: align,
+    spacing: { after },
+    children: [new TextRun({ text: cleanText(text), bold, size })],
+  });
+}
+
+function toParagraphs(text, { size = 21, align = AlignmentType.LEFT, after = 0 } = {}) {
+  const s = cleanText(text);
+  if (!s) {
+    return [new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: "", size })] })];
+  }
+  const lines = s.split(/\r?\n/);
+  if (!lines.length) {
+    return [new Paragraph({ alignment: align, spacing: { after }, children: [new TextRun({ text: s, size })] })];
+  }
+  return lines.map(
+    (ln) =>
+      new Paragraph({
+        alignment: align,
+        spacing: { after },
+        children: [new TextRun({ text: ln, size })],
+      })
+  );
+}
+
+function tableFullWidth(rows) {
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: BORDER,
+    rows: rows || [],
+  });
+}
+
+function makeCell(
+  children,
+  { widthPct, vAlign = VerticalAlign.TOP, padding = 120, opts = {} } = {}
+) {
+  const safeChildren = Array.isArray(children) ? children : [children];
+  return new TableCell({
+    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
+    verticalAlign: vAlign,
+    margins: { top: padding, bottom: padding, left: padding, right: padding },
+    children: safeChildren,
+    ...opts,
+  });
+}
+
+function cleanText(v) {
+  if (v == null) return "";
+  const s = String(v);
+  if (/^_+$/.test(s)) return "";
+  return s.replace(/_{2,}/g, " ").trim();
+}
+
+function formatDate(s) {
+  if (!s) return "";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return cleanText(s);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+/* Title and intro */
+
+function titleBlock() {
+  return tableFullWidth([
+    new TableRow({
+      children: [
+        makeCell(
+          [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 120 },
+              children: [new TextRun({ text: "Statement of Work", bold: true, size: 26 })],
+            }),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 240 },
+              children: [new TextRun({ text: "Master Services Agreement", size: 22 })],
+            }),
+          ],
+          { widthPct: 100, vAlign: VerticalAlign.CENTER }
+        ),
+      ],
+    }),
+  ]);
+}
+
+function introParagraph(meta, td) {
+  const company = meta.companyName || td.company_name || "[company name]";
+  const supplier = meta.supplierName || td.supplier_name || "<supplier name>";
+  const copy =
+    `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${company}, a [jurisdiction of incorporation, if used in your data model] company, and ${supplier} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
+    `Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
+  return para(copy, { align: AlignmentType.LEFT, after: 240, size: 21 });
+}
+
+/* Work Order Parameters (1–7) */
+
+function workOrderParametersTable(td) {
+  const L = 38;
+  const V = 62;
+
+  const rows = [];
+
+  // Header row spanning two columns
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 2,
+          margins: { top: 120, bottom: 120, left: 120, right: 120 },
+          children: [para("Work Order Parameters", { bold: true, size: 22, align: AlignmentType.LEFT })],
+        }),
+      ],
+    })
+  );
+
+  const addRow = (label, value, opts = {}) => {
+    const valPara =
+      opts.format === "date" ? para(formatDate(value), { align: AlignmentType.LEFT }) : para(value, { align: AlignmentType.LEFT });
+    return new TableRow({
+      children: [
+        makeCell(para(label, { bold: true, align: AlignmentType.LEFT }), {
+          widthPct: L,
+          vAlign: VerticalAlign.CENTER,
+        }),
+        makeCell(valPara, { widthPct: V, vAlign: VerticalAlign.TOP }),
+      ],
+    });
+  };
+
+  rows.push(addRow("1. Client Portfolio", td.client_portfolio || ""));
+  rows.push(addRow("2. Type of Project", td.project_type || ""));
+  rows.push(addRow("3. Engagement Number (Required for Fixed Price)", td.engagement_number || ""));
+  rows.push(addRow("4. Project Start Date", td.start_date || "", { format: "date" }));
+  rows.push(addRow("5. Project End Date", td.end_date || "", { format: "date" }));
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("6. Planning Assumptions", { bold: true }), { widthPct: L, vAlign: VerticalAlign.CENTER }),
+        makeCell(toParagraphs(td.planning_assumptions || "", { align: AlignmentType.LEFT }), {
+          widthPct: V,
+          vAlign: VerticalAlign.TOP,
+        }),
+      ],
+    })
+  );
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("7. Scope of Work (Required for Fixed Price)", { bold: true }), {
+          widthPct: L,
+          vAlign: VerticalAlign.CENTER,
+        }),
+        makeCell(toParagraphs(td.scope_of_work || "", { align: AlignmentType.LEFT }), {
+          widthPct: V,
+          vAlign: VerticalAlign.TOP,
+        }),
+      ],
+    })
+  );
+
+  return tableFullWidth(rows);
+}
+
+/* Supplier / Client Deliverables (simple two-column blocks with a header row) */
+
+function simpleTwoColTable(title, text) {
+  const rows = [];
+
+  // Header
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 2,
+          margins: { top: 120, bottom: 120, left: 120, right: 120 },
+          children: [para(title, { bold: true, size: 22, align: AlignmentType.LEFT })],
+        }),
+      ],
+    })
+  );
+
+  // Header for the two columns: "Description" | ""
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("Description", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("", {}), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+      ],
+    })
+  );
+
+  // Single content row (left carries most content, right optional)
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(toParagraphs(text || "", { align: AlignmentType.LEFT }), { widthPct: 50, vAlign: VerticalAlign.TOP }),
+        makeCell(para("", {}), { widthPct: 50, vAlign: VerticalAlign.TOP }),
+      ],
+    })
+  );
+
+  return tableFullWidth(rows);
+}
+
+/* Milestones / Financials */
+
+function milestonesFinancialsTable(td) {
+  const rows = [];
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 2,
+          margins: { top: 120, bottom: 120, left: 120, right: 120 },
+          children: [para("Milestones / Financials", { bold: true, size: 22, align: AlignmentType.LEFT })],
+        }),
+      ],
+    })
+  );
+
+  // Left header "Description" | Right header blank
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("Description", { bold: true }), { widthPct: 60, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("", {}), { widthPct: 40, vAlign: VerticalAlign.CENTER }),
+      ],
+    })
+  );
+
+  // Content: left = milestones_description; right contains two stacked labeled rows: Total Cost, Pricing/Rate
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(toParagraphs(td.milestones_description || "", { align: AlignmentType.LEFT }), {
+          widthPct: 60,
+          vAlign: VerticalAlign.TOP,
+        }),
+        makeCell(
+          [
+            para(`Total Cost: ${cleanText(td.total_cost || "")}`, { align: AlignmentType.LEFT }),
+            para(`Pricing/Rate: ${cleanText(td.pricing_rate || "")}`, { align: AlignmentType.LEFT }),
+          ],
+          { widthPct: 40, vAlign: VerticalAlign.TOP }
+        ),
+      ],
+    })
+  );
+
+  return tableFullWidth(rows);
+}
+
+/* Continuation Parameters (11–20) */
+
+function continuationParametersTable(td) {
+  const L = 38;
+  const V = 62;
+
+  const rows = [];
+
+  const addRow = (label, value) =>
+    new TableRow({
+      children: [
+        makeCell(para(label, { bold: true, align: AlignmentType.LEFT }), {
+          widthPct: L,
+          vAlign: VerticalAlign.CENTER,
+        }),
+        makeCell(toParagraphs(value || "", { align: AlignmentType.LEFT }), {
+          widthPct: V,
+          vAlign: VerticalAlign.TOP,
+        }),
+      ],
+    });
+
+  rows.push(addRow("11. Client Relationship", td.client_relationship || ""));
+  rows.push(addRow("12. Negative Relationship Changes", td.negative_relationship_changes || ""));
+  rows.push(addRow("13. Change & Payment Structure (Fixed Price Only)", td.change_payment_structure || ""));
+  rows.push(addRow("14. Deliverable Rate / T&M", td.rate_or_tnm || ""));
+  rows.push(addRow("15. Key Client Personnel and Reportees", td.key_client_personnel || ""));
+  rows.push(addRow("16. Service Level Agreements", td.slas || "N/A"));
+  rows.push(addRow("17. Communication Paths", td.communication_paths || "As defined in the Agreement."));
+  rows.push(addRow("18. Service Locations", td.service_locations || ""));
+  rows.push(addRow("19. Escalation Contact", td.escalation_contact || ""));
+  rows.push(
+    addRow(
+      "20. Points of Contact for Communications",
+      formatPocList(td.poc_for_communications)
+    )
+  );
+
+  return tableFullWidth(rows);
+}
+
+function formatPocList(poc) {
+  // Allow array or string. If array of objects, format "Name – Contact, Email, Address"
+  if (!poc) return "";
+  if (Array.isArray(poc)) {
+    const lines = poc
+      .map((p) => {
+        if (p && typeof p === "object") {
+          const name = cleanText(p.name || p.employee || "");
+          const contact = cleanText(p.contact || "");
+          const email = cleanText(p.email || "");
+          const address = cleanText(p.address || "");
+          const parts = [name, contact && `– ${contact}`, email && `, ${email}`, address && `, ${address}`]
+            .filter(Boolean)
+            .join("");
+          return parts || "";
+        }
+        return cleanText(p);
+      })
+      .filter((x) => x);
+    return lines.join("\n");
+  }
+  return cleanText(poc);
+}
+
+/* Authorization / Signatures */
+
+function authorizationTable(meta, td) {
+  const rows = [];
+
+  // Intro sentence above signature blocks
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 2,
+          margins: { top: 120, bottom: 120, left: 120, right: 120 },
+          children: [
+            para(
+              "An authorized representative of each party has executed this Work Order as of the date indicated under that representative’s signature.",
+              { align: AlignmentType.LEFT }
+            ),
+          ],
+        }),
+      ],
+    })
+  );
+
+  // Column headers: Supplier | Company
+  const company = meta.companyName || td.company_name || "Company";
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: "Supplier", bold: true })],
+          }),
+          { widthPct: 50, vAlign: VerticalAlign.CENTER }
+        ),
+        makeCell(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: company, bold: true })],
+          }),
+          { widthPct: 50, vAlign: VerticalAlign.CENTER }
+        ),
+      ],
+    })
+  );
+
+  // Signature row with large empty space
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("Signature", { bold: true }), {
+          widthPct: 50,
+          vAlign: VerticalAlign.TOP,
+          opts: { margins: { top: inchesToTwips(0.2), bottom: inchesToTwips(1.0), left: 120, right: 120 } },
+        }),
+        makeCell(para("Signature", { bold: true }), {
+          widthPct: 50,
+          vAlign: VerticalAlign.TOP,
+          opts: { margins: { top: inchesToTwips(0.2), bottom: inchesToTwips(1.0), left: 120, right: 120 } },
+        }),
+      ],
+    })
+  );
+
+  // Name
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("Name", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Name", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+      ],
+    })
+  );
+  // Title
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("Title", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Title", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+      ],
+    })
+  );
+  // Date
+  rows.push(
+    new TableRow({
+      children: [
+        makeCell(para("Date", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para("Date", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+      ],
+    })
+  );
+
+  return tableFullWidth(rows);
+}
+
+/* Header / Footer (minimal per step 42 spec) */
+
+function buildHeader(_meta) {
+  // Step 42 retained a minimal header – logo handling was optional; keep empty for now to match behavior.
+  return new Header({ children: [] });
+}
+function buildFooter() {
+  // Thin rule not implemented to keep parity with previously shipped code snapshot that had empty footer.
+  return new Footer({ children: [] });
 }
