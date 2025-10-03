@@ -3,17 +3,17 @@ import React, { useCallback, useEffect } from "react";
 /**
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
- * Restored to step 38 behavior: builds SOW with Actions section and signature fields as of that revision.
+ * Builds a fresh, valid DOCX directly from SOW form values without using any external .docx templates.
  *
  * Props:
  * - data: { meta?: { client?: string, title?: string, sowType?: "TM"|"FP", logoUrl?: string }, templateData?: Record<string, any> }
- * - templateSchema?: unused for the fixed layout at step 38, but accepted for API compatibility
+ * - templateSchema?: sectioned or flat schema describing fields to list in the output
  * - autoGenerate?: boolean  If true, immediately trigger generation on mount/update (used for one-click submit).
  */
 export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
   const onGenerate = useCallback(async () => {
     const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
-    const blob = await buildSowDocx(data || {}, templateSchema);
+    const blob = await buildSowDocx(data || {}, templateSchema || { fields: [] });
     const name = makeSowDocxFilename(data || {});
     triggerDownload(blob, name);
   }, [data, templateSchema]);
@@ -44,12 +44,12 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
           className="btn btn-primary"
           type="button"
           onClick={onGenerate}
-          title="Generate the step 38 SOW DOCX layout"
+          title="Generate a new DOCX directly from your entries"
         >
           Generate DOCX
         </button>
         <div style={{ color: "var(--text-secondary)" }}>
-          Restored SOW layout to step 38 (includes Actions section and signature fields as at that step).
+          Generates a clean DOCX from your SOW entries. No templates are used.
         </div>
       </div>
     </div>
