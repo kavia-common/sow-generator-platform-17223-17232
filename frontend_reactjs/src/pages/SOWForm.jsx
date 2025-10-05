@@ -17,7 +17,7 @@ import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
 export default function SOWForm({ value, onChange, selectedTemplate, templateSchema }) {
   const [data, setData] = useState(
     value || {
-      meta: { logoUrl: "", logoName: "" },
+      meta: { logoUrl: "", logoName: "", signaturePreview: {}, signatureNames: {} },
       templateMeta: value?.templateMeta || null,
       templateData: value?.templateData || {}
     }
@@ -38,7 +38,15 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   useEffect(() => {
     if (value && value !== lastValueRef.current) {
       lastValueRef.current = value;
-      setData(value);
+      // ensure meta sub-shape for new signature fields
+      setData({
+        ...value,
+        meta: {
+          ...(value.meta || {}),
+          signaturePreview: value.meta?.signaturePreview || {},
+          signatureNames: value.meta?.signatureNames || {}
+        }
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
@@ -51,10 +59,24 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     return null;
   }, [templateSchema, selectedTemplate]);
 
-  const sections = activeParsed?.sections || [];
+  // Remove any Work Order keys/labels if present in future schemas
+  const filterOutWorkOrder = (fields = []) =>
+    fields.filter((f) => {
+      const lbl = (f.label || f.name || f.key || "").toLowerCase();
+      return !(lbl.includes("work order") || lbl.includes("work_order"));
+    });
+
+  const sectionsRaw = activeParsed?.sections || [];
+  // normalize and filter out work order
+  const sections = useMemo(() => {
+    return (sectionsRaw || []).map((sec) => ({
+      ...sec,
+      fields: filterOutWorkOrder(sec.fields || [])
+    }));
+  }, [sectionsRaw]);
 
   // Build single-source field configuration for two-column renderer
-  // This flattens objects and removes duplicate generic labels like "Description" by scoping with parent label.
+  // This flattens objects and removes duplicate generic labels by scoping with parent label.
   const fieldConfig = useMemo(() => {
     const cfg = [];
     (sections || []).forEach((sec) => {
@@ -68,7 +90,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
             cfg.push({
               kind: "field",
               key: `${f.key}.${p.key}`,
-              name: `${f.label} — ${p.label}`, // unique label to avoid duplicates
+              name: `${f.label} — ${p.label}`,
               type: p.type || "text",
               options: p.options || []
             });
@@ -84,7 +106,14 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         }
       });
     });
-    return cfg;
+    // Ensure uniqueness by key (avoid duplicates on re-render)
+    const seen = new Set();
+    return cfg.filter((c) => {
+      if (c.kind === "section") return true;
+      if (seen.has(c.key)) return false;
+      seen.add(c.key);
+      return true;
+    });
   }, [sections]);
 
   // Provide bundled template URL hint
@@ -120,19 +149,16 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     });
   };
 
-  // Logo upload (meta)
+  // Logo upload (meta) — proper file input and preview URL
   const logoInputRef = useRef(null);
   const onLogoPick = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setData((prev) => ({
-        ...prev,
-        meta: { ...(prev.meta || {}), logoUrl: reader.result, logoName: file.name }
-      }));
-    };
-    reader.readAsDataURL(file);
+    const localUrl = URL.createObjectURL(file);
+    setData((prev) => ({
+      ...prev,
+      meta: { ...(prev.meta || {}), logoUrl: localUrl, logoName: file.name, logoFile: file }
+    }));
   };
 
   const logoPreview = useMemo(() => {
@@ -147,6 +173,38 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     );
   }, [data?.meta?.logoUrl]);
 
+  // Signature upload(s) — handle fields of type 'signature'
+  const signatureInputRefs = useRef({});
+  const onSignaturePick = (fieldKey) => (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const localUrl = URL.createObjectURL(file);
+    setData((prev) => {
+      const next = structuredClone(prev || {});
+      next.meta = next.meta || {};
+      next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [fieldKey]: localUrl };
+      next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [fieldKey]: file.name };
+      // store the actual File in templateData under corresponding key so submission payload can carry it
+      if (!next.templateData) next.templateData = {};
+      setByKey(next.templateData, fieldKey, file);
+      return next;
+    });
+  };
+
+  // Basic required validation (skip work order, which is filtered out)
+  const [errors, setErrors] = useState({});
+  const validate = () => {
+    const err = {};
+    // Example required keys — can be extended based on template
+    const requiredKeys = ["client_name", "supplier_name", "scope_of_work"];
+    requiredKeys.forEach((k) => {
+      const val = getValue(data?.templateData, k);
+      if (!val) err[k] = "Required";
+    });
+    setErrors(err);
+    return Object.keys(err).length === 0;
+  };
+
   // Renderer
   return (
     <div className="panel">
@@ -156,10 +214,19 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       <div className="sow-table" style={{ marginBottom: 12 }}>
         <div className="sow-section" role="heading" aria-level={2}>Branding</div>
         <div className="sow-row">
-          <div className="sow-cell sow-label">Logo Upload</div>
+          <div className="sow-cell sow-label">
+            <label htmlFor="logo-upload-input">Logo Upload</label>
+          </div>
           <div className="sow-cell sow-input" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button className="btn" type="button" onClick={() => logoInputRef.current?.click()}>Choose Logo</button>
-            <input ref={logoInputRef} type="file" accept="image/*" onChange={onLogoPick} style={{ display: "none" }} />
+            <input
+              id="logo-upload-input"
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onLogoPick}
+              style={{ display: "none" }}
+            />
             <div style={{ color: "var(--text-secondary)" }}>{data?.meta?.logoName || "No file selected"}</div>
             {logoPreview}
           </div>
@@ -184,13 +251,51 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
               );
             }
             const value = getValue(data?.templateData, entry.key);
+            const errorMsg = errors[entry.key];
             return (
               <div key={entry.key} className="sow-row" aria-label={entry.name}>
                 <div className="sow-cell sow-label">
                   <label htmlFor={`f-${entry.key}`}>{entry.name}</label>
                 </div>
                 <div className="sow-cell sow-input">
-                  {renderInput(entry, value, (v) => setTemplateField(entry.key, v))}
+                  {entry.type === "signature" ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => signatureInputRefs.current[entry.key]?.click()}
+                      >
+                        Choose Signature
+                      </button>
+                      <input
+                        id={`f-${entry.key}`}
+                        ref={(el) => (signatureInputRefs.current[entry.key] = el)}
+                        type="file"
+                        accept="image/*"
+                        onChange={onSignaturePick(entry.key)}
+                        style={{ display: "none" }}
+                        aria-invalid={!!errorMsg}
+                        aria-describedby={errorMsg ? `err-${entry.key}` : undefined}
+                      />
+                      <div style={{ color: "var(--text-secondary)" }}>
+                        {data?.meta?.signatureNames?.[entry.key] || "No file selected"}
+                      </div>
+                      {data?.meta?.signaturePreview?.[entry.key] ? (
+                        <img
+                          alt={`${entry.name} preview`}
+                          src={data.meta.signaturePreview[entry.key]}
+                          style={{ maxHeight: 56, maxWidth: 180, borderRadius: 8, border: "1px solid var(--ui-border)" }}
+                        />
+                      ) : null}
+                    </div>
+                  ) : (
+                    renderInput({ ...entry, error: errorMsg }, value, (v) => setTemplateField(entry.key, v))
+                  )}
+                  {errorMsg ? (
+                    <div id={`err-${entry.key}`} className="field-error" role="alert" style={{ color: "var(--error-600)" }}>
+                      {errorMsg}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );
@@ -204,6 +309,8 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           className="btn btn-primary"
           type="button"
           onClick={() => {
+            // run validation before dispatching generate
+            if (!validate()) return;
             const evt = new CustomEvent("sow:request-generate-docx", { detail: { source: "SOWForm" } });
             window.dispatchEvent(evt);
           }}
@@ -227,12 +334,25 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
  */
 function renderInput(field, value, onChange) {
   const id = `f-${field.key}`;
+  const commonProps = {
+    id,
+    className: "input",
+    "aria-invalid": !!field.error,
+    "aria-describedby": field.error ? `err-${field.key}` : undefined
+  };
   switch (field.type) {
     case "date":
-      return <input id={id} className="input" type="date" value={value || ""} onChange={(e) => onChange(e.target.value)} />;
+      return <input {...commonProps} type="date" value={value || ""} onChange={(e) => onChange(e.target.value)} />;
     case "select":
       return (
-        <select id={id} className="select" value={value || ""} onChange={(e) => onChange(e.target.value)}>
+        <select
+          id={id}
+          className="select"
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          aria-invalid={!!field.error}
+          aria-describedby={field.error ? `err-${field.key}` : undefined}
+        >
           <option value="">Select...</option>
           {(field.options || []).map((opt) => (
             <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
@@ -247,6 +367,8 @@ function renderInput(field, value, onChange) {
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder=""
+          aria-invalid={!!field.error}
+          aria-describedby={field.error ? `err-${field.key}` : undefined}
         />
       );
     case "checkbox":
@@ -257,6 +379,8 @@ function renderInput(field, value, onChange) {
             type="checkbox"
             checked={!!value}
             onChange={(e) => onChange(e.target.checked)}
+            aria-invalid={!!field.error}
+            aria-describedby={field.error ? `err-${field.key}` : undefined}
           />
         </div>
       );
@@ -264,7 +388,7 @@ function renderInput(field, value, onChange) {
     case "email":
     case "text":
     default:
-      return <input id={id} className="input" type="text" value={value || ""} onChange={(e) => onChange(e.target.value)} />;
+      return <input {...commonProps} type="text" value={value || ""} onChange={(e) => onChange(e.target.value)} />;
   }
 }
 
@@ -282,4 +406,15 @@ function setPath(obj, path, value) {
     o = o[k];
   }
   o[path[path.length - 1]] = value;
+}
+
+// set by dotted key helper used for signature file storage
+function setByKey(root, dottedKey, v) {
+  if (!root) return;
+  if (!String(dottedKey).includes(".")) {
+    root[dottedKey] = v;
+    return;
+    }
+  const parts = String(dottedKey).split(".");
+  setPath(root, parts, v);
 }

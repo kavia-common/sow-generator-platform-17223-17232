@@ -169,6 +169,13 @@ body {
   resize: vertical;
 }
 
+/* Inline error styling scoped to SOW entries */
+.field-error{
+  margin-top: 6px;
+  font-size: 12px;
+  color: #EF4444; /* Ocean Professional error */
+}
+
 /* Section header spanning both columns */
 .sow-section{
   grid-column: 1 / -1;
