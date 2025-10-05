@@ -36,6 +36,102 @@ function dataUrlToBytes(dataUrl) {
 }
 
 /**
+ * PUBLIC_INTERFACE
+ * loadImageForDocx
+ * Loads an image from various inputs and returns a structure compatible with docx ImageRun:
+ * { data: ArrayBuffer|Uint8Array|string(base64), mimeType: string|null }
+ *
+ * Supported inputs:
+ * - File or Blob
+ * - Data URL (data:image/...;base64,....)
+ * - Object URL (blob:...)
+ * - HTTP(S) URL
+ * - Already a Uint8Array/ArrayBuffer
+ *
+ * Returns null on failure.
+ */
+// PUBLIC_INTERFACE
+export async function loadImageForDocx(src) {
+  try {
+    if (!src) return null;
+
+    // Already bytes/ArrayBuffer
+    if (src instanceof Uint8Array) {
+      return { data: src, mimeType: null };
+    }
+    if (src instanceof ArrayBuffer) {
+      return { data: src, mimeType: null };
+    }
+
+    // File / Blob
+    if (typeof File !== "undefined" && src instanceof File) {
+      const buf = await src.arrayBuffer();
+      return { data: buf, mimeType: src.type || null };
+    }
+    if (typeof Blob !== "undefined" && src instanceof Blob) {
+      const buf = await src.arrayBuffer();
+      return { data: buf, mimeType: src.type || null };
+    }
+
+    // String inputs
+    if (typeof src === "string") {
+      const s = src.trim();
+
+      // Data URL
+      const dataUrlMatch = s.match(/^data:([^;]+);base64,(.*)$/i);
+      if (dataUrlMatch) {
+        const mime = dataUrlMatch[1] || null;
+        try {
+          const bytes = dataUrlToBytes(s);
+          return { data: bytes, mimeType: mime };
+        } catch (e) {
+          if (isDev) console.warn("[sowDocxBuilder] Failed to decode data URL image", e);
+          return null;
+        }
+      }
+
+      // blob: object URL -> fetch as blob and convert
+      if (s.startsWith("blob:")) {
+        try {
+          const res = await fetch(s);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          const buf = await blob.arrayBuffer();
+          return { data: buf, mimeType: blob.type || null };
+        } catch (e) {
+          if (isDev) console.warn("[sowDocxBuilder] Failed to fetch blob: URL for image", e);
+          return null;
+        }
+      }
+
+      // http/https: try fetch, fallback to no-cors opaque
+      if (s.startsWith("http://") || s.startsWith("https://")) {
+        try {
+          let res = await fetch(s, { mode: "cors" });
+          if (!res.ok) {
+            // retry with no-cors best-effort (may yield opaque, still attempt blob())
+            res = await fetch(s, { mode: "no-cors" });
+          }
+          const blob = await res.blob();
+          const buf = await blob.arrayBuffer();
+          return { data: buf, mimeType: blob.type || null };
+        } catch (e) {
+          if (isDev) console.warn("[sowDocxBuilder] Failed to fetch http(s) URL for image", e);
+          return null;
+        }
+      }
+    }
+
+    // Unsupported type
+    if (isDev) console.warn("[sowDocxBuilder] Unsupported image source type for docx:", src);
+    return null;
+  } catch (err) {
+    if (isDev) console.warn("[sowDocxBuilder] loadImageForDocx error", err);
+    return null;
+  }
+}
+
+/**
  * Clean display value: remove placeholder underscores and trim artifacts.
  */
 function cleanValue(v) {
@@ -553,7 +649,7 @@ function buildActionsMetadataTable({ templateData = {} }) {
   return tbl;
 }
 
-function buildAuthorization({ meta = {}, templateData = {} }) {
+async function buildAuthorization({ meta = {}, templateData = {} }) {
   const companyName = cleanValue(
     get(templateData, "company_name") || get(meta, "client") || get(templateData, "client_name") || "Company"
   );
@@ -594,12 +690,26 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
   const leftColChildren = [
     new Paragraph({ children: [new TextRun({ text: "Supplier", bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
     para("Signature", { bold: true }),
-    supplierSig && /^data:image\//.test(supplierSig)
-      ? new Paragraph({
-          children: [new ImageRun({ data: dataUrlToBytes(supplierSig), transformation: { width: 220, height: sigHeightPx } })],
+  ];
+  // Try load supplier signature image robustly
+  try {
+    const loaded = await loadImageForDocx(supplierSig);
+    if (loaded && loaded.data) {
+      leftColChildren.push(
+        new Paragraph({
+          children: [new ImageRun({ data: loaded.data, transformation: { width: 220, height: sigHeightPx } })],
         })
-      : para(""),
-    // Ensure only the signature block shows these lines; do not repeat in Q/A table.
+      );
+    } else {
+      // Keep spacing even if no image
+      leftColChildren.push(para(""));
+    }
+  } catch (e) {
+    if (isDev) console.warn("[sowDocxBuilder] Supplier signature image skipped", e);
+    leftColChildren.push(para(""));
+  }
+  // Ensure only the signature block shows these lines; do not repeat in Q/A table.
+  leftColChildren.push(
     para("Supplier:", { bold: false }),
     para(cleanValue(get(templateData, "supplier_name") || get(templateData, "supplier_company_name") || "")),
     para("Name:", { bold: false }),
@@ -608,7 +718,7 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
     para(cleanValue(supplierTitle)),
     para("Date:", { bold: false }),
     para(cleanValue(supplierDate)),
-  ];
+  );
 
   const clientNameForBlock =
     get(templateData, "client_company_name_signature_block") ||
@@ -636,12 +746,24 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
   const rightColChildren = [
     new Paragraph({ children: [new TextRun({ text: companyName, bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
     para("Signature", { bold: true }),
-    companySig && /^data:image\//.test(companySig)
-      ? new Paragraph({
-          children: [new ImageRun({ data: dataUrlToBytes(companySig), transformation: { width: 220, height: sigHeightPx } })],
+  ];
+  try {
+    const loaded = await loadImageForDocx(companySig);
+    if (loaded && loaded.data) {
+      rightColChildren.push(
+        new Paragraph({
+          children: [new ImageRun({ data: loaded.data, transformation: { width: 220, height: sigHeightPx } })],
         })
-      : para(""),
-    // Signature block must contain the readable lines; keep labels even if value blank.
+      );
+    } else {
+      rightColChildren.push(para(""));
+    }
+  } catch (e) {
+    if (isDev) console.warn("[sowDocxBuilder] Company signature image skipped", e);
+    rightColChildren.push(para(""));
+  }
+  // Signature block must contain the readable lines; keep labels even if value blank.
+  rightColChildren.push(
     para("Company:", { bold: false }),
     para(cleanValue(clientNameForBlock)),
     para("Name:", { bold: false }),
@@ -650,7 +772,7 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
     para(cleanValue(companySignerTitle)),
     para("Date:", { bold: false }),
     para(cleanValue(companySignerDate)),
-  ];
+  );
 
   const table = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -671,7 +793,7 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
 /**
  * Build page header with logo in top-left
  */
-function buildHeader({ meta = {}, templateData = {} }) {
+async function buildHeaderAsync({ meta = {}, templateData = {} }) {
   const rawLogo = get(meta, "logoUrl") || get(templateData, "logo") || "";
   const headerChildren = [];
 
@@ -687,23 +809,13 @@ function buildHeader({ meta = {}, templateData = {} }) {
       ],
     });
 
-  async function resolveLogoBytesSyncish(url) {
-    // Synchronous path for data URLs
-    if (url && typeof url === "string" && /^data:image\//.test(url)) {
-      try { return dataUrlToBytes(url); } catch { return null; }
+  try {
+    const loaded = await loadImageForDocx(rawLogo);
+    if (loaded && loaded.data) {
+      headerChildren.push(makeImagePara(loaded.data));
     }
-    // We cannot do async fetch here inside header build (docx APIs expect sync).
-    // So skip non-data URLs; upstream callers should ensure meta.logoUrl is a data URL when possible.
-    return null;
-  }
-
-  const bytes = resolveLogoBytesSyncish(rawLogo);
-  if (bytes) {
-    try {
-      headerChildren.push(makeImagePara(bytes));
-    } catch {
-      // ignore
-    }
+  } catch (e) {
+    if (isDev) console.warn("[sowDocxBuilder] Header logo skipped due to load error", e);
   }
   return new Header({ children: headerChildren });
 }
@@ -861,37 +973,51 @@ export async function buildSowDocx(data, templateSchema) {
         if (lbl.includes("work order") || lbl.includes("work_order")) return false;
         return true;
       });
-      const rows = filteredRows.map(({ label, value }) => {
-        const lblLower = String(label || "").toLowerCase().trim();
 
-        // Exclude fields 'Statement of Work', 'To', 'Master Service Agreement' from All Entered Fields
-        if (
-          lblLower === "statement of work" ||
-          lblLower === "statement of work (t&m)" ||
-          lblLower === "to" ||
-          lblLower === "master services agreement" ||
-          lblLower === "[add logo here]" // also omit transcript placeholder if present
-        ) {
-          return null;
-        }
+      // Build rows with async image resolution for signature fields
+      const rows = (await Promise.all(
+        filteredRows.map(async ({ label, value }) => {
+          const lblLower = String(label || "").toLowerCase().trim();
 
-        // Ensure signature image appears after the Signature label cell
-        // If this row is a signature and the value is a data URL, render the image in the value cell.
-        const isSignatureRow = lblLower.includes("signature") && typeof value === "string";
-        if (isSignatureRow && /^data:image\//.test(value)) {
-          const imgBytes = (() => {
-            try { return dataUrlToBytes(value); } catch { return null; }
-          })();
-          const valueChildren = imgBytes
-            ? [new Paragraph({ children: [new ImageRun({ data: imgBytes, transformation: { width: 220, height: 77 } })] })]
-            : toParagraphs(value || "");
-          return new TableRow({
-            children: [labelCell(label, L), makeCell(valueChildren, { widthPct: V })],
-          });
-        }
+          // Exclude fields 'Statement of Work', 'To', 'Master Service Agreement' from All Entered Fields
+          if (
+            lblLower === "statement of work" ||
+            lblLower === "statement of work (t&m)" ||
+            lblLower === "to" ||
+            lblLower === "master services agreement" ||
+            lblLower === "[add logo here]" // also omit transcript placeholder if present
+          ) {
+            return null;
+          }
 
-        return new TableRow({ children: [labelCell(label, L), valueCell(value, V)] });
-      }).filter(Boolean);
+          // Render signature images
+          const isSignatureRow = lblLower.includes("signature");
+          if (isSignatureRow && value) {
+            let valueChildren = null;
+            try {
+              const loaded = await loadImageForDocx(value);
+              if (loaded && loaded.data) {
+                valueChildren = [
+                  new Paragraph({
+                    children: [new ImageRun({ data: loaded.data, transformation: { width: 220, height: 77 } })],
+                  }),
+                ];
+              }
+            } catch (e) {
+              if (isDev) console.warn("[sowDocxBuilder] All Fields signature image skipped", e);
+            }
+            if (!valueChildren) {
+              valueChildren = toParagraphs(value || "");
+            }
+            return new TableRow({
+              children: [labelCell(label, L), makeCell(valueChildren, { widthPct: V })],
+            });
+          }
+
+          return new TableRow({ children: [labelCell(label, L), valueCell(value, V)] });
+        })
+      )).filter(Boolean);
+
       const t = tableFullWidth(rows);
       if (t) children.push(t);
       else if (isDev) {
@@ -903,14 +1029,14 @@ export async function buildSowDocx(data, templateSchema) {
 
   // Authorization preface + table (Section B)
   // Ensure signatures (name/title/date/image) are shown only in the dedicated signature block.
-  const { preface, table } = buildAuthorization({ meta, templateData });
+  const { preface, table } = await buildAuthorization({ meta, templateData });
   children.push(preface);
   children.push(table);
 
   // Footer: keep minimal to allow page content to flow; page numbers intentionally omitted
   const footer = new Footer({ children: [] });
 
-  const header = buildHeader({ meta, templateData });
+  const header = await buildHeaderAsync({ meta, templateData });
 
   // Page setup: A4 portrait, margins top 1", bottom 0.75", left/right 0.75"
   const doc = new Document({
