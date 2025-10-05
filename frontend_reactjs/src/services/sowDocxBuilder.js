@@ -97,9 +97,21 @@ function toParagraphs(text, { size = 21 } = {}) {
   return lines.map((ln) => para(ln, { size, after: 40 }));
 }
 
-// Full width table with borders; do not predefine row counts; let rows be passed directly
+/**
+ * Full width table with borders.
+ * SAFETY: If rows is not an array or is empty, return null to allow callers to skip adding the table.
+ * Also ensures we never construct docx.Table with invalid row/column dimensions.
+ */
 function tableFullWidth(rows) {
-  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (safeRows.length === 0) {
+    // Aid debugging while keeping runtime stable
+    if (process && process.env && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("tableFullWidth: no rows to render, skipping table.");
+    }
+    return null;
+  }
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: BORDER,
@@ -328,7 +340,8 @@ function buildTwoColDescriptionTable(titleLeft, bindLeftText, rightHeader = "", 
     })
   );
 
-  return tableFullWidth(rows);
+  const tbl = tableFullWidth(rows);
+  return tbl;
 }
 
 /**
@@ -366,7 +379,8 @@ function buildMilestonesFinancials({ templateData = {}, currency = "USD" }) {
     })
   );
 
-  return tableFullWidth(rows);
+  const tbl = tableFullWidth(rows);
+  return tbl;
 }
 
 /**
@@ -420,7 +434,8 @@ function buildContinuationTable({ templateData = {} }) {
     })
   );
 
-  return tableFullWidth(rows);
+  const tbl = tableFullWidth(rows);
+  return tbl;
 }
 
 /**
@@ -518,7 +533,16 @@ function buildActionsMetadataTable({ templateData = {} }) {
     }
   });
 
-  return tableFullWidth(rows);
+  if (rows.length === 0) {
+    if (process && process.env && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("buildActionsMetadataTable: No action metadata rows to render, skipping table.");
+    }
+    return null;
+  }
+
+  const tbl = tableFullWidth(rows);
+  return tbl;
 }
 
 function buildAuthorization({ meta = {}, templateData = {} }) {
@@ -680,24 +704,59 @@ export async function buildSowDocx(data, templateSchema) {
 
   // Supplier Deliverables
   const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
-  children.push(buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables));
+  {
+    const t = buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables);
+    if (t) children.push(t);
+    else if (process && process.env && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("buildSowDocx: Supplier Deliverables table skipped (empty).");
+    }
+  }
 
   // Client Deliverables
   const clientDeliverables = get(templateData, "client_deliverables") || "";
-  children.push(buildTwoColDescriptionTable("Client Deliverables", clientDeliverables));
+  {
+    const t = buildTwoColDescriptionTable("Client Deliverables", clientDeliverables);
+    if (t) children.push(t);
+    else if (process && process.env && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("buildSowDocx: Client Deliverables table skipped (empty).");
+    }
+  }
 
   // Milestones / Financials
-  children.push(buildMilestonesFinancials({ templateData }));
+  {
+    const t = buildMilestonesFinancials({ templateData });
+    if (t) children.push(t);
+    else if (process && process.env && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("buildSowDocx: Milestones/Financials table skipped (empty).");
+    }
+  }
 
   // Continuation table (11..20)
-  children.push(buildContinuationTable({ templateData }));
+  {
+    const t = buildContinuationTable({ templateData });
+    if (t) children.push(t);
+    else if (process && process.env && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("buildSowDocx: Continuation table skipped (empty).");
+    }
+  }
 
   // Actions metadata table (Section A from assets/actions_section_docx_mapping.md)
   // Per actions_section_docx_mapping.md and user request:
   // - Only one Q/A table must appear.
   // - Supplier/company signature details must not be duplicated in the Q/A table when images are present.
   // - Preserve the strict order and alignment (labels left with underscores preserved; values right).
-  children.push(buildActionsMetadataTable({ templateData }));
+  {
+    const t = buildActionsMetadataTable({ templateData });
+    if (t) children.push(t);
+    else if (process && process.env && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn("buildSowDocx: Actions metadata table skipped (empty).");
+    }
+  }
 
   // Dynamically enumerate ALL fields from the active schema and render them in schema order.
   // This ensures no user-entered field is omitted regardless of conditionals or new fields.
@@ -725,7 +784,12 @@ export async function buildSowDocx(data, templateSchema) {
       const rows = filteredRows.map(({ label, value }) =>
         new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
       );
-      children.push(tableFullWidth(rows));
+      const t = tableFullWidth(rows);
+      if (t) children.push(t);
+      else if (process && process.env && process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.warn("buildSowDocx: Schema-enumerated table skipped (empty).");
+      }
     }
   }
 
