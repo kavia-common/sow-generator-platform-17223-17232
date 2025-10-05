@@ -56,6 +56,11 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       if (lbl === "to") return false;
       if (lbl === "master services agreement") return false;
       if (lbl === "add logo here" || lbl === "[add logo here]") return false;
+
+      // Also exclude date fields per requirement
+      if (lbl === "start date" || lbl === "end date") return false;
+      if (lbl.includes("agreement start date")) return false;
+
       return true;
     });
     return filtered.map((f) => {

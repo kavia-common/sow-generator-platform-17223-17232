@@ -394,13 +394,8 @@ function buildTopIntro({ meta = {}, templateData = {} }) {
     })
   );
 
-  // Intro paragraph
-  const intro =
-    `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${companyName}, and ${supplierName} (the “Supplier”), as amended from time to time (the “Agreement”). ` +
-    `Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. ` +
-    `This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
-
-  nodes.push(para(intro, { size: 21, after: 240 }));
+  // Remove verbose intro paragraph per requirement; keep spacing before preamble
+  nodes.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
 
   return nodes;
 }
@@ -794,6 +789,7 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
  * Build page header with logo in top-left
  */
 async function buildHeaderAsync({ meta = {}, templateData = {} }) {
+  // Prefer explicit meta.logoUrl (could be blob:, http, data:) then templateData.logo
   const rawLogo = get(meta, "logoUrl") || get(templateData, "logo") || "";
   const headerChildren = [];
 
@@ -803,20 +799,25 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
       spacing: { after: 80 },
       children: [
         new ImageRun({
-          data: bytes,
+          data: bytes, // ArrayBuffer/Uint8Array/DataURL bytes supported by docx
           transformation: { width: 120, height: 48 }, // ~1.25" x 0.5"
         }),
       ],
     });
 
   try {
-    const loaded = await loadImageForDocx(rawLogo);
-    if (loaded && loaded.data) {
-      headerChildren.push(makeImagePara(loaded.data));
+    if (rawLogo) {
+      const loaded = await loadImageForDocx(rawLogo);
+      if (loaded && loaded.data) {
+        headerChildren.push(makeImagePara(loaded.data));
+      } else if (isDev) {
+        console.warn("[sowDocxBuilder] No header logo data after loadImageForDocx, skipping image.");
+      }
     }
   } catch (e) {
     if (isDev) console.warn("[sowDocxBuilder] Header logo skipped due to load error", e);
   }
+  // If no image, return an empty header without any placeholder text.
   return new Header({ children: headerChildren });
 }
 
@@ -833,29 +834,21 @@ export async function buildSowDocx(data, templateSchema) {
   // Top titles and intro paragraph
   children.push(...buildTopIntro({ meta, templateData }));
 
-  // Preamble paragraph with runtime values replacing placeholders
-  // Uses Start Date, End Date, and Supplier (Supplier Name) only in this paragraph,
-  // and ensures these are NOT included as fields in the "All Entered Fields" section below.
+  // Preamble: only a centered "[Start Date to End Date]" line after agreement title.
   {
-    const supplierName =
-      cleanValue(
-        get(templateData, "supplier_name") ||
-          get(templateData, "address_block.address_supplier_name") ||
-          get(templateData, "address_supplier_name") ||
-          get(meta, "supplier") ||
-          ""
-      ) || "Supplier";
-
     const startDate = formatDate(
       get(templateData, "start_date") || get(templateData, "agreement_start_date") || ""
     );
     const endDate = formatDate(get(templateData, "end_date") || "");
+    const bracketText = `[${(startDate || "Start Date")} to ${(endDate || "End Date")}]`;
 
-    const preambleSentence =
-      `This Statement of Work is entered into by and between the Supplier, ${supplierName}, for the period ` +
-      `${startDate || "Start Date"} to ${endDate || "End Date"}, and is governed by the Master Services Agreement.`;
-
-    children.push(para(preambleSentence, { size: 21, after: 200 }));
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [new TextRun({ text: bracketText, size: 22 })],
+      })
+    );
   }
 
   // Work Order Parameters removed (excluded from generation per requirements)
@@ -971,6 +964,11 @@ export async function buildSowDocx(data, templateSchema) {
         const lbl = String(label || "").toLowerCase().trim();
         if (lbl === "work order parameters") return false;
         if (lbl.includes("work order") || lbl.includes("work_order")) return false;
+
+        // Exclude Start/End Date from the consolidated list
+        if (lbl === "start date" || lbl === "end date") return false;
+        if (lbl.includes("agreement start date")) return false;
+
         return true;
       });
 
@@ -986,6 +984,15 @@ export async function buildSowDocx(data, templateSchema) {
             lblLower === "to" ||
             lblLower === "master services agreement" ||
             lblLower === "[add logo here]" // also omit transcript placeholder if present
+          ) {
+            return null;
+          }
+
+          // Also guard against Start/End Date rows slipping through via alternative schemas
+          if (
+            lblLower === "start date" ||
+            lblLower === "end date" ||
+            lblLower.includes("agreement start date")
           ) {
             return null;
           }
