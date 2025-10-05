@@ -140,11 +140,17 @@ body {
   border: 0;
 }
 .sow-row{ display: contents; }
+/* Default (light/elegant) */
 .sow-cell{
   border: 1px solid var(--ui-border);
   background: #FFFFFF;
   padding: 10px 12px;
   min-height: 44px;
+}
+/* Dark-scoped override without global impact */
+.sow-form.sow-dark .sow-cell{
+  background: #191a25;
+  border-color: var(--ui-border);
 }
 .sow-label{
   font-size: 13px;
@@ -153,6 +159,11 @@ body {
   align-self: start;
   display: flex;
   align-items: flex-start;
+}
+/* Dark-scoped label color */
+.sow-form.sow-dark .sow-label{
+  color: var(--text-primary);
+  background: #1d1e2a;
 }
 .sow-input{
   align-self: stretch;

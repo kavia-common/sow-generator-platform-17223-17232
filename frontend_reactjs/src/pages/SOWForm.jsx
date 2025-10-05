@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import tmParsed from "../templates/parsed/tm_template_parsed.json";
 import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
+import "./SOWForm.dark.css";
 
 /**
  * PUBLIC_INTERFACE
@@ -80,7 +81,9 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   // Remove any Work Order keys/labels if present in future schemas
   const filterOutWorkOrder = (fields = []) =>
     fields.filter((f) => {
-      const lbl = (f.label || f.name || f.key || "").toLowerCase();
+      const lbl = (f.label || f.name || f.key || "").toLowerCase().trim();
+      // Remove any Work Order related fields/sections, including "Work Order Parameters"
+      if (lbl === "work order parameters") return false;
       return !(lbl.includes("work order") || lbl.includes("work_order"));
     });
 
@@ -364,7 +367,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
 
   // Renderer
   return (
-    <div className="panel sow-form">
+    <div className="panel sow-form sow-dark">
       <div className="panel-title">SOW Form</div>
 
       {/* Meta: Logo upload (outside of two-column table) */}
@@ -446,6 +449,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
                         className="btn"
                         type="button"
                         onClick={() => document.getElementById(`f-${entry.key}`)?.click()}
+                        aria-label={`Choose image for ${entry.name}`}
                       >
                         Choose Signature
                       </button>
