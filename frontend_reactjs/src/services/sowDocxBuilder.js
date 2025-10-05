@@ -17,6 +17,14 @@ import {
 } from "docx";
 
 /**
+ * Development/runtime flag safe for browser.
+ * Avoids process.* usage to prevent ReferenceError on client.
+ */
+const isDev =
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.MODE === "development") ||
+  (typeof window !== "undefined" && window.__DEV__ === true);
+
+/**
  * Convert a data URL (image/*) to Uint8Array bytes.
  */
 function dataUrlToBytes(dataUrl) {
@@ -106,7 +114,7 @@ function tableFullWidth(rows) {
   const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
   if (safeRows.length === 0) {
     // Aid debugging while keeping runtime stable
-    if (process && process.env && process.env.NODE_ENV !== "production") {
+    if (isDev) {
       // eslint-disable-next-line no-console
       console.warn("tableFullWidth: no rows to render, skipping table.");
     }
@@ -534,7 +542,7 @@ function buildActionsMetadataTable({ templateData = {} }) {
   });
 
   if (rows.length === 0) {
-    if (process && process.env && process.env.NODE_ENV !== "production") {
+    if (isDev) {
       // eslint-disable-next-line no-console
       console.warn("buildActionsMetadataTable: No action metadata rows to render, skipping table.");
     }
@@ -707,7 +715,7 @@ export async function buildSowDocx(data, templateSchema) {
   {
     const t = buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables);
     if (t) children.push(t);
-    else if (process && process.env && process.env.NODE_ENV !== "production") {
+    else if (isDev) {
       // eslint-disable-next-line no-console
       console.warn("buildSowDocx: Supplier Deliverables table skipped (empty).");
     }
@@ -718,7 +726,7 @@ export async function buildSowDocx(data, templateSchema) {
   {
     const t = buildTwoColDescriptionTable("Client Deliverables", clientDeliverables);
     if (t) children.push(t);
-    else if (process && process.env && process.env.NODE_ENV !== "production") {
+    else if (isDev) {
       // eslint-disable-next-line no-console
       console.warn("buildSowDocx: Client Deliverables table skipped (empty).");
     }
@@ -728,7 +736,7 @@ export async function buildSowDocx(data, templateSchema) {
   {
     const t = buildMilestonesFinancials({ templateData });
     if (t) children.push(t);
-    else if (process && process.env && process.env.NODE_ENV !== "production") {
+    else if (isDev) {
       // eslint-disable-next-line no-console
       console.warn("buildSowDocx: Milestones/Financials table skipped (empty).");
     }
@@ -738,7 +746,7 @@ export async function buildSowDocx(data, templateSchema) {
   {
     const t = buildContinuationTable({ templateData });
     if (t) children.push(t);
-    else if (process && process.env && process.env.NODE_ENV !== "production") {
+    else if (isDev) {
       // eslint-disable-next-line no-console
       console.warn("buildSowDocx: Continuation table skipped (empty).");
     }
@@ -752,7 +760,7 @@ export async function buildSowDocx(data, templateSchema) {
   {
     const t = buildActionsMetadataTable({ templateData });
     if (t) children.push(t);
-    else if (process && process.env && process.env.NODE_ENV !== "production") {
+    else if (isDev) {
       // eslint-disable-next-line no-console
       console.warn("buildSowDocx: Actions metadata table skipped (empty).");
     }
@@ -786,7 +794,7 @@ export async function buildSowDocx(data, templateSchema) {
       );
       const t = tableFullWidth(rows);
       if (t) children.push(t);
-      else if (process && process.env && process.env.NODE_ENV !== "production") {
+      else if (isDev) {
         // eslint-disable-next-line no-console
         console.warn("buildSowDocx: Schema-enumerated table skipped (empty).");
       }
