@@ -174,88 +174,111 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   // Centralized file handler
   // PUBLIC_INTERFACE
   async function handleFile(e, kindKey) {
-    /** Handle logo or signature file selection/drop:
-     * - Read first file
-     * - Validate image type
-     * - Create preview URL and store File + preview
-     * - Revoke old URLs to avoid leaks
+    /**
+     * Handle logo or signature file selection/drop with defensive checks:
+     * 1) Read first File from input/drag event
+     * 2) Validate type (image/*) and size (< ~10MB)
+     * 3) Revoke previously created object URL for this field
+     * 4) Create new URL and store {file, previewUrl/name} in state
+     * 5) Warn/log on invalids without breaking UX
      */
-    const file = e?.target?.files?.[0] || e?.dataTransfer?.files?.[0] || null;
-    setData((prev) => {
-      const next = structuredClone(prev || {});
-      // clear error for this kindKey
-      next.meta = next.meta || {};
-      next.meta.fileErrors = { ...(next.meta.fileErrors || {}), [kindKey]: "" };
-      // If nothing selected, clear state for that key
-      if (!file) {
-        if (kindKey === "logo") {
-          // Revoke old URL if any
-          if (next.meta.logoUrl && next.meta.logoUrl.startsWith("blob:")) {
-            try {
-              URL.revokeObjectURL(next.meta.logoUrl);
-            } catch {}
+    try {
+      const file = e?.target?.files?.[0] || e?.dataTransfer?.files?.[0] || null;
+
+      setData((prev) => {
+        const next = structuredClone(prev || {});
+        next.meta = next.meta || {};
+        next.meta.fileErrors = { ...(next.meta.fileErrors || {}), [kindKey]: "" };
+
+        if (!file) {
+          // empty selection
+          if (typeof console !== "undefined" && console.warn) {
+            console.warn(`[SOWForm] Empty file selection for ${kindKey}`);
           }
-          next.meta.logoUrl = "";
-          next.meta.logoName = "";
-          next.meta.logoFile = null;
+          if (kindKey === "logo") {
+            if (next.meta.logoUrl && String(next.meta.logoUrl).startsWith("blob:")) {
+              try { URL.revokeObjectURL(next.meta.logoUrl); } catch {}
+            }
+            next.meta.logoUrl = "";
+            next.meta.logoName = "";
+            next.meta.logoFile = null;
+          } else {
+            const sigKey = kindKey;
+            const prevUrl = next.meta.signaturePreview?.[sigKey];
+            if (prevUrl && String(prevUrl).startsWith("blob:")) {
+              try { URL.revokeObjectURL(prevUrl); } catch {}
+            }
+            next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [sigKey]: "" };
+            next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [sigKey]: "" };
+            next.meta.signatureFiles = { ...(next.meta.signatureFiles || {}), [sigKey]: null };
+            if (!next.templateData) next.templateData = {};
+            setByKey(next.templateData, sigKey, null);
+          }
+          return next;
+        }
+
+        const type = (file.type || "").toLowerCase();
+        const sizeOk = typeof file.size === "number" ? file.size <= 10 * 1024 * 1024 : true; // 10MB
+        if (!type.startsWith("image/")) {
+          if (typeof console !== "undefined" && console.warn) {
+            console.warn(`[SOWForm] Invalid file type for ${kindKey}:`, type);
+          }
+          next.meta.fileErrors = { ...(next.meta.fileErrors || {}), [kindKey]: "Please select a valid image file." };
+          return next;
+        }
+        if (!sizeOk) {
+          if (typeof console !== "undefined" && console.warn) {
+            console.warn(`[SOWForm] File too large for ${kindKey}: ${file.size} bytes`);
+          }
+          next.meta.fileErrors = { ...(next.meta.fileErrors || {}), [kindKey]: "Image must be smaller than 10MB." };
+          return next;
+        }
+
+        // Create object URL (mobile Safari guard)
+        let objUrl = "";
+        try {
+          objUrl = URL.createObjectURL(file);
+          objectUrlsRef.current.add(objUrl);
+        } catch (err) {
+          if (typeof console !== "undefined" && console.error) {
+            console.error("[SOWForm] Failed to create object URL:", err);
+          }
+          next.meta.fileErrors = { ...(next.meta.fileErrors || {}), [kindKey]: "Preview unavailable. The image will still be used." };
+          return next;
+        }
+
+        if (kindKey === "logo") {
+          if (next.meta.logoUrl && String(next.meta.logoUrl).startsWith("blob:")) {
+            try { URL.revokeObjectURL(next.meta.logoUrl); } catch {}
+          }
+          next.meta.logoUrl = objUrl;
+          next.meta.logoName = file.name;
+          next.meta.logoFile = file;
         } else {
-          // signature key is dotted or direct
           const sigKey = kindKey;
           const prevUrl = next.meta.signaturePreview?.[sigKey];
           if (prevUrl && String(prevUrl).startsWith("blob:")) {
-            try {
-              URL.revokeObjectURL(prevUrl);
-            } catch {}
+            try { URL.revokeObjectURL(prevUrl); } catch {}
           }
-          next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [sigKey]: "" };
-          next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [sigKey]: "" };
-          next.meta.signatureFiles = { ...(next.meta.signatureFiles || {}), [sigKey]: null };
+          next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [sigKey]: objUrl };
+          next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [sigKey]: file.name };
+          next.meta.signatureFiles = { ...(next.meta.signatureFiles || {}), [sigKey]: file };
           if (!next.templateData) next.templateData = {};
-          setByKey(next.templateData, sigKey, null);
+          // Store File in meta, not in templateData; for templateData keep null or URL later after upload
+          setByKey(next.templateData, sigKey, next.meta.signaturePreview[sigKey] || objUrl);
         }
         return next;
-      }
+      });
 
-      // Validate type
-      const type = (file.type || "").toLowerCase();
-      if (!type.startsWith("image/")) {
-        next.meta.fileErrors = {
-          ...(next.meta.fileErrors || {}),
-          [kindKey]: "Please select a valid image file."
-        };
-        return next;
+      // Do not bind value to input; leaving uncontrolled prevents reset glitches.
+      if (e?.target) {
+        try { e.target.value = ""; } catch {}
       }
-
-      // Create URL and persist
-      const objUrl = URL.createObjectURL(file);
-      objectUrlsRef.current.add(objUrl);
-
-      if (kindKey === "logo") {
-        // Revoke old if switching
-        if (next.meta.logoUrl && next.meta.logoUrl.startsWith("blob:")) {
-          try {
-            URL.revokeObjectURL(next.meta.logoUrl);
-          } catch {}
-        }
-        next.meta.logoUrl = objUrl;
-        next.meta.logoName = file.name;
-        next.meta.logoFile = file;
-      } else {
-        const sigKey = kindKey;
-        const prevUrl = next.meta.signaturePreview?.[sigKey];
-        if (prevUrl && String(prevUrl).startsWith("blob:")) {
-          try {
-            URL.revokeObjectURL(prevUrl);
-          } catch {}
-        }
-        next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [sigKey]: objUrl };
-        next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [sigKey]: file.name };
-        next.meta.signatureFiles = { ...(next.meta.signatureFiles || {}), [sigKey]: file };
-        if (!next.templateData) next.templateData = {};
-        setByKey(next.templateData, sigKey, file);
+    } catch (err) {
+      if (typeof console !== "undefined" && console.error) {
+        console.error("[SOWForm] handleFile failed:", err);
       }
-      return next;
-    });
+    }
   }
 
   // Optional Supabase storage upload on submit/save

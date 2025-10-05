@@ -128,6 +128,13 @@
 /* File input previews */
 .sow-form.sow-dark .file-input{
   padding-block: 6px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 10px;
+  outline: 1px dashed var(--sow-border);
+  outline-offset: -6px;
+}
+.sow-form.sow-dark .file-input:hover{
+  background: rgba(255,255,255,0.04);
 }
 .sow-form.sow-dark .file-input img{
   max-height: 80px;
@@ -137,6 +144,7 @@
   border: 1px solid var(--sow-border);
   border-radius: 8px;
   background: #0e0e0e;
+  padding: 2px;
 }
 
 /* Inline errors */
