@@ -674,7 +674,8 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
 function buildHeader({ meta = {}, templateData = {} }) {
   const logo = get(meta, "logoUrl") || get(templateData, "logo") || "";
   const headerChildren = [];
-  if (logo && /^data:image\//.test(logo)) {
+  // Only embed if the logo is a data URL we can convert to bytes; otherwise gracefully skip
+  if (logo && typeof logo === "string" && /^data:image\//.test(logo)) {
     try {
       headerChildren.push(
         new Paragraph({

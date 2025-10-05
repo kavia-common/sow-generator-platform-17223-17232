@@ -195,6 +195,11 @@
   padding: 2px;
 }
 
+/* Header preview logo fine-tuning */
+.sow-form.sow-dark .panel-title {
+  display: inline-block;
+}
+
 /* Inline errors */
 .sow-form.sow-dark .field-error{
   margin-top: 6px;

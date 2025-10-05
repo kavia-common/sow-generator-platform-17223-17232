@@ -423,50 +423,48 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   // Renderer
   return (
     <div className="panel sow-form sow-dark">
-      <div className="panel-title">SOW Form</div>
-
-      {/* Meta: Logo upload (outside of two-column table) */}
-      <div className="sow-table" style={{ marginBottom: 12 }}>
-        <div className="sow-section" role="heading" aria-level={2}>Branding</div>
-        <div className="sow-row">
-          <div className="sow-cell sow-label">
-            <label htmlFor="logo-upload-input">Logo Upload</label>
-          </div>
-          <div
-            ref={brandingDropRef}
-            className="sow-cell sow-input file-input"
-            style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFile(e, "logo"); }}
-          >
-            <button
-              className="btn"
-              type="button"
-              onClick={() => document.getElementById("logo-upload-input")?.click()}
-            >
-              Choose Logo
-            </button>
-            <input
-              id="logo-upload-input"
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFile(e, "logo")}
-              style={{ display: "none" }}
-              aria-invalid={!!data?.meta?.fileErrors?.logo}
-              aria-describedby={data?.meta?.fileErrors?.logo ? "err-logo" : undefined}
+      {/* Header with top-left logo preview */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {data?.meta?.logoUrl ? (
+            <img
+              alt="Company logo"
+              src={data.meta.logoUrl}
+              style={{ maxHeight: 48, maxWidth: 160, borderRadius: 6, border: "1px solid var(--ui-border)" }}
             />
-            <div style={{ color: "var(--text-secondary)" }}>{data?.meta?.logoName || "No file selected"}</div>
-            {data?.meta?.logoUrl ? (
-              <img
-                alt="Company logo"
-                src={data.meta.logoUrl}
-                style={{ maxHeight: 80, maxWidth: 180, borderRadius: 8, border: "1px solid var(--ui-border)" }}
-              />
-            ) : null}
-            {data?.meta?.fileErrors?.logo ? (
-              <div id="err-logo" className="field-error" role="alert">{data.meta.fileErrors.logo}</div>
-            ) : null}
-          </div>
+          ) : null}
+          <div className="panel-title">SOW Form</div>
+        </div>
+        {/* Logo chooser kept accessible on the right, drag-drop enabled on button click zone */}
+        <div
+          ref={brandingDropRef}
+          className="file-input"
+          style={{ display: "flex", gap: 10, alignItems: "center", padding: 6 }}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFile(e, "logo"); }}
+          aria-label="Logo upload area"
+        >
+          <button
+            className="btn"
+            type="button"
+            onClick={() => document.getElementById("logo-upload-input")?.click()}
+            title="Choose a company logo image"
+          >
+            Choose Logo
+          </button>
+          <input
+            id="logo-upload-input"
+            type="file"
+            accept="image/*"
+            onChange={(e) => handleFile(e, "logo")}
+            style={{ display: "none" }}
+            aria-invalid={!!data?.meta?.fileErrors?.logo}
+            aria-describedby={data?.meta?.fileErrors?.logo ? "err-logo" : undefined}
+          />
+          <div style={{ color: "var(--text-secondary)" }}>{data?.meta?.logoName || "No file selected"}</div>
+          {data?.meta?.fileErrors?.logo ? (
+            <div id="err-logo" className="field-error" role="alert">{data.meta.fileErrors.logo}</div>
+          ) : null}
         </div>
       </div>
 

@@ -91,13 +91,20 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
 
           <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
 
+          {/* All Entered Fields: Signature previews (if images) should be represented as values here */}
           <div style={{ borderTop: "1px solid #eee", marginTop: 12, paddingTop: 8 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>All Entered Fields</div>
             <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", rowGap: 6, columnGap: 8 }}>
               {(kvList || []).map((row, i) => (
                 <React.Fragment key={i}>
                   <div style={{ color: "#444" }}>{row.label}</div>
-                  <div style={{ color: "#111" }}>{row.value || "—"}</div>
+                  <div style={{ color: "#111" }}>
+                    {typeof row.value === "string" && /^data:image\\//.test(row.value) ? (
+                      <img alt={`${row.label} preview`} src={row.value} style={{ maxHeight: 80, maxWidth: 180 }} />
+                    ) : (
+                      row.value || "—"
+                    )}
+                  </div>
                 </React.Fragment>
               ))}
             </div>
