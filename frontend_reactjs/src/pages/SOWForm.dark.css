@@ -1,5 +1,10 @@
 .sow-form.sow-dark {
   /* Tuned black theme tokens (scoped) for WCAG AA contrast */
+  --ui-border: rgba(255,255,255,0.12);
+  --ui-border-strong: rgba(255,255,255,0.2);
+  --text-primary: #F3F5F7;
+  --text-secondary: #C9CDD2;
+
   --sow-bg: #0b0b0b;                 /* slightly darker base for stronger contrast */
   --sow-bg-panel: #101014;
   --sow-surface: #121212;            /* surfaces slightly lighter than bg for separation */

@@ -56,8 +56,8 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
   }
 
   return (
-    <div className="panel">
-      <div className="panel-title">Generate DOCX</div>
+    <div className="panel sow-dark" style={{ background: "#0b0b0b", borderColor: "var(--ui-border-strong)" }}>
+      <div className="panel-title" style={{ color: "#f5f7fa", borderLeftColor: "#60a5fa" }}>Generate DOCX</div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
         <button
           className="btn btn-primary"

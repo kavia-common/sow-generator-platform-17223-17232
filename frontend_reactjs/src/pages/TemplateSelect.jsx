@@ -13,8 +13,8 @@ export default function TemplateSelect({ selected, onChange }) {
   ];
 
   return (
-    <div className="panel">
-      <div className="panel-title">SOW Type</div>
+    <div className="panel sow-dark" style={{ background: "#0b0b0b", borderColor: "var(--ui-border-strong)" }}>
+      <div className="panel-title" style={{ color: "#f5f7fa", borderLeftColor: "#60a5fa" }}>SOW Type</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {opts.map((o) => {
           const active = selected === o.id;
@@ -25,10 +25,12 @@ export default function TemplateSelect({ selected, onChange }) {
               className="panel"
               style={{
                 borderStyle: "solid",
-                borderColor: active ? "var(--accent-purple)" : "var(--ui-border)",
-                background: active ? "rgba(111,63,255,0.12)" : "rgba(255,255,255,0.03)",
-                boxShadow: active ? "var(--glow-purple)" : "none",
-                textAlign: "left"
+                borderColor: active ? "#60a5fa" : "var(--ui-border)",
+                background: active ? "rgba(96,165,250,0.14)" : "rgba(255,255,255,0.03)",
+                boxShadow: active ? "0 0 24px rgba(96,165,250,0.35)" : "none",
+                textAlign: "left",
+                color: "var(--text-primary)",
+                backdropFilter: "blur(4px)"
               }}
               aria-pressed={active}
             >

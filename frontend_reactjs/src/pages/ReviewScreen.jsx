@@ -38,7 +38,12 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
   // Build a simple key:value list for quick review to keep UX simple and free of overlays/prompts.
   const kvList = useMemo(() => {
     const templateData = data?.templateData || {};
-    return (normalizedFields || []).map((f) => {
+    const filtered = (normalizedFields || []).filter((f) => {
+      const lbl = String(f.label || f.key || "").toLowerCase().trim();
+      if (lbl === "work order parameters") return false;
+      return !(lbl.includes("work order") || lbl.includes("work_order"));
+    });
+    return filtered.map((f) => {
       const rawVal = resolveValueByKey(templateData, f.key);
       return { key: f.key, label: f.label || f.key, value: formatValue(rawVal) };
     });
@@ -78,7 +83,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
           <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
 
           <div style={{ borderTop: "1px solid #eee", marginTop: 12, paddingTop: 8 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Your Entries</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>All Entered Fields</div>
             <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", rowGap: 6, columnGap: 8 }}>
               {(kvList || []).map((row, i) => (
                 <React.Fragment key={i}>
