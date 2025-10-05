@@ -672,25 +672,37 @@ function buildAuthorization({ meta = {}, templateData = {} }) {
  * Build page header with logo in top-left
  */
 function buildHeader({ meta = {}, templateData = {} }) {
-  const logo = get(meta, "logoUrl") || get(templateData, "logo") || "";
+  const rawLogo = get(meta, "logoUrl") || get(templateData, "logo") || "";
   const headerChildren = [];
-  // Only embed if the logo is a data URL we can convert to bytes; otherwise gracefully skip
-  if (logo && typeof logo === "string" && /^data:image\//.test(logo)) {
+
+  const makeImagePara = (bytes) =>
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 80 },
+      children: [
+        new ImageRun({
+          data: bytes,
+          transformation: { width: 120, height: 48 }, // ~1.25" x 0.5"
+        }),
+      ],
+    });
+
+  async function resolveLogoBytesSyncish(url) {
+    // Synchronous path for data URLs
+    if (url && typeof url === "string" && /^data:image\//.test(url)) {
+      try { return dataUrlToBytes(url); } catch { return null; }
+    }
+    // We cannot do async fetch here inside header build (docx APIs expect sync).
+    // So skip non-data URLs; upstream callers should ensure meta.logoUrl is a data URL when possible.
+    return null;
+  }
+
+  const bytes = resolveLogoBytesSyncish(rawLogo);
+  if (bytes) {
     try {
-      headerChildren.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 80 },
-          children: [
-            new ImageRun({
-              data: dataUrlToBytes(logo),
-              transformation: { width: 120, height: 48 }, // ~1.25" x 0.5"
-            }),
-          ],
-        })
-      );
+      headerChildren.push(makeImagePara(bytes));
     } catch {
-      // ignore bad logo
+      // ignore
     }
   }
   return new Header({ children: headerChildren });
@@ -708,6 +720,31 @@ export async function buildSowDocx(data, templateSchema) {
 
   // Top titles and intro paragraph
   children.push(...buildTopIntro({ meta, templateData }));
+
+  // Preamble paragraph with runtime values replacing placeholders
+  // Uses Start Date, End Date, and Supplier (Supplier Name) only in this paragraph,
+  // and ensures these are NOT included as fields in the "All Entered Fields" section below.
+  {
+    const supplierName =
+      cleanValue(
+        get(templateData, "supplier_name") ||
+          get(templateData, "address_block.address_supplier_name") ||
+          get(templateData, "address_supplier_name") ||
+          get(meta, "supplier") ||
+          ""
+      ) || "Supplier";
+
+    const startDate = formatDate(
+      get(templateData, "start_date") || get(templateData, "agreement_start_date") || ""
+    );
+    const endDate = formatDate(get(templateData, "end_date") || "");
+
+    const preambleSentence =
+      `This Statement of Work is entered into by and between the Supplier, ${supplierName}, for the period ` +
+      `${startDate || "Start Date"} to ${endDate || "End Date"}, and is governed by the Master Services Agreement.`;
+
+    children.push(para(preambleSentence, { size: 21, after: 200 }));
+  }
 
   // Work Order Parameters removed (excluded from generation per requirements)
 
@@ -824,9 +861,37 @@ export async function buildSowDocx(data, templateSchema) {
         if (lbl.includes("work order") || lbl.includes("work_order")) return false;
         return true;
       });
-      const rows = filteredRows.map(({ label, value }) =>
-        new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
-      );
+      const rows = filteredRows.map(({ label, value }) => {
+        const lblLower = String(label || "").toLowerCase().trim();
+
+        // Exclude fields 'Statement of Work', 'To', 'Master Service Agreement' from All Entered Fields
+        if (
+          lblLower === "statement of work" ||
+          lblLower === "statement of work (t&m)" ||
+          lblLower === "to" ||
+          lblLower === "master services agreement" ||
+          lblLower === "[add logo here]" // also omit transcript placeholder if present
+        ) {
+          return null;
+        }
+
+        // Ensure signature image appears after the Signature label cell
+        // If this row is a signature and the value is a data URL, render the image in the value cell.
+        const isSignatureRow = lblLower.includes("signature") && typeof value === "string";
+        if (isSignatureRow && /^data:image\//.test(value)) {
+          const imgBytes = (() => {
+            try { return dataUrlToBytes(value); } catch { return null; }
+          })();
+          const valueChildren = imgBytes
+            ? [new Paragraph({ children: [new ImageRun({ data: imgBytes, transformation: { width: 220, height: 77 } })] })]
+            : toParagraphs(value || "");
+          return new TableRow({
+            children: [labelCell(label, L), makeCell(valueChildren, { widthPct: V })],
+          });
+        }
+
+        return new TableRow({ children: [labelCell(label, L), valueCell(value, V)] });
+      }).filter(Boolean);
       const t = tableFullWidth(rows);
       if (t) children.push(t);
       else if (isDev) {

@@ -151,9 +151,16 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     const shouldOmit = (label) => {
       const lbl = String(label || "").toLowerCase().trim();
       if (!lbl) return false;
+      // Remove general non-All-Fields labels
       if (lbl === "description") return true;
       if (lbl.includes("point of contact")) return true;
       if (lbl === "work order parameters") return true;
+
+      // Explicitly remove the three fields as per requirement from the form UI
+      if (lbl === "statement of work" || lbl === "statement of work (t&m)") return true;
+      if (lbl === "to") return true;
+      if (lbl === "master services agreement") return true;
+      if (lbl === "[add logo here]") return true; // transcript placeholder
       return false;
     };
 
