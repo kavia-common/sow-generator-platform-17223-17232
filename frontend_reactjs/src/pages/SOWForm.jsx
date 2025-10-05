@@ -17,7 +17,15 @@ import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
 export default function SOWForm({ value, onChange, selectedTemplate, templateSchema }) {
   const [data, setData] = useState(
     value || {
-      meta: { logoUrl: "", logoName: "", signaturePreview: {}, signatureNames: {} },
+      meta: {
+        logoUrl: "",
+        logoName: "",
+        logoFile: null,
+        signaturePreview: {},
+        signatureNames: {},
+        signatureFiles: {},
+        fileErrors: {}, // { logo?: string, [signatureKey]: string }
+      },
       templateMeta: value?.templateMeta || null,
       templateData: value?.templateData || {}
     }
@@ -33,18 +41,28 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  // Cleanup object URLs on unmount and on change
+  const objectUrlsRef = useRef(new Set());
+  useEffect(() => {
+    return () => {
+      objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      objectUrlsRef.current.clear();
+    };
+  }, []);
+
   // Sync down from parent when value reference changes
   const lastValueRef = useRef(value);
   useEffect(() => {
     if (value && value !== lastValueRef.current) {
       lastValueRef.current = value;
-      // ensure meta sub-shape for new signature fields
       setData({
         ...value,
         meta: {
           ...(value.meta || {}),
           signaturePreview: value.meta?.signaturePreview || {},
-          signatureNames: value.meta?.signatureNames || {}
+          signatureNames: value.meta?.signatureNames || {},
+          signatureFiles: value.meta?.signatureFiles || {},
+          fileErrors: value.meta?.fileErrors || {}
         }
       });
     }
@@ -76,7 +94,6 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   }, [sectionsRaw]);
 
   // Build single-source field configuration for two-column renderer
-  // This flattens objects and removes duplicate generic labels by scoping with parent label.
   const fieldConfig = useMemo(() => {
     const cfg = [];
     (sections || []).forEach((sec) => {
@@ -85,7 +102,6 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       }
       (sec.fields || []).forEach((f) => {
         if (f.type === "object" && Array.isArray(f.properties)) {
-          // Flatten object properties with qualified labels
           f.properties.forEach((p) => {
             cfg.push({
               kind: "field",
@@ -106,7 +122,6 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         }
       });
     });
-    // Ensure uniqueness by key (avoid duplicates on re-render)
     const seen = new Set();
     return cfg.filter((c) => {
       if (c.kind === "section") return true;
@@ -149,53 +164,195 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     });
   };
 
-  // Logo upload (meta) — proper file input and preview URL
-  const logoInputRef = useRef(null);
-  const onLogoPick = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const localUrl = URL.createObjectURL(file);
-    setData((prev) => ({
-      ...prev,
-      meta: { ...(prev.meta || {}), logoUrl: localUrl, logoName: file.name, logoFile: file }
-    }));
-  };
-
-  const logoPreview = useMemo(() => {
-    const url = data?.meta?.logoUrl;
-    if (!url) return null;
-    return (
-      <img
-        alt="Company logo"
-        src={url}
-        style={{ maxHeight: 56, maxWidth: 180, borderRadius: 8, border: "1px solid var(--ui-border)" }}
-      />
-    );
-  }, [data?.meta?.logoUrl]);
-
-  // Signature upload(s) — handle fields of type 'signature'
-  const signatureInputRefs = useRef({});
-  const onSignaturePick = (fieldKey) => (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const localUrl = URL.createObjectURL(file);
+  // Centralized file handler
+  // PUBLIC_INTERFACE
+  async function handleFile(e, kindKey) {
+    /** Handle logo or signature file selection/drop:
+     * - Read first file
+     * - Validate image type
+     * - Create preview URL and store File + preview
+     * - Revoke old URLs to avoid leaks
+     */
+    const file = e?.target?.files?.[0] || e?.dataTransfer?.files?.[0] || null;
     setData((prev) => {
       const next = structuredClone(prev || {});
+      // clear error for this kindKey
       next.meta = next.meta || {};
-      next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [fieldKey]: localUrl };
-      next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [fieldKey]: file.name };
-      // store the actual File in templateData under corresponding key so submission payload can carry it
-      if (!next.templateData) next.templateData = {};
-      setByKey(next.templateData, fieldKey, file);
+      next.meta.fileErrors = { ...(next.meta.fileErrors || {}), [kindKey]: "" };
+      // If nothing selected, clear state for that key
+      if (!file) {
+        if (kindKey === "logo") {
+          // Revoke old URL if any
+          if (next.meta.logoUrl && next.meta.logoUrl.startsWith("blob:")) {
+            try {
+              URL.revokeObjectURL(next.meta.logoUrl);
+            } catch {}
+          }
+          next.meta.logoUrl = "";
+          next.meta.logoName = "";
+          next.meta.logoFile = null;
+        } else {
+          // signature key is dotted or direct
+          const sigKey = kindKey;
+          const prevUrl = next.meta.signaturePreview?.[sigKey];
+          if (prevUrl && String(prevUrl).startsWith("blob:")) {
+            try {
+              URL.revokeObjectURL(prevUrl);
+            } catch {}
+          }
+          next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [sigKey]: "" };
+          next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [sigKey]: "" };
+          next.meta.signatureFiles = { ...(next.meta.signatureFiles || {}), [sigKey]: null };
+          if (!next.templateData) next.templateData = {};
+          setByKey(next.templateData, sigKey, null);
+        }
+        return next;
+      }
+
+      // Validate type
+      const type = (file.type || "").toLowerCase();
+      if (!type.startsWith("image/")) {
+        next.meta.fileErrors = {
+          ...(next.meta.fileErrors || {}),
+          [kindKey]: "Please select a valid image file."
+        };
+        return next;
+      }
+
+      // Create URL and persist
+      const objUrl = URL.createObjectURL(file);
+      objectUrlsRef.current.add(objUrl);
+
+      if (kindKey === "logo") {
+        // Revoke old if switching
+        if (next.meta.logoUrl && next.meta.logoUrl.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(next.meta.logoUrl);
+          } catch {}
+        }
+        next.meta.logoUrl = objUrl;
+        next.meta.logoName = file.name;
+        next.meta.logoFile = file;
+      } else {
+        const sigKey = kindKey;
+        const prevUrl = next.meta.signaturePreview?.[sigKey];
+        if (prevUrl && String(prevUrl).startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(prevUrl);
+          } catch {}
+        }
+        next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [sigKey]: objUrl };
+        next.meta.signatureNames = { ...(next.meta.signatureNames || {}), [sigKey]: file.name };
+        next.meta.signatureFiles = { ...(next.meta.signatureFiles || {}), [sigKey]: file };
+        if (!next.templateData) next.templateData = {};
+        setByKey(next.templateData, sigKey, file);
+      }
       return next;
     });
-  };
+  }
+
+  // Optional Supabase storage upload on submit/save
+  async function uploadAssetsIfConfigured(userId) {
+    const url = process.env.REACT_APP_SUPABASE_URL;
+    const key = process.env.REACT_APP_SUPABASE_KEY;
+    if (!url || !key) return { logoPublicUrl: null, signaturePublicUrls: {} }; // preview-only mode
+
+    // Lazy import our client which wraps createClient (already in repo)
+    const { supabase } = await import("../supabaseClient.js");
+    const bucket = "assets";
+    const signaturePublicUrls = {};
+    let logoPublicUrl = null;
+
+    // Ensure bucket exists (ignore error if exists)
+    try {
+      await supabase.storage.createBucket(bucket, { public: true });
+    } catch {
+      // ignore
+    }
+
+    // Helper: upload a File and return public URL
+    async function putAndGetPublicUrl(file, path) {
+      const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: true
+      });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      return data?.publicUrl || null;
+    }
+
+    const uid = userId || "anon";
+    const now = Date.now();
+
+    // Upload logo if present
+    const logoFile = data?.meta?.logoFile;
+    if (logoFile) {
+      try {
+        const path = `${uid}/${now}_logo_${logoFile.name}`;
+        logoPublicUrl = await putAndGetPublicUrl(logoFile, path);
+      } catch (e) {
+        setData((prev) => {
+          const next = structuredClone(prev || {});
+          next.meta = next.meta || {};
+          next.meta.fileErrors = { ...(next.meta.fileErrors || {}), logo: "Logo upload failed. You can proceed without upload." };
+          return next;
+        });
+      }
+    }
+
+    // Upload signatures if present
+    const sigFiles = data?.meta?.signatureFiles || {};
+    const keys = Object.keys(sigFiles || {});
+    for (const k of keys) {
+      const f = sigFiles[k];
+      if (!f) continue;
+      try {
+        const path = `${uid}/${now}_${k.replaceAll(".", "_")}_${f.name}`;
+        const publicUrl = await putAndGetPublicUrl(f, path);
+        signaturePublicUrls[k] = publicUrl;
+      } catch (e) {
+        setData((prev) => {
+          const next = structuredClone(prev || {});
+          next.meta = next.meta || {};
+          next.meta.fileErrors = { ...(next.meta.fileErrors || {}), [k]: "Upload failed. You can proceed without upload." };
+          return next;
+        });
+      }
+    }
+
+    return { logoPublicUrl, signaturePublicUrls };
+  }
+
+  // Drag and drop prevention at container level
+  const brandingDropRef = useRef(null);
+  useEffect(() => {
+    const el = brandingDropRef.current;
+    if (!el) return;
+    const prevent = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+    };
+    const onDrop = (ev) => {
+      prevent(ev);
+      if (ev.dataTransfer?.files?.length) {
+        handleFile(ev, "logo");
+      }
+    };
+    el.addEventListener("dragover", prevent);
+    el.addEventListener("dragenter", prevent);
+    el.addEventListener("drop", onDrop);
+    return () => {
+      el.removeEventListener("dragover", prevent);
+      el.removeEventListener("dragenter", prevent);
+      el.removeEventListener("drop", onDrop);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandingDropRef.current]);
 
   // Basic required validation (skip work order, which is filtered out)
   const [errors, setErrors] = useState({});
   const validate = () => {
     const err = {};
-    // Example required keys — can be extended based on template
     const requiredKeys = ["client_name", "supplier_name", "scope_of_work"];
     requiredKeys.forEach((k) => {
       const val = getValue(data?.templateData, k);
@@ -207,7 +364,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
 
   // Renderer
   return (
-    <div className="panel">
+    <div className="panel sow-form">
       <div className="panel-title">SOW Form</div>
 
       {/* Meta: Logo upload (outside of two-column table) */}
@@ -217,18 +374,40 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           <div className="sow-cell sow-label">
             <label htmlFor="logo-upload-input">Logo Upload</label>
           </div>
-          <div className="sow-cell sow-input" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <button className="btn" type="button" onClick={() => logoInputRef.current?.click()}>Choose Logo</button>
+          <div
+            ref={brandingDropRef}
+            className="sow-cell sow-input file-input"
+            style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFile(e, "logo"); }}
+          >
+            <button
+              className="btn"
+              type="button"
+              onClick={() => document.getElementById("logo-upload-input")?.click()}
+            >
+              Choose Logo
+            </button>
             <input
               id="logo-upload-input"
-              ref={logoInputRef}
               type="file"
               accept="image/*"
-              onChange={onLogoPick}
+              onChange={(e) => handleFile(e, "logo")}
               style={{ display: "none" }}
+              aria-invalid={!!data?.meta?.fileErrors?.logo}
+              aria-describedby={data?.meta?.fileErrors?.logo ? "err-logo" : undefined}
             />
             <div style={{ color: "var(--text-secondary)" }}>{data?.meta?.logoName || "No file selected"}</div>
-            {logoPreview}
+            {data?.meta?.logoUrl ? (
+              <img
+                alt="Company logo"
+                src={data.meta.logoUrl}
+                style={{ maxHeight: 80, maxWidth: 180, borderRadius: 8, border: "1px solid var(--ui-border)" }}
+              />
+            ) : null}
+            {data?.meta?.fileErrors?.logo ? (
+              <div id="err-logo" className="field-error" role="alert">{data.meta.fileErrors.logo}</div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -259,23 +438,27 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
                 </div>
                 <div className="sow-cell sow-input">
                   {entry.type === "signature" ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <div className="file-input" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+                      onDragOver={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
+                      onDrop={(e)=>{ e.preventDefault(); e.stopPropagation(); handleFile(e, entry.key); }}
+                    >
                       <button
                         className="btn"
                         type="button"
-                        onClick={() => signatureInputRefs.current[entry.key]?.click()}
+                        onClick={() => document.getElementById(`f-${entry.key}`)?.click()}
                       >
                         Choose Signature
                       </button>
                       <input
                         id={`f-${entry.key}`}
-                        ref={(el) => (signatureInputRefs.current[entry.key] = el)}
                         type="file"
                         accept="image/*"
-                        onChange={onSignaturePick(entry.key)}
+                        onChange={(e) => handleFile(e, entry.key)}
                         style={{ display: "none" }}
-                        aria-invalid={!!errorMsg}
-                        aria-describedby={errorMsg ? `err-${entry.key}` : undefined}
+                        aria-invalid={!!data?.meta?.fileErrors?.[entry.key] || !!errorMsg}
+                        aria-describedby={
+                          data?.meta?.fileErrors?.[entry.key] ? `err-${entry.key}-file` : (errorMsg ? `err-${entry.key}` : undefined)
+                        }
                       />
                       <div style={{ color: "var(--text-secondary)" }}>
                         {data?.meta?.signatureNames?.[entry.key] || "No file selected"}
@@ -284,8 +467,13 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
                         <img
                           alt={`${entry.name} preview`}
                           src={data.meta.signaturePreview[entry.key]}
-                          style={{ maxHeight: 56, maxWidth: 180, borderRadius: 8, border: "1px solid var(--ui-border)" }}
+                          style={{ maxHeight: 80, maxWidth: 180, borderRadius: 8, border: "1px solid var(--ui-border)" }}
                         />
+                      ) : null}
+                      {data?.meta?.fileErrors?.[entry.key] ? (
+                        <div id={`err-${entry.key}-file`} className="field-error" role="alert">
+                          {data.meta.fileErrors[entry.key]}
+                        </div>
                       ) : null}
                     </div>
                   ) : (
@@ -306,11 +494,64 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
         <button
+          className="btn"
+          type="button"
+          onClick={async () => {
+            // Runs validation and optionally uploads to Supabase. Non-blocking on upload errors.
+            if (!validate()) return;
+            // Optional: replace local preview URLs with public URLs if available
+            const { logoPublicUrl, signaturePublicUrls } = await uploadAssetsIfConfigured(data?.meta?.userId);
+            if (logoPublicUrl) {
+              setData((prev) => {
+                const next = structuredClone(prev || {});
+                next.meta = next.meta || {};
+                next.meta.logoUrl = logoPublicUrl; // keep public URL
+                return next;
+              });
+            }
+            if (signaturePublicUrls && Object.keys(signaturePublicUrls).length > 0) {
+              setData((prev) => {
+                const next = structuredClone(prev || {});
+                Object.entries(signaturePublicUrls).forEach(([k, url]) => {
+                  if (!next.templateData) next.templateData = {};
+                  setByKey(next.templateData, k, url); // store URL instead of File for downstream usage
+                  next.meta = next.meta || {};
+                  next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [k]: url };
+                });
+                return next;
+              });
+            }
+            // Dispatch save event (other parts of app might listen)
+            const evt = new CustomEvent("sow:save", { detail: { source: "SOWForm" } });
+            window.dispatchEvent(evt);
+          }}
+          title="Save form data"
+        >
+          Save
+        </button>
+        <button
           className="btn btn-primary"
           type="button"
-          onClick={() => {
-            // run validation before dispatching generate
+          onClick={async () => {
             if (!validate()) return;
+            // On submit/generate, attempt upload if configured but do not block generation if it fails.
+            const { logoPublicUrl, signaturePublicUrls } = await uploadAssetsIfConfigured(data?.meta?.userId);
+            if (logoPublicUrl || (signaturePublicUrls && Object.keys(signaturePublicUrls).length)) {
+              setData((prev) => {
+                const next = structuredClone(prev || {});
+                if (logoPublicUrl) {
+                  next.meta = next.meta || {};
+                  next.meta.logoUrl = logoPublicUrl;
+                }
+                Object.entries(signaturePublicUrls || {}).forEach(([k, url]) => {
+                  if (!next.templateData) next.templateData = {};
+                  setByKey(next.templateData, k, url);
+                  next.meta = next.meta || {};
+                  next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [k]: url };
+                });
+                return next;
+              });
+            }
             const evt = new CustomEvent("sow:request-generate-docx", { detail: { source: "SOWForm" } });
             window.dispatchEvent(evt);
           }}
@@ -414,7 +655,7 @@ function setByKey(root, dottedKey, v) {
   if (!String(dottedKey).includes(".")) {
     root[dottedKey] = v;
     return;
-    }
+  }
   const parts = String(dottedKey).split(".");
   setPath(root, parts, v);
 }

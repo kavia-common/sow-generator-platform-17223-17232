@@ -176,6 +176,18 @@ body {
   color: #EF4444; /* Ocean Professional error */
 }
 
+/* Scoped file input helpers for SOW form to preserve theme without globals */
+.sow-form .file-input img{
+  max-height: 80px;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+}
+.sow-form .file-input{
+  /* keep spacing consistent with existing theme */
+  padding-block: 6px;
+}
+
 /* Section header spanning both columns */
 .sow-section{
   grid-column: 1 / -1;
