@@ -94,10 +94,17 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   const sectionsRaw = activeParsed?.sections || [];
   // normalize and filter out work order
   const sections = useMemo(() => {
-    return (sectionsRaw || []).map((sec) => ({
-      ...sec,
-      fields: filterOutWorkOrder(sec.fields || [])
-    }));
+    return (sectionsRaw || []).map((sec) => {
+      const secLabel = String(sec.section || "").toLowerCase().trim();
+      // Ensure entire section titled exactly "Work Order Parameters" is excluded as well
+      if (secLabel === "work order parameters") {
+        return { ...sec, fields: [] };
+      }
+      return {
+        ...sec,
+        fields: filterOutWorkOrder(sec.fields || [])
+      };
+    });
   }, [sectionsRaw]);
 
   // Build single-source field configuration for two-column renderer

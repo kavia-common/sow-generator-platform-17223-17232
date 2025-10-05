@@ -61,7 +61,12 @@ export function scaffoldSOWFromTemplate(currentSOW, templateSchema) {
   if (!base.templateData) base.templateData = {};
 
   // Create empty structures for required fields if missing
-  (templateSchema.fields || []).forEach((f) => {
+  (templateSchema.fields || []).filter((f) => {
+    const lbl = String(f.label || f.key || "").toLowerCase().trim();
+    if (lbl === "work order parameters") return false;
+    if (lbl.includes("work order") || lbl.includes("work_order")) return false;
+    return true;
+  }).forEach((f) => {
     if (f.type === "object") {
       if (!base.templateData[f.key]) base.templateData[f.key] = {};
       (f.properties || []).forEach((p) => {

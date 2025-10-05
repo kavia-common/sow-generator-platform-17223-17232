@@ -290,78 +290,9 @@ function buildTopIntro({ meta = {}, templateData = {} }) {
 }
 
 /**
- * Build Work Order Parameters table (header + rows 1..7)
+ * Intentionally removed Work Order Parameters table per requirement.
+ * Any former parameters will be reflected only through their specific sections/tables.
  */
-function buildParametersTable({ templateData = {} }) {
-  const rows = [];
-
-  // Header spanning two columns
-  rows.push(
-    new TableRow({
-      children: [
-        new TableCell({
-          children: [para("Work Order Parameters", { bold: true, size: 22, after: 40 })],
-          columnSpan: 2,
-        }),
-      ],
-    })
-  );
-
-  const L = 38; // label width %
-  const V = 62; // value width %
-
-  const safePush = (row) => rows.push(row);
-
-  const valueFor = (keys) => {
-    const list = Array.isArray(keys) ? keys : [keys];
-    for (const k of list) {
-      const v = get(templateData, k);
-      if (v != null && String(v).length > 0) return v;
-    }
-    return "";
-  };
-
-  safePush(
-    new TableRow({
-      children: [labelCell("1. Client Portfolio", L), valueCell(valueFor(["client_portfolio"]), V)],
-    })
-  );
-  safePush(
-    new TableRow({
-      children: [labelCell("2. Type of Project", L), valueCell(valueFor(["project_type","type_of_project"]), V)],
-    })
-  );
-  safePush(
-    new TableRow({
-      children: [
-        labelCell("3. Engagement Number (Required for Fixed Price)", L),
-        valueCell(valueFor(["engagement_number"]), V),
-      ],
-    })
-  );
-  safePush(
-    new TableRow({
-      children: [labelCell("4. Project Start Date", L), valueCell(formatDate(valueFor(["start_date","project_duration.start_date","agreement_start_date"])), V)],
-    })
-  );
-  safePush(
-    new TableRow({
-      children: [labelCell("5. Project End Date", L), valueCell(formatDate(valueFor(["end_date","project_duration.end_date"])), V)],
-    })
-  );
-  safePush(
-    new TableRow({
-      children: [labelCell("6. Planning Assumptions", L), valueCell(valueFor(["planning_assumptions","project_schedule_and_milestones","schedule_milestones"]), V)],
-    })
-  );
-  safePush(
-    new TableRow({
-      children: [labelCell("7. Scope of Work (Required for Fixed Price)", L), valueCell(valueFor(["scope_of_work","scope_description"]), V)],
-    })
-  );
-
-  return tableFullWidth(rows);
-}
 
 /**
  * Two-column tables: Supplier Deliverables, Client Deliverables
@@ -745,8 +676,7 @@ export async function buildSowDocx(data, templateSchema) {
   // Top titles and intro paragraph
   children.push(...buildTopIntro({ meta, templateData }));
 
-  // Work Order Parameters table
-  children.push(buildParametersTable({ templateData }));
+  // Work Order Parameters removed (excluded from generation per requirements)
 
   // Supplier Deliverables
   const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
@@ -786,7 +716,13 @@ export async function buildSowDocx(data, templateSchema) {
       // Build a Q/A table in the same order as schema
       const L = 38;
       const V = 62;
-      const rows = allRows.map(({ label, value }) =>
+      const filteredRows = allRows.filter(({ label }) => {
+        const lbl = String(label || "").toLowerCase().trim();
+        if (lbl === "work order parameters") return false;
+        if (lbl.includes("work order") || lbl.includes("work_order")) return false;
+        return true;
+      });
+      const rows = filteredRows.map(({ label, value }) =>
         new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
       );
       children.push(tableFullWidth(rows));

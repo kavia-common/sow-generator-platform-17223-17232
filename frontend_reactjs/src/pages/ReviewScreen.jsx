@@ -40,8 +40,10 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
     const templateData = data?.templateData || {};
     const filtered = (normalizedFields || []).filter((f) => {
       const lbl = String(f.label || f.key || "").toLowerCase().trim();
+      // Ensure both section title and any fields containing this phrase are removed
       if (lbl === "work order parameters") return false;
-      return !(lbl.includes("work order") || lbl.includes("work_order"));
+      if (lbl.includes("work order") || lbl.includes("work_order")) return false;
+      return true;
     });
     return filtered.map((f) => {
       const rawVal = resolveValueByKey(templateData, f.key);
