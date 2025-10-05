@@ -1,76 +1,88 @@
 .sow-form.sow-dark {
-  /* Previous black theme tokens (scoped) */
-  --sow-bg: #121212;
-  --sow-bg-panel: #0f0f13;
-  --sow-surface: #151515;
-  --sow-surface-2: #1a1a1a;
-  --sow-text: #ffffff;
-  --sow-text-secondary: #e5e7eb;
-  --sow-muted: #9aa0a6;
-  --sow-border: #333333;
-  --sow-border-strong: #444444;
-  --sow-input-bg: #0f0f13;
-  --sow-input-bg-hover: #141419;
-  --sow-input-border: #3a3a3a;
-  --sow-input-focus: #60a5fa; /* accessible focus (blue-400) */
-  --sow-accent-1: #60a5fa; /* subtle single accent for headers/primary */
-  --sow-accent-2: #60a5fa; /* same to avoid pastel gradients */
-  --sow-glow: 0 0 0 rgba(0,0,0,0);
+  /* Tuned black theme tokens (scoped) for WCAG AA contrast */
+  --sow-bg: #0b0b0b;                 /* slightly darker base for stronger contrast */
+  --sow-bg-panel: #101014;
+  --sow-surface: #121212;            /* surfaces slightly lighter than bg for separation */
+  --sow-surface-2: #161616;
+  --sow-text: #f5f7fa;               /* near-white to avoid halation (#fff can bloom) */
+  --sow-text-secondary: #cfd6df;     /* 4.5:1+ on dark bg */
+  --sow-muted: #9aa3ad;              /* helper text */
+  --sow-border: #2a2f36;             /* clearer than #333 on very dark */
+  --sow-border-strong: #3a4048;      /* used for section/table outlines */
+  --sow-input-bg: #0f1115;           /* input base */
+  --sow-input-bg-hover: #141821;     /* hover raises luminance a notch */
+  --sow-input-border: #3a4048;       /* 3:1 against input-bg for edge clarity */
+  --sow-input-focus: #60a5fa;        /* accessible focus (blue-400) */
+  --sow-accent-1: #60a5fa;           /* single accent only */
+  --sow-accent-2: #60a5fa;
+  --sow-danger: #f87171;
+  --sow-success: #34d399;
+  --sow-warning: #f59e0b;
 
   color: var(--sow-text);
   background: var(--sow-bg);
-  border: 1px solid var(--sow-border);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  border: 1px solid var(--sow-border-strong);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.55);
 }
 
 /* Panel header inside dark form */
 .sow-form.sow-dark .panel-title {
   color: var(--sow-text);
   border-left: 4px solid var(--sow-accent-1);
+  padding-left: 10px;
+  line-height: 1.3;
 }
 
 /* Section headers spanning two columns */
 .sow-form.sow-dark .sow-section{
   grid-column: 1 / -1;
-  border: 1px solid var(--sow-border);
-  background: #161616;
-  padding: 10px 12px;
+  border: 1px solid var(--sow-border-strong);
+  background: #15171b;
+  padding: 12px 14px;
   font-weight: 800;
   font-size: 13px;
   color: var(--sow-text);
   border-left: 3px solid var(--sow-accent-1);
+  letter-spacing: .2px;
 }
 
-/* Table grid */
+/* Table grid: preserve strict left label / right input */
 .sow-form.sow-dark .sow-table{
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 0;
-  border: 0;
+  border: 1px solid var(--sow-border-strong);
+  border-top: 0;
+  border-left: 0;
 }
 
 /* Rows/cells */
 .sow-form.sow-dark .sow-row{ display: contents; }
+
 .sow-form.sow-dark .sow-cell{
   border: 1px solid var(--sow-border);
   background: var(--sow-surface);
-  padding: 10px 12px;
+  padding: 12px 12px;
   min-height: 44px;
 }
+
 .sow-form.sow-dark .sow-label{
   font-size: 13px;
   font-weight: 600;
   color: var(--sow-text);
   align-self: start;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   background: var(--sow-surface-2);
+  /* ensure neat alignment on left column */
+  border-right: 1px solid var(--sow-border-strong);
 }
+
 .sow-form.sow-dark .sow-input{
   align-self: stretch;
 }
 
-/* Inputs */
+/* Inputs: default, hover, focus with visible focus ring */
 .sow-form.sow-dark .input,
 .sow-form.sow-dark .select,
 .sow-form.sow-dark .textarea{
@@ -78,70 +90,101 @@
   background: var(--sow-input-bg);
   color: var(--sow-text);
   border: 1px solid var(--sow-input-border);
-  border-radius: var(--radius-input, 14px);
+  border-radius: 10px;
   padding: 10px 12px;
   outline: none;
-  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease;
 }
+
+.sow-form.sow-dark .input::placeholder,
+.sow-form.sow-dark .textarea::placeholder{
+  color: #9aa3ad; /* muted but >=4.5:1 on input bg */
+  opacity: 1;
+}
+
 .sow-form.sow-dark .input:hover,
 .sow-form.sow-dark .select:hover,
 .sow-form.sow-dark .textarea:hover{
   background: var(--sow-input-bg-hover);
+  border-color: #4b5563; /* a bit stronger on hover for clarity */
 }
+
 .sow-form.sow-dark .input:focus,
 .sow-form.sow-dark .select:focus,
 .sow-form.sow-dark .textarea:focus{
   border-color: var(--sow-input-focus);
-  box-shadow: 0 0 0 3px rgba(96,165,250,0.25);
+  box-shadow: 0 0 0 3px rgba(96,165,250,0.35);
 }
+
+/* Increase textarea min height for readability */
 .sow-form.sow-dark .textarea,
 .sow-form.sow-dark .textarea.sow-textarea{
-  min-height: 96px;
+  min-height: 112px;
   resize: vertical;
+}
+
+/* Native checkbox alignment and focus styles */
+.sow-form.sow-dark input[type="checkbox"]{
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sow-accent-1);
+}
+.sow-form.sow-dark input[type="checkbox"]:focus-visible{
+  outline: 2px solid var(--sow-input-focus);
+  outline-offset: 2px;
 }
 
 /* Buttons in context */
 .sow-form.sow-dark .btn{
   border-radius: 999px;
-  border: 1px solid var(--sow-border);
+  border: 1px solid var(--sow-border-strong);
   cursor: pointer;
   font-weight: 600;
   color: var(--sow-text);
-  background: #1b1b1b;
+  background: #1a1d22;
   padding: 10px 14px;
-  transition: all .2s ease;
+  transition: background .2s ease, border-color .2s ease, transform .06s ease;
 }
-.sow-form.sow-dark .btn:hover { background: #222222; }
-.sow-form.sow-dark .btn:focus-visible { outline: 2px solid var(--sow-input-focus); outline-offset: 2px; }
+.sow-form.sow-dark .btn:hover {
+  background: #232830;
+  border-color: #556070;
+}
+.sow-form.sow-dark .btn:active{
+  transform: translateY(0.5px);
+}
+.sow-form.sow-dark .btn:focus-visible {
+  outline: 2px solid var(--sow-input-focus);
+  outline-offset: 2px;
+}
 
 .sow-form.sow-dark .btn.btn-primary{
-  background: #111111;
+  background: #0e1013;
   color: var(--sow-text);
-  border-color: var(--sow-border);
+  border-color: var(--sow-border-strong);
   box-shadow: none;
 }
 .sow-form.sow-dark .btn.btn-primary:hover{
-  background: #0e0e0e;
+  background: #0b0c10;
   transform: none;
 }
 
 /* File input previews */
 .sow-form.sow-dark .file-input{
-  padding-block: 6px;
-  background: rgba(255,255,255,0.02);
+  padding-block: 8px;
+  background: rgba(255,255,255,0.03);
   border-radius: 10px;
   outline: 1px dashed var(--sow-border);
   outline-offset: -6px;
 }
 .sow-form.sow-dark .file-input:hover{
-  background: rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.05);
 }
 .sow-form.sow-dark .file-input img{
   max-height: 80px;
   height: auto;
   width: auto;
   object-fit: contain;
-  border: 1px solid var(--sow-border);
+  border: 1px solid var(--sow-border-strong);
   border-radius: 8px;
   background: #0e0e0e;
   padding: 2px;
@@ -151,17 +194,26 @@
 .sow-form.sow-dark .field-error{
   margin-top: 6px;
   font-size: 12px;
-  color: #fca5a5;
+  color: var(--sow-danger);
 }
 
-/* Helper text */
-.sow-form.sow-dark .helper{
+/* Helper text and secondary text */
+.sow-form.sow-dark .helper,
+.sow-form.sow-dark .sow-helper,
+.sow-form.sow-dark .sow-hint{
   color: var(--sow-muted);
   font-size: 12px;
+}
+
+/* Ensure text contrast inside cells */
+.sow-form.sow-dark .sow-cell,
+.sow-form.sow-dark .sow-cell * {
+  color: inherit;
 }
 
 /* Responsive fix */
 @media (max-width: 980px){
   .sow-form.sow-dark .sow-table { grid-template-columns: 1fr; }
   .sow-form.sow-dark .sow-row { display: grid; grid-template-columns: 1fr; }
+  .sow-form.sow-dark .sow-label { border-right: 0; }
 }
