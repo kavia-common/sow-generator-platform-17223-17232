@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import tmParsed from "../templates/parsed/tm_template_parsed.json";
 import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
+/**
+ * Apply the previous black theme styling for the SOW form only.
+ * Ensure no 'elegant' or ocean pastel theme classes are used here.
+ */
 import "./SOWForm.dark.css";
 
 /**
