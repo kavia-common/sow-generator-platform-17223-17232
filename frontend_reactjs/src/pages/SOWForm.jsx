@@ -108,6 +108,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   }, [sectionsRaw]);
 
   // Build single-source field configuration for two-column renderer
+  // Apply filter to exclude fields from "Description" through "20. Point of Contact" (pre-All Entered Fields)
   const fieldConfig = useMemo(() => {
     const cfg = [];
     (sections || []).forEach((sec) => {
@@ -136,13 +137,33 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         }
       });
     });
+
+    // Deduplicate by key
     const seen = new Set();
-    return cfg.filter((c) => {
+    const deduped = cfg.filter((c) => {
       if (c.kind === "section") return true;
       if (seen.has(c.key)) return false;
       seen.add(c.key);
       return true;
     });
+
+    // Domain-specific omission prior to All Entered Fields:
+    const shouldOmit = (label) => {
+      const lbl = String(label || "").toLowerCase().trim();
+      if (!lbl) return false;
+      if (lbl === "description") return true;
+      if (lbl.includes("point of contact")) return true;
+      if (lbl === "work order parameters") return true;
+      return false;
+    };
+
+    // Keep sections; filter fields only
+    const filtered = deduped.filter((item) => {
+      if (item.kind === "section") return true;
+      return !shouldOmit(item.name);
+    });
+
+    return filtered;
   }, [sections]);
 
   // Provide bundled template URL hint

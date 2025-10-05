@@ -38,10 +38,17 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
   // Build a simple key:value list for quick review to keep UX simple and free of overlays/prompts.
   const kvList = useMemo(() => {
     const templateData = data?.templateData || {};
+    const shouldOmit = (label) => {
+      const lbl = String(label || "").toLowerCase().trim();
+      if (!lbl) return false;
+      if (lbl === "description") return true;
+      if (lbl.includes("point of contact")) return true;
+      if (lbl === "work order parameters") return true;
+      return false;
+    };
     const filtered = (normalizedFields || []).filter((f) => {
       const lbl = String(f.label || f.key || "").toLowerCase().trim();
-      // Ensure both section title and any fields containing this phrase are removed
-      if (lbl === "work order parameters") return false;
+      if (shouldOmit(lbl)) return false;
       if (lbl.includes("work order") || lbl.includes("work_order")) return false;
       return true;
     });

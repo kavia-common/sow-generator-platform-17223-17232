@@ -710,45 +710,79 @@ export async function buildSowDocx(data, templateSchema) {
 
   // Work Order Parameters removed (excluded from generation per requirements)
 
-  // Supplier Deliverables
+  // Supplier Deliverables (skip if empty)
   const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
   {
-    const t = buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables);
-    if (t) children.push(t);
-    else if (isDev) {
-      // eslint-disable-next-line no-console
-      console.warn("buildSowDocx: Supplier Deliverables table skipped (empty).");
+    const hasContent = !!String(supplierDeliverables || "").trim();
+    if (hasContent) {
+      const t = buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables);
+      if (t) children.push(t);
+      else if (isDev) {
+        // eslint-disable-next-line no-console
+        console.warn("buildSowDocx: Supplier Deliverables table skipped (empty).");
+      }
     }
   }
 
-  // Client Deliverables
+  // Client Deliverables (skip if empty)
   const clientDeliverables = get(templateData, "client_deliverables") || "";
   {
-    const t = buildTwoColDescriptionTable("Client Deliverables", clientDeliverables);
-    if (t) children.push(t);
-    else if (isDev) {
-      // eslint-disable-next-line no-console
-      console.warn("buildSowDocx: Client Deliverables table skipped (empty).");
+    const hasContent = !!String(clientDeliverables || "").trim();
+    if (hasContent) {
+      const t = buildTwoColDescriptionTable("Client Deliverables", clientDeliverables);
+      if (t) children.push(t);
+      else if (isDev) {
+        // eslint-disable-next-line no-console
+        console.warn("buildSowDocx: Client Deliverables table skipped (empty).");
+      }
     }
   }
 
-  // Milestones / Financials
+  // Milestones / Financials (skip if both sides empty)
   {
-    const t = buildMilestonesFinancials({ templateData });
-    if (t) children.push(t);
-    else if (isDev) {
-      // eslint-disable-next-line no-console
-      console.warn("buildSowDocx: Milestones/Financials table skipped (empty).");
+    const leftDesc = get(templateData, "milestones_description") || get(templateData, "milestones") || "";
+    const totalCost = get(templateData, "total_cost");
+    const pricingRate = get(templateData, "pricing_rate");
+    const hasAny =
+      String(leftDesc || "").trim().length > 0 ||
+      (totalCost != null && String(totalCost).trim().length > 0) ||
+      String(pricingRate || "").trim().length > 0;
+    if (hasAny) {
+      const t = buildMilestonesFinancials({ templateData });
+      if (t) children.push(t);
+      else if (isDev) {
+        // eslint-disable-next-line no-console
+        console.warn("buildSowDocx: Milestones/Financials table skipped (empty).");
+      }
     }
   }
 
-  // Continuation table (11..20)
+  // Continuation table (11..20) - render only if any values exist
   {
-    const t = buildContinuationTable({ templateData });
-    if (t) children.push(t);
-    else if (isDev) {
-      // eslint-disable-next-line no-console
-      console.warn("buildSowDocx: Continuation table skipped (empty).");
+    const keys = [
+      "client_relationship",
+      "negative_relationship_changes",
+      "change_payment_structure",
+      "rate_or_tnm",
+      "key_client_personnel",
+      "slas",
+      "communication_paths",
+      "service_locations",
+      "escalation_contact",
+      "poc_for_communications"
+    ];
+    const hasAny = keys.some((k) => {
+      const v = get(templateData, k);
+      if (Array.isArray(v)) return v.length > 0;
+      return v != null && String(v).trim().length > 0;
+    });
+    if (hasAny) {
+      const t = buildContinuationTable({ templateData });
+      if (t) children.push(t);
+      else if (isDev) {
+        // eslint-disable-next-line no-console
+        console.warn("buildSowDocx: Continuation table skipped (empty).");
+      }
     }
   }
 
