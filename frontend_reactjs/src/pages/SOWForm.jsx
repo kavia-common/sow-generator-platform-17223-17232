@@ -109,7 +109,11 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   }, [sectionsRaw]);
 
   // Build single-source field configuration for two-column renderer
-  // Apply filter to exclude fields from "Description" through "20. Point of Contact" (pre-All Entered Fields)
+  // Apply filter to exclude exactly the three fields highlighted in the latest screenshot:
+  // 1) "Preamble" (section label that was shown as a field in some schemas)
+  // 2) "Agreement Start Date (Local)"
+  // 3) "Company name (Client)"
+  // Preserve SowPreamble inputs (Start Date, End Date, Supplier) which are separate.
   const fieldConfig = useMemo(() => {
     const cfg = [];
     (sections || []).forEach((sec) => {
@@ -148,36 +152,22 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       return true;
     });
 
-    // Domain-specific omission: remove only the stray preamble/heading fields shown in the screenshot.
-    const shouldOmit = (label) => {
+    // Omit exactly the three UI elements from the screenshot
+    const shouldOmitByExactLabel = (label) => {
       const lbl = String(label || "").toLowerCase().trim();
       if (!lbl) return false;
-
-      // Remove the unwanted heading/preamble duplicates that appeared as fields
-      const blacklisted = [
-        "statement of work",
-        "statement of work (t&m)",
-        "to",
-        "master services agreement",
-        "agreement start date",
-        "company name",
-        "company name (client)",
-        "[add logo here]"
-      ];
-      if (blacklisted.includes(lbl)) return true;
-
-      // Also hide generic headings that shouldn't be rendered as fields
-      if (lbl === "description") return true;
-      if (lbl.includes("point of contact")) return true;
-      if (lbl === "work order parameters") return true;
-
-      return false;
+      const exactBlacklist = new Set([
+        "preamble",
+        "agreement start date (local)",
+        "company name (client)"
+      ]);
+      return exactBlacklist.has(lbl);
     };
 
     // Keep sections; filter fields only
     const filtered = deduped.filter((item) => {
       if (item.kind === "section") return true;
-      return !shouldOmit(item.name);
+      return !shouldOmitByExactLabel(item.name);
     });
 
     return filtered;
