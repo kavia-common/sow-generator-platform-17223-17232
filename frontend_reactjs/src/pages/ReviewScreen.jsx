@@ -17,10 +17,39 @@ import ReviewTable from "../components/ReviewTable.jsx";
  * - templateSchema?: object      // schema used for building DOCX (for All Entered Fields enumeration)
  */
 export default function ReviewScreen({ transcriptText, data, templateSchema }) {
-  const previewHtml = useMemo(
-    () => makeTranscriptPreviewHtml(transcriptText || ""),
-    [transcriptText]
-  );
+  const previewHtml = useMemo(() => {
+    // Build the original preview HTML
+    const html = makeTranscriptPreviewHtml(transcriptText || "");
+
+    // Remove any "Point of Contact" section/table that might be present above Work Order Parameters
+    // We do a conservative cleanup by stripping headings and adjacent table blocks containing that label.
+    try {
+      let cleaned = html;
+
+      // Remove headings that explicitly say "Point of Contact" (case-insensitive)
+      cleaned = cleaned.replace(
+        /<h[1-6][^>]*>\s*point\s*of\s*contact\s*<\/h[1-6]>/gi,
+        ""
+      );
+
+      // Remove paragraphs or strong labels that mention Point of Contact
+      cleaned = cleaned.replace(
+        /<(p|div|strong|em)[^>]*>[^<]*point\s*of\s*contact[^<]*<\/(p|div|strong|em)>/gi,
+        ""
+      );
+
+      // Remove table blocks that contain a Point of Contact label anywhere inside the table markup
+      cleaned = cleaned.replace(
+        /<table[\s\S]*?<\/table>/gi,
+        (tbl) => (tbl.match(/point\s*of\s*contact/i) ? "" : tbl)
+      );
+
+      return cleaned;
+    } catch {
+      // If anything goes wrong, fall back to original html
+      return html;
+    }
+  }, [transcriptText]);
 
   // Extract signature info from provided data with resilient fallbacks
   const td = data?.templateData || {};
