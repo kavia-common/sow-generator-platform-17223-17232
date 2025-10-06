@@ -46,6 +46,15 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       if (lbl === "work order parameters") return true;
       return false;
     };
+    const EXCLUDE_LABELS = new Set([
+      "agreement date",
+      "agreement date [start date]",
+      "company name",
+      "client",
+      "supplier",
+      "supplier name",
+      "<supplier name>",
+    ]);
     const filtered = (normalizedFields || []).filter((f) => {
       const lbl = String(f.label || f.key || "").toLowerCase().trim();
       if (shouldOmit(lbl)) return false;
@@ -57,12 +66,8 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       if (lbl === "master services agreement") return false;
       if (lbl === "add logo here" || lbl === "[add logo here]") return false;
 
-      // Preamble date/company/supplier rows
-      if (lbl.includes("agreement date")) return false;
-      if (lbl.includes("client name")) return false;
-      if (lbl.includes("company name")) return false;
-      if (lbl.includes("(client)")) return false;
-      if (lbl.includes("supplier name")) return false;
+      // Explicit exclusions to align with DOCX export "All Entered Fields"
+      if (EXCLUDE_LABELS.has(lbl)) return false;
 
       // Keep actual project Start/End Date inside later sections visible; do not blanket remove generic "start date"/"end date".
       return true;

@@ -528,7 +528,7 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
 
   const nodes = [];
 
-  // 0) Optional centered logo at the very top
+  // 0) Optional logo at the very top (aligned left to satisfy requirement if header image is absent)
   // Priority order for logo:
   // - meta.logoUrl (could be data:, blob:, http(s):, or app asset path)
   // - templateData.logo
@@ -550,7 +550,7 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
     if (loaded && loaded.data) {
       nodes.push(
         new Paragraph({
-          alignment: AlignmentType.CENTER,
+          alignment: AlignmentType.LEFT,
           spacing: { after: 160 },
           children: [
             new ImageRun({
@@ -1045,6 +1045,7 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
     if (isDev) console.warn("[sowDocxBuilder] Header logo skipped due to load error", e);
   }
   // If no image, return an empty header without any placeholder text.
+  // The top-of-document paragraph will render a left-aligned logo if available as a fallback.
   return new Header({ children: headerChildren });
 }
 
@@ -1175,14 +1176,36 @@ export async function buildSowDocx(data, templateSchema) {
       // Build a Q/A table in the same order as schema
       const L = 38;
       const V = 62;
+      // Filter out specific labels/keys from "All Entered Fields"
+      const EXCLUDE_LABELS = new Set([
+        "agreement date",
+        "agreement date [start date]",
+        "company name",
+        "client",
+        "supplier",
+        "supplier name",
+        "<supplier name>",
+      ]);
       const filteredRows = allRows.filter(({ label }) => {
-        const lbl = String(label || "").toLowerCase().trim();
+        const raw = String(label || "");
+        const lbl = raw.toLowerCase().trim();
+
+        // Existing removals
         if (lbl === "work order parameters") return false;
         if (lbl.includes("work order") || lbl.includes("work_order")) return false;
 
-        // Exclude Start/End Date from the consolidated list
+        // Explicit exclusions provided in task
+        if (EXCLUDE_LABELS.has(lbl)) return false;
+
+        // Also exclude generic start/end date so preamble remains sole source
         if (lbl === "start date" || lbl === "end date") return false;
         if (lbl.includes("agreement start date")) return false;
+
+        // Common transcript artifacts to omit
+        if (lbl === "statement of work" || lbl === "statement of work (t&m)") return false;
+        if (lbl === "to") return false;
+        if (lbl === "master services agreement") return false;
+        if (lbl === "[add logo here]" || lbl === "add logo here") return false;
 
         return true;
       });
