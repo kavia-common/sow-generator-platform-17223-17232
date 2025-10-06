@@ -149,9 +149,8 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     });
 
     // Domain-specific omission prior to All Entered Fields:
-    const shouldOmit = (label, key) => {
+    const shouldOmit = (label) => {
       const lbl = String(label || "").toLowerCase().trim();
-      const k = String(key || "").toLowerCase().trim();
       if (!lbl) return false;
       // Remove general non-All-Fields labels
       if (lbl === "description") return true;
@@ -163,38 +162,13 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       if (lbl === "to") return true;
       if (lbl === "master services agreement") return true;
       if (lbl === "[add logo here]") return true; // transcript placeholder
-
-      // Remove only duplicate/extra Preamble inputs that were introduced
-      // Keep original start_date, end_date, and supplier_name in templateData (and any meta preamble values used by SowPreamble)
-      const looksLikePreambleLabel =
-        lbl === "preamble" ||
-        lbl.includes("agreement start date") ||
-        lbl.includes("company name") ||
-        lbl.includes("supplier name") ||
-        lbl.includes("preamble start") ||
-        lbl.includes("preamble end");
-
-      const isOriginalValidKey =
-        k === "start_date" ||
-        k === "agreement_start_date" ||
-        k === "end_date" ||
-        k === "supplier_name";
-
-      // Omit if it's a preamble-like duplicate but not one of our valid keys
-      if (looksLikePreambleLabel && !isOriginalValidKey) return true;
-
       return false;
     };
 
     // Keep sections; filter fields only
     const filtered = deduped.filter((item) => {
-      if (item.kind === "section") {
-        // Remove entire duplicate 'Preamble' sections that only contain redundant inputs
-        const secLabel = String(item.label || "").toLowerCase().trim();
-        if (secLabel === "preamble") return false;
-        return true;
-      }
-      return !shouldOmit(item.name, item.key);
+      if (item.kind === "section") return true;
+      return !shouldOmit(item.name);
     });
 
     return filtered;
@@ -507,12 +481,22 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
           Statement of Work to Master Service Agreement
         </h2>
-        {/* Preamble sentence only (no inputs/labels) */}
+        {/* Preamble inputs + sentence */}
+        {/* Persist values in data.meta to survive page transitions and enable downstream usage */}
         <SowPreamble
-          startDate={data?.meta?.preambleStartDate || data?.templateData?.start_date || data?.templateData?.agreement_start_date || ''}
-          endDate={data?.meta?.preambleEndDate || data?.templateData?.end_date || ''}
-          supplier={data?.meta?.preambleSupplier || data?.templateData?.supplier_name || data?.meta?.supplier || ''}
-          showSummary={true}
+          startDate={data?.meta?.preambleStartDate || ''}
+          endDate={data?.meta?.preambleEndDate || ''}
+          supplier={data?.meta?.preambleSupplier || ''}
+          onChange={(patch) => {
+            setData((prev) => {
+              const next = structuredClone(prev || {});
+              next.meta = next.meta || {};
+              if ('startDate' in patch) next.meta.preambleStartDate = patch.startDate || '';
+              if ('endDate' in patch) next.meta.preambleEndDate = patch.endDate || '';
+              if ('supplier' in patch) next.meta.preambleSupplier = patch.supplier || '';
+              return next;
+            });
+          }}
         />
       </div>
 
