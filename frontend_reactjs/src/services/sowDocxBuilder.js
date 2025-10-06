@@ -553,7 +553,8 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
   // Logo rendering is centralized in the header only. Do not render any logo here to avoid duplicates.
   // If future components attempt to add logos in body, they should check for header presence instead.
 
-  // Titles
+  // Titles as two distinct centered lines to avoid inline concatenation.
+  // 1) Statement of Work (primary title)
   nodes.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -562,11 +563,13 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
       heading: HeadingLevel.HEADING_1,
     })
   );
+  // 2) Master Services Agreement (subtitle on its own line directly beneath)
   nodes.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 160 }, // slightly tighter to make room for preamble sentence
-      children: [new TextRun({ text: "Master Services Agreement", size: 22 })],
+      spacing: { after: 160 }, // keep tight but provide room for the preamble
+      children: [new TextRun({ text: "Master Services Agreement", bold: false, size: 22 })],
+      // no heading level to keep hierarchy clean under the H1
     })
   );
 
