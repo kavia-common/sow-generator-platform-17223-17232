@@ -156,12 +156,19 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     const shouldOmitByExactLabel = (label) => {
       const lbl = String(label || "").toLowerCase().trim();
       if (!lbl) return false;
+      // Block common variants that might surface from different templates
       const exactBlacklist = new Set([
         "preamble",
         "agreement start date (local)",
-        "company name (client)"
+        "agreement start date",
+        "statement preamble",
+        "company name (client)",
+        "client company name"
       ]);
-      return exactBlacklist.has(lbl);
+      if (exactBlacklist.has(lbl)) return true;
+      // Defensive: treat labels that are just "preamble" with surrounding chars like [preamble] as preamble too
+      if (lbl.replace(/[\[\]\(\){}]/g, "").trim() === "preamble") return true;
+      return false;
     };
 
     // Keep sections; filter fields only
