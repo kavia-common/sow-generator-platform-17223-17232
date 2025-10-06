@@ -82,40 +82,99 @@ a:hover, a:focus {
 }
 
 /* Buttons */
-/* Base button (non-primary) keeps neutral/dark styles unless specifically marked as primary) */
+/* Base button */
 button, .btn {
   border: 1px solid transparent;
   padding: 10px 14px;
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease, border-color 0.15s ease, filter 0.15s ease;
+  transition: background 0.15s ease, transform 0.05s ease, border-color 0.15s ease, filter 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Primary/CTA: use pink theme */
+/* Primary/CTA: pink theme */
 button.btn-primary, .btn.btn-primary, button.primary, .btn.primary {
   background: var(--color-primary);         /* #F472B6 */
-  color: #ffffff;                           /* ensure contrast on dark */
+  color: #0b0910;                           /* deep text for contrast on bright pink */
   border-color: transparent;
   box-shadow: 0 6px 18px rgba(244, 114, 182, 0.25);
+  font-weight: 700;
 }
 button.btn-primary:hover, .btn.btn-primary:hover,
 button.primary:hover, .btn.primary:hover {
-  background: #e966a8;                      /* slight darken for hover */
-  filter: brightness(1.02);
+  background: #e35fa3;                      /* -6% darken */
+  filter: none;
+  box-shadow: 0 8px 22px rgba(244, 114, 182, 0.32);
+}
+button.btn-primary:focus-visible, .btn.btn-primary:focus-visible,
+button.primary:focus-visible, .btn.primary:focus-visible {
+  outline: 3px solid rgba(244, 114, 182, 0.45);
+  outline-offset: 2px;
 }
 button.btn-primary:active, .btn.btn-primary:active,
 button.primary:active, .btn.primary:active {
   transform: translateY(1px);
 }
+button.btn-primary:disabled, .btn.btn-primary:disabled,
+button.primary:disabled, .btn.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
 
-/* Secondary: outlined neutral */
+/* Secondary: soft pink tint with border */
 button.secondary, .btn.secondary {
-  background: transparent;
-  color: var(--color-text);
-  border-color: var(--color-border);
+  background: rgba(244, 114, 182, 0.12);
+  color: #f6a7cf;
+  border-color: rgba(244, 114, 182, 0.35);
 }
 button.secondary:hover, .btn.secondary:hover {
-  background: var(--hover-surface);
+  background: rgba(244, 114, 182, 0.18);
+  border-color: rgba(244, 114, 182, 0.55);
+}
+button.secondary:focus-visible, .btn.secondary:focus-visible {
+  outline: 3px solid rgba(244, 114, 182, 0.35);
+  outline-offset: 2px;
+}
+button.secondary:disabled, .btn.secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Outline variant: transparent background with pink border and text */
+button.outline, .btn.outline {
+  background: transparent;
+  color: #f48fbe;
+  border-color: rgba(244, 114, 182, 0.65);
+}
+button.outline:hover, .btn.outline:hover {
+  background: rgba(244, 114, 182, 0.10);
+  border-color: rgba(244, 114, 182, 0.8);
+}
+button.outline:focus-visible, .btn.outline:focus-visible {
+  outline: 3px solid rgba(244, 114, 182, 0.35);
+  outline-offset: 2px;
+}
+button.outline:disabled, .btn.outline:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Ghost variant: text-only pink with subtle hover */
+button.ghost, .btn.ghost {
+  background: transparent;
+  color: #f48fbe;
+  border-color: transparent;
+}
+button.ghost:hover, .btn.ghost:hover {
+  background: rgba(244, 114, 182, 0.10);
+}
+button.ghost:focus-visible, .btn.ghost:focus-visible {
+  outline: 3px solid rgba(244, 114, 182, 0.35);
+  outline-offset: 2px;
+}
+button.ghost:disabled, .btn.ghost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* Status variants (leave colors as-is) */

@@ -681,7 +681,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         </button>
 
         <button
-          className="btn"
+          className="btn btn-primary"
           type="button"
           onClick={() => {
             // Save draft locally and continue to preview

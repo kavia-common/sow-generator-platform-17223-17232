@@ -1193,12 +1193,15 @@ export async function buildSowDocx(data, templateSchema) {
       const filteredRows = allRows
         .map(({ label, value }) => {
           const short = normalizeLabel(label);
-          return { label: short, value, _raw: label };
+          return { label: short, value, _raw: String(label || "") };
         })
-        .filter(({ label }) => {
+        .filter(({ label, _raw }) => {
           const lblLower = label.toLowerCase().trim();
+          const rawLower = _raw.toLowerCase().trim();
           // Centralized exclusion logic handles all variants including "Agreement Date [Start Date]"
           if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
+          // Extra guard: exclude the explicit bracketed variant if present in raw text
+          if (rawLower.includes("agreement date [start date]")) return false;
           // Also exclude any line that hints at signature to keep signatures only in the final section
           if (/\bsignature\b/i.test(lblLower)) return false;
           return true;

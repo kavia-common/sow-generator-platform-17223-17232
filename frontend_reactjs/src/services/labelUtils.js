@@ -103,9 +103,9 @@ export function shouldExcludeFromAllEnteredFields(label) {
   if (lbl === "master services agreement") return true;
   if (lbl === "add logo here" || lbl === "[add logo here]") return true;
 
-  // Explicit exclusions provided by task
+  // Explicit exclusions provided by task including Agreement Date variants
   const EXCLUDE_LABELS = new Set([
-    // Agreement Date variants
+    // Agreement Date and aliases - ensure none appear in All Entered Fields
     "agreement date",
     "agreement date [start date]",
     "agreement date [ start date ]",
@@ -116,6 +116,8 @@ export function shouldExcludeFromAllEnteredFields(label) {
     "agreement date [start date] (agreement start date)",
     "agreement date [start date] (start)",
     "agreement start date",
+    "start date",
+    "end date",
     // Common global removals
     "company name",
     "client",
@@ -145,8 +147,8 @@ export function shouldExcludeFromAllEnteredFields(label) {
   if ((/\bcompany name\b/.test(norm) || /\bclient\b/.test(norm)) && /\(client\)/.test(norm)) return true;
   if (norm.includes("company name") && norm.includes("client")) return true;
 
-  // Exclude generic Start/End Date to keep preamble as the sole place
-  if (lbl === "start date" || lbl === "end date" || lbl.includes("agreement start date")) return true;
+  // Also exclude any label that contains "agreement date" anywhere
+  if (lbl.includes("agreement date")) return true;
 
   // Generic signature keyword-based catch-all
   if (/\bsignature\b/.test(lbl)) return true;
