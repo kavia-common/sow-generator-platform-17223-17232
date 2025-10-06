@@ -880,121 +880,159 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
     { size: 21, after: 200 }
   );
 
-  // Signature images
-  const supplierSig =
+  // Accept signature sources from various form keys:
+  // Supplier signature image (data URL / blob URL / File uploaded and mirrored):
+  const supplierSigSrc =
     get(templateData, "authorization_signatures.supplier_signature") ||
     get(templateData, "supplier_signature") ||
+    get(meta, "signaturePreview.supplier_signature") ||
+    get(meta, "signatureFiles.supplier_signature") ||
     "";
-  const companySig =
+
+  // Client signature image (may also be called company_signature):
+  const clientSigSrc =
     get(templateData, "authorization_signatures.client_signature") ||
     get(templateData, "client_signature") ||
     get(templateData, "company_signature") ||
+    get(meta, "signaturePreview.client_signature") ||
+    get(meta, "signatureFiles.client_signature") ||
     "";
 
-  const sigHeightPx = 77; // ~0.8"
-  const supplierName =
-    get(templateData, "authorization_signatures.supplier_signature_name") ||
-    get(templateData, "supplier_signature_name") ||
-    get(templateData, "supplier_signer_name") ||
-    "";
-  const supplierTitle =
-    get(templateData, "authorization_signatures.supplier_signature_title") ||
-    get(templateData, "supplier_signature_title") ||
-    get(templateData, "supplier_signer_title") ||
-    "";
-  const supplierDate =
-    get(templateData, "authorization_signatures.supplier_signature_date") ||
-    get(templateData, "supplier_signature_date") ||
-    get(templateData, "supplier_sign_date") ||
-    "";
+  // Limit signature size to fit box; maintain reasonable aspect by bounding width/height.
+  const maxSigWidthPx = 220;   // ~2.3"
+  const maxSigHeightPx = 80;   // ~0.8"
 
+  // Supplier labeled data beneath signature
+  const supplierCompany =
+    cleanValue(
+      get(templateData, "supplier_company_name") ||
+      get(templateData, "supplier_name") ||
+      get(templateData, "authorization_signatures.supplier_company") ||
+      ""
+    );
+  const supplierSignerName =
+    cleanValue(
+      get(templateData, "supplier_signer_name") ||
+      get(templateData, "supplier_signature_name") ||
+      get(templateData, "authorization_signatures.supplier_signature_name") ||
+      ""
+    );
+  const supplierSignDate =
+    cleanValue(
+      get(templateData, "supplier_sign_date") ||
+      get(templateData, "supplier_signature_date") ||
+      get(templateData, "authorization_signatures.supplier_signature_date") ||
+      ""
+    );
+
+  // Client labeled data beneath signature
+  const clientCompanyVal =
+    cleanValue(
+      get(templateData, "client_company_name_signature_block") ||
+      get(templateData, "client_company_name") ||
+      get(templateData, "client_name") ||
+      get(templateData, "company_name") ||
+      ""
+    );
+  const clientSignerName =
+    cleanValue(
+      get(templateData, "client_signature_name") ||
+      get(templateData, "authorization_signatures.client_signature_name") ||
+      get(templateData, "company_signer_name") ||
+      ""
+    );
+  const clientSignDate =
+    cleanValue(
+      get(templateData, "client_signature_date") ||
+      get(templateData, "authorization_signatures.client_signature_date") ||
+      get(templateData, "company_sign_date") ||
+      ""
+    );
+
+  // Build Supplier column
   const leftColChildren = [
-    new Paragraph({ children: [new TextRun({ text: "Supplier", bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
+    new Paragraph({
+      children: [new TextRun({ text: "Supplier", bold: true, size: 21 })],
+      alignment: AlignmentType.CENTER
+    }),
     para("Signature", { bold: true }),
   ];
-  // Try load supplier signature image robustly
+
+  // Insert supplier image if available
   try {
-    const loaded = await loadImageForDocx(supplierSig);
+    const loaded = await loadImageForDocx(supplierSigSrc);
     if (loaded && loaded.data) {
       leftColChildren.push(
         new Paragraph({
-          children: [new ImageRun({ data: loaded.data, transformation: { width: 220, height: sigHeightPx } })],
+          alignment: AlignmentType.LEFT,
+          children: [
+            new ImageRun({
+              data: loaded.data,
+              transformation: { width: maxSigWidthPx, height: maxSigHeightPx }
+            })
+          ],
         })
       );
     } else {
-      // Keep spacing even if no image
       leftColChildren.push(para(""));
     }
   } catch (e) {
     if (isDev) console.warn("[sowDocxBuilder] Supplier signature image skipped", e);
     leftColChildren.push(para(""));
   }
-  // Ensure only the signature block shows these lines; do not repeat in Q/A table.
+
+  // Add labeled rows beneath signature (labels persist even if values are blank)
   leftColChildren.push(
-    para("Supplier:", { bold: false }),
-    para(cleanValue(get(templateData, "supplier_name") || get(templateData, "supplier_company_name") || "")),
-    para("Name:", { bold: false }),
-    para(cleanValue(supplierName)),
-    para("Title:", { bold: false }),
-    para(cleanValue(supplierTitle)),
-    para("Date:", { bold: false }),
-    para(cleanValue(supplierDate)),
+    para("Company:", { bold: true }),
+    para(supplierCompany),
+    para("Name:", { bold: true }),
+    para(supplierSignerName),
+    para("Date:", { bold: true }),
+    para(supplierSignDate)
   );
 
-  const clientNameForBlock =
-    get(templateData, "client_company_name_signature_block") ||
-    get(templateData, "client_company_name") ||
-    get(templateData, "client_name") ||
-    companyName ||
-    "";
-
-  const companySignerName =
-    get(templateData, "authorization_signatures.client_signature_name") ||
-    get(templateData, "client_signature_name") ||
-    get(templateData, "company_signer_name") ||
-    "";
-  const companySignerTitle =
-    get(templateData, "authorization_signatures.client_signature_title") ||
-    get(templateData, "client_signature_title") ||
-    get(templateData, "company_signer_title") ||
-    "";
-  const companySignerDate =
-    get(templateData, "authorization_signatures.client_signature_date") ||
-    get(templateData, "client_signature_date") ||
-    get(templateData, "company_sign_date") ||
-    "";
-
+  // Build Client column
   const rightColChildren = [
-    new Paragraph({ children: [new TextRun({ text: companyName, bold: true, size: 21 })], alignment: AlignmentType.CENTER }),
+    new Paragraph({
+      children: [new TextRun({ text: companyName, bold: true, size: 21 })],
+      alignment: AlignmentType.CENTER
+    }),
     para("Signature", { bold: true }),
   ];
+
   try {
-    const loaded = await loadImageForDocx(companySig);
+    const loaded = await loadImageForDocx(clientSigSrc);
     if (loaded && loaded.data) {
       rightColChildren.push(
         new Paragraph({
-          children: [new ImageRun({ data: loaded.data, transformation: { width: 220, height: sigHeightPx } })],
+          alignment: AlignmentType.LEFT,
+          children: [
+            new ImageRun({
+              data: loaded.data,
+              transformation: { width: maxSigWidthPx, height: maxSigHeightPx }
+            })
+          ],
         })
       );
     } else {
       rightColChildren.push(para(""));
     }
   } catch (e) {
-    if (isDev) console.warn("[sowDocxBuilder] Company signature image skipped", e);
+    if (isDev) console.warn("[sowDocxBuilder] Client signature image skipped", e);
     rightColChildren.push(para(""));
   }
-  // Signature block must contain the readable lines; keep labels even if value blank.
+
+  // Labeled rows for client beneath the signature box
   rightColChildren.push(
-    para("Company:", { bold: false }),
-    para(cleanValue(clientNameForBlock)),
-    para("Name:", { bold: false }),
-    para(cleanValue(companySignerName)),
-    para("Title:", { bold: false }),
-    para(cleanValue(companySignerTitle)),
-    para("Date:", { bold: false }),
-    para(cleanValue(companySignerDate)),
+    para("Company:", { bold: true }),
+    para(clientCompanyVal),
+    para("Name:", { bold: true }),
+    para(clientSignerName),
+    para("Date:", { bold: true }),
+    para(clientSignDate)
   );
 
+  // Build the two-column signature table (preserve borders and layout)
   const table = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: BORDER,
