@@ -1162,8 +1162,8 @@ export async function buildSowDocx(data, templateSchema) {
   }
 
   // Immediately render "Work Order Parameters" after header and preamble.
-  // Dynamically enumerate ALL fields from the active schema and render them in schema order.
-  // This ensures no user-entered field is omitted regardless of conditionals or new fields, and nothing appears above it.
+  // Dynamically enumerate ALL fields from the active schema and render them in schema order, then
+  // append the required horizontal single-row entries for Address for Communications and Supplier/Client signature metadata.
   if (templateSchema) {
     const allRows = enumerateFieldsFromSchema(templateSchema, templateData);
     if (allRows.length > 0) {
@@ -1179,12 +1179,10 @@ export async function buildSowDocx(data, templateSchema) {
       // Build a Q/A table in the same order as schema
       const L = 38;
       const V = 62;
-      // Filter out specific labels/keys from "All Entered Fields"
-      // Expanded exclusions to cover '[company name] (Client)' and similar variants case-insensitively.
-      // Normalize and filter labels, then build rows with async image resolution
+
       const { normalizeLabel, shouldExcludeFromAllEnteredFields } = await import("./labelUtils.js");
 
-      // Fields to explicitly remove from Work Order Parameters per requirement
+      // Exclusions for noisy/simple fields that should not appear separately
       const EXCLUDE_BY_EXACT_LABEL = new Set([
         "contact name",
         "email",
@@ -1201,27 +1199,25 @@ export async function buildSowDocx(data, templateSchema) {
         })
         .filter(({ label, _raw }) => {
           const lblLower = (label || "").toLowerCase().trim();
-          const rawLower = ( _raw || "").toLowerCase().trim();
+          const rawLower = (_raw || "").toLowerCase().trim();
 
-          // Exclude duplicates and junk
           if (!lblLower) return false;
           if (lblLower === "description" || lblLower === "v" || lblLower === "to" || lblLower === "master services agreement") return false;
-          // Centralized exclusion logic handles all variants including "Agreement Date [Start Date]"
           if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
 
-          // Remove explicitly excluded simple fields from Work Order Parameters by normalized label or raw text
           if (EXCLUDE_BY_EXACT_LABEL.has(lblLower)) return false;
 
-          // Common variants for excluded fields
           const variantHit =
             /\b(contact\s*name|primary\s*contact|email|e-mail|address|postal\s*address|supplier\s*date|client\s*name|client\s*date)\b/i.test(rawLower);
           if (variantHit) return false;
 
-          // Extra guard: exclude the explicit bracketed variant if present in raw text
           if (rawLower.includes("agreement date [start date]")) return false;
 
-          // Also exclude any line that hints at signature to keep signatures only in the final section
           if (/\bsignature\b/i.test(lblLower)) return false;
+
+          // Also exclude prior Address for Communications composite fields to avoid duplication;
+          // We will render them as a single horizontal row below.
+          if (lblLower.includes("address for communications")) return false;
 
           return true;
         });
@@ -1232,56 +1228,109 @@ export async function buildSowDocx(data, templateSchema) {
         .filter((it) => it && String(it.label || "").trim())
         .map((it) => {
           const short = normalizeLabel(it.label);
-          // Respect exclusion logic
           if (shouldExcludeFromAllEnteredFields(short.toLowerCase().trim())) return null;
-          // Also apply simple-label exclusions
           if (EXCLUDE_BY_EXACT_LABEL.has(short)) return null;
           return { label: short, value: formatForSchema(it.value) };
         })
         .filter(Boolean);
 
-      // Build Work Order Parameters table
-      const rows = [...filteredRows, ...customRows].map(({ label, value }) =>
+      // Build base rows from schema (filtered)
+      const baseRows = [...filteredRows, ...customRows].map(({ label, value }) =>
         new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
       );
+
+      // Construct the required horizontal, single-row groups and append to the same Work Order Parameters table:
+      // 1) Address for Communications: inline value only
+      const addrSupplier = cleanValue(get(templateData, "supplier.addressForCommunications") || get(templateData, "address_for_communications.address") || "");
+      const addrClient = cleanValue(get(templateData, "client.addressForCommunications") || "");
+      // Prefer supplier-side address; if both exist, join with separator.
+      const addrValue = [addrSupplier, addrClient].filter(Boolean).join(" | ");
+
+      const addressRow = new TableRow({
+        children: [
+          labelCell("Address for Communications", L),
+          valueCell(addrValue, V),
+        ],
+      });
+
+      // 2) Supplier horizontal row: Company, Name, Date inline (avoid duplicate "Company" label inside values)
+      const supCompany = cleanValue(
+        get(templateData, "supplier.companyName") ||
+        get(templateData, "supplier_company_name") ||
+        get(templateData, "authorization_signatures.supplier_company") ||
+        ""
+      );
+      const supName = cleanValue(
+        get(templateData, "supplier.signatoryName") ||
+        get(templateData, "supplier_signature_name") ||
+        get(templateData, "authorization_signatures.supplier_signature_name") ||
+        ""
+      );
+      const supDateRaw =
+        get(templateData, "supplier.signDate") ||
+        get(templateData, "supplier_signature_date") ||
+        get(templateData, "authorization_signatures.supplier_signature_date") ||
+        "";
+      const supDate = cleanValue(supDateRaw);
+
+      const supplierInline = [
+        supCompany ? `Company: ${supCompany}` : "",
+        supName ? `Name: ${supName}` : "",
+        supDate ? `Date: ${supDate}` : "",
+      ].filter(Boolean).join("    ");
+
+      const supplierRow = new TableRow({
+        children: [
+          labelCell("Supplier", L),
+          valueCell(supplierInline, V),
+        ],
+      });
+
+      // 3) Client horizontal row: Company, Name, Date inline
+      const cliCompany = cleanValue(
+        get(templateData, "client.companyName") ||
+        get(templateData, "client_company_name") ||
+        get(templateData, "company_name") ||
+        get(templateData, "client_company_name_signature_block") ||
+        ""
+      );
+      const cliName = cleanValue(
+        get(templateData, "client.signatoryName") ||
+        get(templateData, "client_signature_name") ||
+        get(templateData, "authorization_signatures.client_signature_name") ||
+        get(templateData, "company_signer_name") ||
+        ""
+      );
+      const cliDateRaw =
+        get(templateData, "client.signDate") ||
+        get(templateData, "client_signature_date") ||
+        get(templateData, "authorization_signatures.client_signature_date") ||
+        get(templateData, "company_sign_date") ||
+        "";
+      const cliDate = cleanValue(cliDateRaw);
+
+      const clientInline = [
+        cliCompany ? `Company: ${cliCompany}` : "",
+        cliName ? `Name: ${cliName}` : "",
+        cliDate ? `Date: ${cliDate}` : "",
+      ].filter(Boolean).join("    ");
+
+      const clientRow = new TableRow({
+        children: [
+          labelCell("Client", L),
+          valueCell(clientInline, V),
+        ],
+      });
+
+      // Build final combined table rows and push table
+      const rows = [...baseRows, addressRow, supplierRow, clientRow];
 
       const t = tableFullWidth(rows);
       if (t) children.push(t);
       else if (isDev) {
         // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Schema-enumerated table skipped (empty).");
+        console.warn("buildSowDocx: Work Order Parameters table skipped (empty).");
       }
-
-      // Address for Communications: dedicated section just above signatures.
-      // Only use address_for_communications object and do not source from other scattered fields to avoid duplication.
-      const addrObj = get(templateData, "address_for_communications") || {};
-      const addrSupplier = cleanValue(addrObj.supplier_name || "");
-      const addrContact = cleanValue(addrObj.contact_name || "");
-      const addrEmail = cleanValue(addrObj.email || "");
-      const addrAddress = cleanValue(addrObj.address || "");
-
-      // Build consolidated multi-line block, skipping empty lines
-      const addressLines = [addrSupplier, addrContact, addrEmail, addrAddress].filter((x) => x && x.trim());
-      const addressBlockParas = addressLines.length ? addressLines.map((ln) => para(ln)) : [para("")];
-
-      // Insert section header
-      children.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 120 },
-          children: [new TextRun({ text: "Address for Communications", bold: true, size: 24 })],
-          heading: HeadingLevel.HEADING_2,
-        })
-      );
-
-      // Insert single-row table with consolidated parameter
-      const addrTableRows = [
-        new TableRow({
-          children: [labelCell("Address for Communications", L), makeCell(addressBlockParas, { widthPct: V })],
-        }),
-      ];
-      const addrTable = tableFullWidth(addrTableRows);
-      if (addrTable) children.push(addrTable);
     }
   }
 
