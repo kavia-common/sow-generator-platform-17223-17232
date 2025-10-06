@@ -148,20 +148,29 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       return true;
     });
 
-    // Domain-specific omission prior to All Entered Fields:
+    // Domain-specific omission: remove only the stray preamble/heading fields shown in the screenshot.
     const shouldOmit = (label) => {
       const lbl = String(label || "").toLowerCase().trim();
       if (!lbl) return false;
-      // Remove general non-All-Fields labels
+
+      // Remove the unwanted heading/preamble duplicates that appeared as fields
+      const blacklisted = [
+        "statement of work",
+        "statement of work (t&m)",
+        "to",
+        "master services agreement",
+        "agreement start date",
+        "company name",
+        "company name (client)",
+        "[add logo here]"
+      ];
+      if (blacklisted.includes(lbl)) return true;
+
+      // Also hide generic headings that shouldn't be rendered as fields
       if (lbl === "description") return true;
       if (lbl.includes("point of contact")) return true;
       if (lbl === "work order parameters") return true;
 
-      // Explicitly remove the three fields as per requirement from the form UI
-      if (lbl === "statement of work" || lbl === "statement of work (t&m)") return true;
-      if (lbl === "to") return true;
-      if (lbl === "master services agreement") return true;
-      if (lbl === "[add logo here]") return true; // transcript placeholder
       return false;
     };
 
@@ -419,7 +428,8 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   const [errors, setErrors] = useState({});
   const validate = () => {
     const err = {};
-    const requiredKeys = ["client_name", "supplier_name", "scope_of_work"];
+    // Restrict required keys to actual core business fields that remain in the form.
+    const requiredKeys = ["supplier_name", "scope_of_work"];
     requiredKeys.forEach((k) => {
       const val = getValue(data?.templateData, k);
       if (!val) err[k] = "Required";
