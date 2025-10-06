@@ -36,6 +36,93 @@ function dataUrlToBytes(dataUrl) {
 }
 
 /**
+ * Try to convert an SVG string or URL into a PNG data URL using a canvas.
+ * Returns null if conversion fails (e.g., cross-origin restrictions).
+ */
+async function svgToPngDataUrl(svgInput, width = 160, height = 60) {
+  try {
+    let svgText = null;
+
+    // If svgInput is a data URL of type image/svg+xml
+    if (typeof svgInput === "string" && /^data:image\/svg\+xml/i.test(svgInput)) {
+      // decode payload
+      const commaIdx = svgInput.indexOf(",");
+      svgText = decodeURIComponent(svgInput.slice(commaIdx + 1));
+    } else if (typeof svgInput === "string" && (svgInput.endsWith(".svg") || svgInput.startsWith("<svg"))) {
+      if (svgInput.startsWith("<svg")) {
+        svgText = svgInput;
+      } else {
+        // fetch SVG text
+        const res = await fetch(svgInput);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        svgText = await res.text();
+      }
+    }
+
+    if (!svgText) return null;
+
+    const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = reject;
+        im.src = url;
+      });
+      const w = width || img.width || 160;
+      const h = height || img.height || 60;
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "rgba(255,255,255,0)";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const pngDataUrl = canvas.toDataURL("image/png");
+      return pngDataUrl;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch (e) {
+    if (isDev) console.warn("[sowDocxBuilder] svgToPngDataUrl failed", e);
+    return null;
+  }
+}
+
+/**
+ * Load static asset as data URL using fetch + blob reader.
+ * Returns null on failure.
+ */
+async function loadStaticAssetDataUrl(relativePath) {
+  try {
+    const res = await fetch(relativePath, { mode: "cors" });
+    if (!res.ok) {
+      // try same-origin fallback
+      const res2 = await fetch(relativePath, { mode: "no-cors" });
+      // Reading body of opaque might fail; still try blob()
+      const blob = await res2.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    }
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    if (isDev) console.warn("[sowDocxBuilder] loadStaticAssetDataUrl failed", e);
+    return null;
+  }
+}
+
+/**
  * PUBLIC_INTERFACE
  * loadImageForDocx
  * Loads an image from various inputs and returns a structure compatible with docx ImageRun:
@@ -49,6 +136,11 @@ function dataUrlToBytes(dataUrl) {
  * - Already a Uint8Array/ArrayBuffer
  *
  * Returns null on failure.
+ */
+/**
+ * PUBLIC_INTERFACE
+ * loadImageForDocx
+ * Extended to support SVG -> PNG conversion for DOCX compatibility.
  */
 // PUBLIC_INTERFACE
 export async function loadImageForDocx(src) {
@@ -107,17 +199,76 @@ export async function loadImageForDocx(src) {
       // http/https: try fetch, fallback to no-cors opaque
       if (s.startsWith("http://") || s.startsWith("https://")) {
         try {
+          // If it looks like an SVG, try converting it to PNG first
+          if (s.endsWith(".svg") || /image\/svg\+xml/.test(s)) {
+            const pngDataUrl = await svgToPngDataUrl(s, 160, 60);
+            if (pngDataUrl) {
+              const bytes = dataUrlToBytes(pngDataUrl);
+              return { data: bytes, mimeType: "image/png" };
+            }
+          }
+
           let res = await fetch(s, { mode: "cors" });
           if (!res.ok) {
             // retry with no-cors best-effort (may yield opaque, still attempt blob())
             res = await fetch(s, { mode: "no-cors" });
           }
           const blob = await res.blob();
+
+          // If fetched blob is SVG, try convert to PNG
+          if ((blob.type || "").includes("image/svg")) {
+            const text = await blob.text();
+            const pngDataUrl = await svgToPngDataUrl(text, 160, 60);
+            if (pngDataUrl) {
+              const bytes = dataUrlToBytes(pngDataUrl);
+              return { data: bytes, mimeType: "image/png" };
+            }
+          }
+
           const buf = await blob.arrayBuffer();
           return { data: buf, mimeType: blob.type || null };
         } catch (e) {
           if (isDev) console.warn("[sowDocxBuilder] Failed to fetch http(s) URL for image", e);
           return null;
+        }
+      }
+
+      // Support importing local app assets like "/assets/logo.png" or relative "src/assets/logo.svg"
+      if (s.startsWith("/") || s.startsWith("./") || s.startsWith("../") || s.startsWith("src/")) {
+        try {
+          // For dev server, assets under /assets are publicly served
+          let candidate = s;
+          // If it's the repo path for src/assets, rewrite to public path if known
+          if (s.startsWith("src/")) {
+            // try to request as relative URL (vite/webpack will serve it if imported elsewhere), else fallback to baked path
+            candidate = s.replace(/^src\//, "/");
+          }
+
+          // Attempt to load as data URL
+          let dataUrl = await loadStaticAssetDataUrl(candidate);
+          if (!dataUrl && !candidate.startsWith("/")) {
+            // try with leading slash
+            dataUrl = await loadStaticAssetDataUrl(`/${candidate}`);
+          }
+
+          if (dataUrl) {
+            // If SVG, convert to PNG for docx
+            if (/^data:image\/svg\+xml/i.test(dataUrl)) {
+              const pngDataUrl = await svgToPngDataUrl(dataUrl, 160, 60);
+              if (pngDataUrl) {
+                const bytes = dataUrlToBytes(pngDataUrl);
+                return { data: bytes, mimeType: "image/png" };
+              }
+              // if conversion failed, skip
+              return null;
+            }
+            const bytes = dataUrlToBytes(dataUrl);
+            const mimeMatch = dataUrl.match(/^data:([^;]+);/i);
+            const mime = mimeMatch ? mimeMatch[1] : null;
+            return { data: bytes, mimeType: mime };
+          }
+        } catch (e) {
+          if (isDev) console.warn("[sowDocxBuilder] loadImageForDocx asset fetch failed", e);
         }
       }
     }
@@ -367,7 +518,7 @@ function formatCurrency(val, currency = "USD") {
 /**
  * Build top title + subtitle + intro paragraph
  */
-function buildTopIntro({ meta = {}, templateData = {} }) {
+async function buildTopIntro({ meta = {}, templateData = {} }) {
   const companyName = cleanValue(
     get(templateData, "company_name") || get(meta, "client") || get(templateData, "client_name") || ""
   );
@@ -376,6 +527,43 @@ function buildTopIntro({ meta = {}, templateData = {} }) {
   );
 
   const nodes = [];
+
+  // 0) Optional centered logo at the very top
+  // Priority order for logo:
+  // - meta.logoUrl (could be data:, blob:, http(s):, or app asset path)
+  // - templateData.logo
+  // - static asset fallback: src/assets/logo.svg -> convert to PNG if needed; else try /assets/logo.png if available
+  try {
+    let logoSrc =
+      get(meta, "logoUrl") ||
+      get(templateData, "logo") ||
+      "src/assets/logo.svg";
+
+    // Try load (with svg->png fallback inside loader)
+    let loaded = await loadImageForDocx(logoSrc);
+
+    // If not resolved and a PNG fallback exists at public path, try it
+    if (!loaded || !loaded.data) {
+      loaded = await loadImageForDocx("/assets/logo.png");
+    }
+
+    if (loaded && loaded.data) {
+      nodes.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 160 },
+          children: [
+            new ImageRun({
+              data: loaded.data,
+              transformation: { width: 160, height: 60 },
+            }),
+          ],
+        })
+      );
+    }
+  } catch (e) {
+    if (isDev) console.warn("[sowDocxBuilder] Top logo skipped", e);
+  }
 
   // Titles
   nodes.push(
@@ -389,13 +577,33 @@ function buildTopIntro({ meta = {}, templateData = {} }) {
   nodes.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 240 }, // 12 pt
+      spacing: { after: 160 }, // slightly tighter to make room for preamble sentence
       children: [new TextRun({ text: "Master Services Agreement", size: 22 })],
     })
   );
 
-  // Remove verbose intro paragraph per requirement; keep spacing before preamble
-  nodes.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
+  // 1) Preamble sentence placed directly below titles
+  // Builds "[start - end]" and "[supplier]" parts from entries; keeps placeholders if empty.
+  const startDate = formatDate(get(templateData, "start_date") || get(templateData, "agreement_start_date") || "");
+  const endDate = formatDate(get(templateData, "end_date") || "");
+  const supplier = cleanValue(get(templateData, "supplier_name") || get(meta, "supplier") || "");
+
+  const rangeText = startDate || endDate ? `[${(startDate || "")}${startDate && endDate ? " - " : ""}${endDate || ""}]` : "[startdate - enddate]";
+  const supplierText = supplier ? `[${supplier}]` : "[supplier]";
+
+  nodes.push(
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 200 },
+      children: [
+        new TextRun({
+          size: 21,
+          text:
+            `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${rangeText}, and ${supplierText} (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`,
+        }),
+      ],
+    })
+  );
 
   return nodes;
 }
@@ -825,31 +1033,19 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
  * PUBLIC_INTERFACE
  * Build the final SOW DOCX blob
  */
+/** 
+ * PUBLIC_INTERFACE
+ * Build the final SOW DOCX blob
+ */
 // PUBLIC_INTERFACE
 export async function buildSowDocx(data, templateSchema) {
   const meta = data?.meta || {};
   const templateData = data?.templateData || {};
   const children = [];
 
-  // Top titles and intro paragraph
-  children.push(...buildTopIntro({ meta, templateData }));
-
-  // Preamble: only a centered "[Start Date to End Date]" line after agreement title.
-  {
-    const startDate = formatDate(
-      get(templateData, "start_date") || get(templateData, "agreement_start_date") || ""
-    );
-    const endDate = formatDate(get(templateData, "end_date") || "");
-    const bracketText = `[${(startDate || "Start Date")} to ${(endDate || "End Date")}]`;
-
-    children.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 200 },
-        children: [new TextRun({ text: bracketText, size: 22 })],
-      })
-    );
-  }
+  // Top logo + titles + preamble sentence
+  const topIntro = await buildTopIntro({ meta, templateData });
+  children.push(...topIntro);
 
   // Work Order Parameters removed (excluded from generation per requirements)
 
