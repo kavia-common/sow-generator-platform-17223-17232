@@ -1105,93 +1105,13 @@ export async function buildSowDocx(data, templateSchema) {
   const topIntro = await buildTopIntro({ meta, templateData });
   children.push(...topIntro);
 
-  // Work Order Parameters removed (excluded from generation per requirements)
+  // Do not render any description/auxiliary tables before "Work Order Parameters".
+  // Explicitly omit Supplier Deliverables, Client Deliverables, Milestones/Financials,
+  // and any continuation sections from appearing above "Work Order Parameters".
+  // These may be rendered in later sections if needed by future requirements, but are currently disabled here.
 
-  // Supplier Deliverables (skip if empty)
-  const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
-  {
-    const hasContent = !!String(supplierDeliverables || "").trim();
-    if (hasContent) {
-      const t = buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables);
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Supplier Deliverables table skipped (empty).");
-      }
-    }
-  }
-
-  // Client Deliverables (skip if empty)
-  const clientDeliverables = get(templateData, "client_deliverables") || "";
-  {
-    const hasContent = !!String(clientDeliverables || "").trim();
-    if (hasContent) {
-      const t = buildTwoColDescriptionTable("Client Deliverables", clientDeliverables);
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Client Deliverables table skipped (empty).");
-      }
-    }
-  }
-
-  // Milestones / Financials (skip if both sides empty)
-  {
-    const leftDesc = get(templateData, "milestones_description") || get(templateData, "milestones") || "";
-    const totalCost = get(templateData, "total_cost");
-    const pricingRate = get(templateData, "pricing_rate");
-    const hasAny =
-      String(leftDesc || "").trim().length > 0 ||
-      (totalCost != null && String(totalCost).trim().length > 0) ||
-      String(pricingRate || "").trim().length > 0;
-    if (hasAny) {
-      const t = buildMilestonesFinancials({ templateData });
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Milestones/Financials table skipped (empty).");
-      }
-    }
-  }
-
-  // Continuation table (11..20) - render only if any values exist AND explicitly enabled via meta flag.
-  // This avoids accidental prelisting above "Work Order Parameters".
-  {
-    const shouldRenderContinuation = !!get(meta, "renderContinuationSections");
-    if (shouldRenderContinuation) {
-      const keys = [
-        "client_relationship",
-        "negative_relationship_changes",
-        "change_payment_structure",
-        "rate_or_tnm",
-        "key_client_personnel",
-        "slas",
-        "communication_paths",
-        "service_locations",
-        "escalation_contact",
-        "poc_for_communications"
-      ];
-      const hasAny = keys.some((k) => {
-        const v = get(templateData, k);
-        if (Array.isArray(v)) return v.length > 0;
-        return v != null && String(v).trim().length > 0;
-      });
-      if (hasAny) {
-        const t = buildContinuationTable({ templateData });
-        if (t) children.push(t);
-        else if (isDev) {
-          // eslint-disable-next-line no-console
-          console.warn("buildSowDocx: Continuation table skipped (empty).");
-        }
-      }
-    }
-  }
-
-  // Actions metadata table (Section A from assets/actions_section_docx_mapping.md)
-  // Per actions_section_docx_mapping.md and user request:
-  // - Only one Q/A table must appear.
-  // - Supplier/company signature details must not be duplicated in the Q/A table when images are present.
-  // - Preserve the strict order and alignment (labels left with underscores preserved; values right).
+  // After "Work Order Parameters", render the Actions metadata table (Section A) if applicable.
+  // Ensure nothing from this section appears earlier in the document.
   {
     const t = buildActionsMetadataTable({ templateData });
     if (t) children.push(t);
@@ -1201,8 +1121,9 @@ export async function buildSowDocx(data, templateSchema) {
     }
   }
 
+  // Immediately render "Work Order Parameters" after header and preamble.
   // Dynamically enumerate ALL fields from the active schema and render them in schema order.
-  // This ensures no user-entered field is omitted regardless of conditionals or new fields.
+  // This ensures no user-entered field is omitted regardless of conditionals or new fields, and nothing appears above it.
   if (templateSchema) {
     const allRows = enumerateFieldsFromSchema(templateSchema, templateData);
     if (allRows.length > 0) {
@@ -1233,7 +1154,7 @@ export async function buildSowDocx(data, templateSchema) {
           const rawLower = _raw.toLowerCase().trim();
           // Exclude duplicates and junk
           if (!lblLower) return false;
-          if (lblLower === "description" || lblLower === "v") return false;
+          if (lblLower === "description" || lblLower === "v" || lblLower === "to" || lblLower === "master services agreement") return false;
           // Centralized exclusion logic handles all variants including "Agreement Date [Start Date]"
           if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
           // Extra guard: exclude the explicit bracketed variant if present in raw text
