@@ -5,8 +5,11 @@ import "../styles.css";
 /**
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
- * Builds a fresh, valid DOCX directly from SOW form values without using external templates.
- * Generation happens only when the user clicks the button.
+ * Renders a pink-themed Generate DOCX button and triggers generation only on click.
+ *
+ * Props:
+ * - data: object                // full SOW data
+ * - templateSchema: object      // schema for All Entered Fields enumeration in builder
  */
 export default function DocxPreviewAndGenerate({ data, templateSchema }) {
   const [generating, setGenerating] = useState(false);
@@ -45,7 +48,9 @@ export default function DocxPreviewAndGenerate({ data, templateSchema }) {
 
   return (
     <div className="panel sow-dark" style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}>
-      <div className="panel-title" style={{ color: "var(--color-text)", borderLeftColor: "var(--color-primary)" }}>Generate DOCX</div>
+      <div className="panel-title" style={{ color: "var(--color-text)", borderLeftColor: "var(--color-primary)" }}>
+        Generate DOCX
+      </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
         <button
           className="btn btn-primary"
@@ -58,7 +63,7 @@ export default function DocxPreviewAndGenerate({ data, templateSchema }) {
           {generating ? "Generating..." : "Generate DOCX"}
         </button>
         <div className="text-muted">
-          Generates a clean DOCX from your SOW entries. No templates are used.
+          Export triggers only on click. There is no auto-download on mount.
         </div>
       </div>
     </div>
