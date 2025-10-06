@@ -834,32 +834,69 @@ export async function buildSowDocx(data, templateSchema) {
   // Top: Keep only the main heading styling
   children.push(...buildTopIntro({ meta, templateData }));
 
-  // Preamble sentence only (no labels, no inputs, no additional sections)
+  // Preamble sentence and compact "All Entered Fields" summary (no inputs)
   {
     // Gather values from stored meta/templateData; fallback to blanks
-    const sRaw = get(meta, "preambleStartDate") || get(templateData, "start_date") || get(templateData, "agreement_start_date") || "";
+    const sRaw =
+      get(meta, "preambleStartDate") ||
+      get(templateData, "start_date") ||
+      get(templateData, "agreement_start_date") ||
+      "";
     const eRaw = get(meta, "preambleEndDate") || get(templateData, "end_date") || "";
-    const supplier = (get(meta, "preambleSupplier") || get(templateData, "supplier_name") || get(meta, "supplier") || "").trim();
+    const supplier =
+      (get(meta, "preambleSupplier") ||
+        get(templateData, "supplier_name") ||
+        get(meta, "supplier") ||
+        "").trim();
 
     const s = formatDate(sRaw);
     const e = formatDate(eRaw);
     const range = s && e ? `${s} - ${e}` : (s || e || "");
-    const rangePart = range ? `[${range}]` : '[]';
-    const supplierPart = supplier ? `[${supplier}]` : '[]';
+    const rangePart = range ? `[${range}]` : "[]";
+    const supplierPart = supplier ? `[${supplier}]` : "[]";
 
-    const sentence =
-      `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${rangePart}, and ${supplierPart} (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
+    const sentence = `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${rangePart}, and ${supplierPart} (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
 
+    // 1) Preamble sentence paragraph
     children.push(
       new Paragraph({
         alignment: AlignmentType.LEFT,
-        spacing: { after: 200 },
+        spacing: { after: 160 },
         children: [new TextRun({ text: sentence, size: 22 })],
       })
     );
+
+    // 2) "All Entered Fields" compact section
+    // Title
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 80 },
+        children: [new TextRun({ text: "All Entered Fields", bold: true, size: 22 })],
+      })
+    );
+
+    // Build a simple two-column table with Start Date, End Date, Supplier
+    const rows = [
+      new TableRow({
+        children: [labelCell("Start Date", 30), valueCell(s || "", 70)],
+      }),
+      new TableRow({
+        children: [labelCell("End Date", 30), valueCell(e || "", 70)],
+      }),
+      new TableRow({
+        children: [labelCell("Supplier", 30), valueCell(supplier || "", 70)],
+      }),
+    ];
+    const summaryTable = tableFullWidth(rows);
+    if (summaryTable) {
+      children.push(summaryTable);
+    }
+    // Add small spacer after the summary block
+    children.push(new Paragraph({ spacing: { after: 160 }, children: [] }));
   }
 
-  // Do not include any other sections, tables, or fields in the document per requirement.
+  // Preserve the rest of the document features after the new intro content.
 
   // Footer: keep minimal to allow page content to flow; page numbers intentionally omitted
   const footer = new Footer({ children: [] });
