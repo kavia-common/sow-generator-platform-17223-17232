@@ -419,6 +419,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   const [errors, setErrors] = useState({});
   const validate = () => {
     const err = {};
+    // Keep core template fields only; preamble fields were removed from UI
     const requiredKeys = ["client_name", "supplier_name", "scope_of_work"];
     requiredKeys.forEach((k) => {
       const val = getValue(data?.templateData, k);
@@ -481,23 +482,8 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
           Statement of Work to Master Service Agreement
         </h2>
-        {/* Preamble inputs + sentence */}
-        {/* Persist values in data.meta to survive page transitions and enable downstream usage */}
-        <SowPreamble
-          startDate={data?.meta?.preambleStartDate || ''}
-          endDate={data?.meta?.preambleEndDate || ''}
-          supplier={data?.meta?.preambleSupplier || ''}
-          onChange={(patch) => {
-            setData((prev) => {
-              const next = structuredClone(prev || {});
-              next.meta = next.meta || {};
-              if ('startDate' in patch) next.meta.preambleStartDate = patch.startDate || '';
-              if ('endDate' in patch) next.meta.preambleEndDate = patch.endDate || '';
-              if ('supplier' in patch) next.meta.preambleSupplier = patch.supplier || '';
-              return next;
-            });
-          }}
-        />
+        {/* Sentence under heading (without inline inputs) */}
+        <SowPreamble />
       </div>
 
       {!sections.length ? (

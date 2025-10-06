@@ -1,15 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import SowPreamble from '../components/SowPreamble';
 
 /**
  * PUBLIC_INTERFACE
  * SOWPage
- * Minimal page rendering the SOW heading with inline preamble inputs and the required sentence.
+ * Minimal page rendering the SOW heading with the required sentence.
  */
 export default function SOWPage() {
-  const [preamble, setPreamble] = useState({ startDate: '', endDate: '', supplier: '' });
-  const onPreambleChange = useCallback((patch) => setPreamble((prev) => ({ ...prev, ...patch })), []);
-
   return (
     <div className="max-w-5xl mx-auto px-4 py-6" style={{ maxWidth: 960, margin: '0 auto', padding: '16px' }}>
       <header className="mb-4" style={{ marginBottom: 12 }}>
@@ -18,12 +15,7 @@ export default function SOWPage() {
         </h1>
       </header>
 
-      <SowPreamble
-        startDate={preamble.startDate}
-        endDate={preamble.endDate}
-        supplier={preamble.supplier}
-        onChange={onPreambleChange}
-      />
+      <SowPreamble />
 
       {/* ...rest of SOW form/content... */}
     </div>
