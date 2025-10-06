@@ -419,7 +419,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   const validate = () => {
     const err = {};
     // Restrict required keys to actual core business fields that remain in the form.
-    const requiredKeys = ["supplier_name", "scope_of_work"];
+    const requiredKeys = ["scope_of_work"];
     requiredKeys.forEach((k) => {
       const val = getValue(data?.templateData, k);
       if (!val) err[k] = "Required";
@@ -476,27 +476,17 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         </div>
       </div>
 
-      {/* SOW heading and inline preamble inputs with sentence directly beneath */}
+      {/* SOW heading and read-only preamble sentence beneath, driven solely by Client Portfolio */}
       <div style={{ marginBottom: 10 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
           Statement of Work to Master Service Agreement
         </h2>
-        {/* Preamble inputs + sentence */}
-        {/* Persist values in data.meta to survive page transitions and enable downstream usage */}
+        {/* Read-only preamble sentence component. It will render sentence using values from meta (Client Portfolio). */}
         <SowPreamble
-          startDate={data?.meta?.preambleStartDate || ''}
-          endDate={data?.meta?.preambleEndDate || ''}
-          supplier={data?.meta?.preambleSupplier || ''}
-          onChange={(patch) => {
-            setData((prev) => {
-              const next = structuredClone(prev || {});
-              next.meta = next.meta || {};
-              if ('startDate' in patch) next.meta.preambleStartDate = patch.startDate || '';
-              if ('endDate' in patch) next.meta.preambleEndDate = patch.endDate || '';
-              if ('supplier' in patch) next.meta.preambleSupplier = patch.supplier || '';
-              return next;
-            });
-          }}
+          startDate={data?.meta?.portfolioStartDate || data?.templateData?.start_date || ''}
+          endDate={data?.meta?.portfolioEndDate || data?.templateData?.end_date || ''}
+          supplier={data?.meta?.portfolioSupplier || data?.templateData?.supplier_name || data?.meta?.supplier || ''}
+          onChange={undefined}
         />
       </div>
 
