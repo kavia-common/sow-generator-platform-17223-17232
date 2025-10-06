@@ -37,7 +37,10 @@ export default function SowPreamble({ startDate, endDate, supplier }) {
   return (
     <div className="w-full" style={{ color: '#374151' }}>
       {/* Sentence directly under heading; values sourced exclusively from Client Portfolio (props) */}
-      <p className="text-gray-700 leading-relaxed" style={{ color: '#374151', lineHeight: 1.6, margin: 0 }}>
+      <p
+        className="text-gray-700 leading-relaxed"
+        style={{ color: '#374151', lineHeight: 1.55, margin: '0 0 8px 0' }}
+      >
         The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between {rangeText ? `[${rangeText}]` : '[startdate - enddate]'}, and {supplier ? `[${supplier}]` : '[supplier]'} (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.
       </p>
     </div>

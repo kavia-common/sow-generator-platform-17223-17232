@@ -76,7 +76,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
     <div className="panel">
       <div className="panel-title">Review Your SOW</div>
 
-      <div style={{ color: "var(--text-secondary)", marginBottom: 8 }}>
+      <div style={{ color: "var(--text-secondary)", marginBottom: 6 }}>
         Please review your entries as they will appear in the final document. Use Edit to make corrections. Click Confirm to generate the DOCX.
       </div>
 
@@ -90,7 +90,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
             border: "1px solid #ddd",
             boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
             borderRadius: 4,
-            padding: "28px 36px",
+            padding: "24px 28px",
             overflow: "auto",
             maxHeight: 600
           }}
@@ -126,7 +126,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         <button className="btn" type="button" onClick={onEdit}>Edit</button>
         <button className="btn btn-primary" type="button" onClick={onConfirm}>Confirm and Generate DOCX</button>
       </div>

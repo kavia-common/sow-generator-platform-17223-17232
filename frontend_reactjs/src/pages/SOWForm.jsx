@@ -437,9 +437,9 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
 
   // Renderer
   return (
-    <div className="panel sow-form sow-dark">
+    <div className="panel sow-form sow-dark" style={{ display: 'flex', flexDirection: 'column', rowGap: 12 }}>
       {/* Header with top-left logo preview */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {data?.meta?.logoUrl ? (
             <img
@@ -484,21 +484,23 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       </div>
 
       {/* SOW heading and read-only preamble sentence beneath, driven solely by Client Portfolio */}
-      <div style={{ marginBottom: 10 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '0 0 6px 0' }}>
           Statement of Work to Master Service Agreement
         </h2>
         {/* Read-only preamble sentence component. It will render sentence using values from meta (Client Portfolio). */}
-        <SowPreamble
-          startDate={data?.meta?.portfolioStartDate || data?.templateData?.start_date || ''}
-          endDate={data?.meta?.portfolioEndDate || data?.templateData?.end_date || ''}
-          supplier={data?.meta?.portfolioSupplier || data?.templateData?.supplier_name || data?.meta?.supplier || ''}
-          onChange={undefined}
-        />
+        <div style={{ margin: 0 }}>
+          <SowPreamble
+            startDate={data?.meta?.portfolioStartDate || data?.templateData?.start_date || ''}
+            endDate={data?.meta?.portfolioEndDate || data?.templateData?.end_date || ''}
+            supplier={data?.meta?.portfolioSupplier || data?.templateData?.supplier_name || data?.meta?.supplier || ''}
+            onChange={undefined}
+          />
+        </div>
       </div>
 
       {!sections.length ? (
-        <div className="panel" style={{ marginTop: 12 }}>
+        <div className="panel" style={{ marginTop: 8 }}>
           <div className="panel-title">No template selected</div>
           <div style={{ color: "var(--text-secondary)" }}>
             Please select a template to display its fields. Choose "Fixed Price" or "T&amp;M" in the Template step.
@@ -578,7 +580,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       )}
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button
           className="btn"
           type="button"
