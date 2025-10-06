@@ -1165,12 +1165,6 @@ export async function buildSowDocx(data, templateSchema) {
         if (lbl === "start date" || lbl === "end date") return false;
         if (lbl.includes("agreement start date")) return false;
 
-        // Remove preamble-related transcript artifacts and headings
-        if (lbl === "preamble") return false;
-        if (lbl === "statement of work" || lbl === "statement of work (t&m)") return false;
-        if (lbl === "to") return false;
-        if (lbl === "master services agreement") return false;
-
         return true;
       });
 

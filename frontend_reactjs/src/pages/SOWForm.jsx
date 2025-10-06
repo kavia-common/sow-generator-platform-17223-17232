@@ -109,11 +109,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   }, [sectionsRaw]);
 
   // Build single-source field configuration for two-column renderer
-  // Apply filter to exclude exactly the three fields highlighted in the latest screenshot:
-  // 1) "Preamble" (section label that was shown as a field in some schemas)
-  // 2) "Agreement Start Date (Local)"
-  // 3) "Company name (Client)"
-  // Preserve SowPreamble inputs (Start Date, End Date, Supplier) which are separate.
+  // Apply filter to exclude fields from "Description" through "20. Point of Contact" (pre-All Entered Fields)
   const fieldConfig = useMemo(() => {
     const cfg = [];
     (sections || []).forEach((sec) => {
@@ -152,22 +148,27 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       return true;
     });
 
-    // Omit exactly the three UI elements from the screenshot
-    const shouldOmitByExactLabel = (label) => {
+    // Domain-specific omission prior to All Entered Fields:
+    const shouldOmit = (label) => {
       const lbl = String(label || "").toLowerCase().trim();
       if (!lbl) return false;
-      const exactBlacklist = new Set([
-        "preamble",
-        "agreement start date (local)",
-        "company name (client)"
-      ]);
-      return exactBlacklist.has(lbl);
+      // Remove general non-All-Fields labels
+      if (lbl === "description") return true;
+      if (lbl.includes("point of contact")) return true;
+      if (lbl === "work order parameters") return true;
+
+      // Explicitly remove the three fields as per requirement from the form UI
+      if (lbl === "statement of work" || lbl === "statement of work (t&m)") return true;
+      if (lbl === "to") return true;
+      if (lbl === "master services agreement") return true;
+      if (lbl === "[add logo here]") return true; // transcript placeholder
+      return false;
     };
 
     // Keep sections; filter fields only
     const filtered = deduped.filter((item) => {
       if (item.kind === "section") return true;
-      return !shouldOmitByExactLabel(item.name);
+      return !shouldOmit(item.name);
     });
 
     return filtered;
@@ -418,8 +419,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   const [errors, setErrors] = useState({});
   const validate = () => {
     const err = {};
-    // Restrict required keys to actual core business fields that remain in the form.
-    const requiredKeys = ["scope_of_work"];
+    const requiredKeys = ["client_name", "supplier_name", "scope_of_work"];
     requiredKeys.forEach((k) => {
       const val = getValue(data?.templateData, k);
       if (!val) err[k] = "Required";
@@ -476,17 +476,27 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         </div>
       </div>
 
-      {/* SOW heading and read-only preamble sentence beneath, driven solely by Client Portfolio */}
+      {/* SOW heading and inline preamble inputs with sentence directly beneath */}
       <div style={{ marginBottom: 10 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
           Statement of Work to Master Service Agreement
         </h2>
-        {/* Read-only preamble sentence component. It will render sentence using values from meta (Client Portfolio). */}
+        {/* Preamble inputs + sentence */}
+        {/* Persist values in data.meta to survive page transitions and enable downstream usage */}
         <SowPreamble
-          startDate={data?.meta?.portfolioStartDate || data?.templateData?.start_date || ''}
-          endDate={data?.meta?.portfolioEndDate || data?.templateData?.end_date || ''}
-          supplier={data?.meta?.portfolioSupplier || data?.templateData?.supplier_name || data?.meta?.supplier || ''}
-          onChange={undefined}
+          startDate={data?.meta?.preambleStartDate || ''}
+          endDate={data?.meta?.preambleEndDate || ''}
+          supplier={data?.meta?.preambleSupplier || ''}
+          onChange={(patch) => {
+            setData((prev) => {
+              const next = structuredClone(prev || {});
+              next.meta = next.meta || {};
+              if ('startDate' in patch) next.meta.preambleStartDate = patch.startDate || '';
+              if ('endDate' in patch) next.meta.preambleEndDate = patch.endDate || '';
+              if ('supplier' in patch) next.meta.preambleSupplier = patch.supplier || '';
+              return next;
+            });
+          }}
         />
       </div>
 

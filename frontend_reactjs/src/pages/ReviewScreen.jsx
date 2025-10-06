@@ -51,17 +51,15 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       if (shouldOmit(lbl)) return false;
       if (lbl.includes("work order") || lbl.includes("work_order")) return false;
 
-      // Explicitly remove 'Statement of Work', 'To', 'Master Service Agreement' and 'Preamble'
+      // Explicitly remove 'Statement of Work', 'To', 'Master Service Agreement'
       if (lbl === "statement of work" || lbl === "statement of work (t&m)") return false;
       if (lbl === "to") return false;
       if (lbl === "master services agreement") return false;
-      if (lbl === "preamble") return false;
       if (lbl === "add logo here" || lbl === "[add logo here]") return false;
 
       // Also exclude date fields per requirement
       if (lbl === "start date" || lbl === "end date") return false;
       if (lbl.includes("agreement start date")) return false;
-      if (lbl.includes("agreement date")) return false;
 
       return true;
     });
