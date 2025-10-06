@@ -142,6 +142,12 @@ async function loadStaticAssetDataUrl(relativePath) {
  * loadImageForDocx
  * Extended to support SVG -> PNG conversion for DOCX compatibility.
  */
+/**
+ * Robust image loader used by header logo and signatures:
+ * - Accepts File/Blob, data URLs, blob: object URLs, http(s) URLs, and local assets.
+ * - Converts SVG to PNG for docx compatibility when possible.
+ * - Returns null on any failure to ensure graceful skip.
+ */
 // PUBLIC_INTERFACE
 export async function loadImageForDocx(src) {
   try {
@@ -529,6 +535,7 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
   const nodes = [];
 
   // Logo rendering is centralized in the header only. Do not render any logo here to avoid duplicates.
+  // If future components attempt to add logos in body, they should check for header presence instead.
 
   // Titles
   nodes.push(
@@ -981,17 +988,31 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
  * Build page header with logo in top-left
  */
 async function buildHeaderAsync({ meta = {}, templateData = {} }) {
-  // Select logo with strict priority per requirements:
-  // 1) templateData.logo (expected data URL/base64 or bytes)
-  // 2) settings.logoUrl (from templateData.settings.logoUrl) then meta.logoUrl
-  // 3) fallback to public assets only if nothing else resolves
+  // Source priority (leftmost available wins):
+  // 1) SOW form top-right picker (stored in meta.logoUrl as blob/data/http URL or meta.logoFile as File)
+  // 2) templateData.logo (if UI mirrors into templateData)
+  // 3) settings.logoUrl from templateData or meta
+  // 4) meta.logoUrl/meta.logo (older fallbacks)
+  // 5) public asset fallback
+  // Guard: we only insert at most one header logo; body never renders any logo.
+  const primaryPickerUrl = get(meta, "logoUrl") || null;
+  const primaryPickerFile = get(meta, "logoFile") || null; // File object if present
   const settingsLogo =
     get(templateData, "settings.logoUrl") ||
     get(meta, "settings.logoUrl");
   const rawLogo =
-    get(templateData, "logo") ? get(templateData, "logo") :
-    (settingsLogo ? settingsLogo :
-      (get(meta, "logoUrl") || get(meta, "logo") || ""));
+    // prefer the File object directly if provided by the picker
+    (primaryPickerFile ? primaryPickerFile :
+      // next prefer the picker URL (blob:/data:/http(s):)
+      (primaryPickerUrl ? primaryPickerUrl :
+        // then any direct logo stored in templateData
+        (get(templateData, "logo") || null) ||
+        // then settings-level logos
+        (settingsLogo || null) ||
+        // then meta logo fallbacks
+        (get(meta, "logoUrl") || get(meta, "logo") || null)
+      )
+    );
 
   const headerChildren = [];
 
