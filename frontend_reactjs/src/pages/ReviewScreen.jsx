@@ -51,18 +51,17 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       if (shouldOmit(lbl)) return false;
       if (lbl.includes("work order") || lbl.includes("work_order")) return false;
 
-      // Explicitly remove heading elements and preamble-related labels that shouldn't appear as fields
+      // Explicitly remove 'Statement of Work', 'To', 'Master Service Agreement' and 'Preamble'
       if (lbl === "statement of work" || lbl === "statement of work (t&m)") return false;
       if (lbl === "to") return false;
       if (lbl === "master services agreement") return false;
-      if (lbl === "preamble" || lbl.replace(/[\[\]\(\){}]/g, "").trim() === "preamble") return false;
+      if (lbl === "preamble") return false;
       if (lbl === "add logo here" || lbl === "[add logo here]") return false;
 
-      // Also exclude date fields per requirement and preamble-adjacent labels
+      // Also exclude date fields per requirement
       if (lbl === "start date" || lbl === "end date") return false;
       if (lbl.includes("agreement start date")) return false;
       if (lbl.includes("agreement date")) return false;
-      if (lbl === "company name (client)" || lbl === "client company name") return false;
 
       return true;
     });
@@ -76,7 +75,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
     <div className="panel">
       <div className="panel-title">Review Your SOW</div>
 
-      <div style={{ color: "var(--text-secondary)", marginBottom: 6 }}>
+      <div style={{ color: "var(--text-secondary)", marginBottom: 8 }}>
         Please review your entries as they will appear in the final document. Use Edit to make corrections. Click Confirm to generate the DOCX.
       </div>
 
@@ -90,7 +89,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
             border: "1px solid #ddd",
             boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
             borderRadius: 4,
-            padding: "24px 28px",
+            padding: "28px 36px",
             overflow: "auto",
             maxHeight: 600
           }}
@@ -126,7 +125,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button className="btn" type="button" onClick={onEdit}>Edit</button>
         <button className="btn btn-primary" type="button" onClick={onConfirm}>Confirm and Generate DOCX</button>
       </div>
