@@ -995,7 +995,9 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
   // 4) meta.logoUrl/meta.logo (older fallbacks)
   // 5) public asset fallback
   // Guard: we only insert at most one header logo; body never renders any logo.
-  const primaryPickerUrl = get(meta, "logoUrl") || null;
+  // Prefer data URLs explicitly stored in templateData.logo if available (e.g., pasted image),
+  // otherwise use the picker file or blob URL.
+  const primaryPickerUrl = get(templateData, "logo") || get(meta, "logoUrl") || null;
   const primaryPickerFile = get(meta, "logoFile") || null; // File object if present
   const settingsLogo =
     get(templateData, "settings.logoUrl") ||
@@ -1207,7 +1209,19 @@ export async function buildSowDocx(data, templateSchema) {
           return true;
         });
 
-      const rows = filteredRows.map(({ label, value }) =>
+      // Append custom fields if present
+      const custom = Array.isArray(templateData?.customFields) ? templateData.customFields : [];
+      const customRows = custom
+        .filter((it) => it && String(it.label || "").trim())
+        .map((it) => {
+          const short = normalizeLabel(it.label);
+          // Respect exclusion logic
+          if (shouldExcludeFromAllEnteredFields(short.toLowerCase().trim())) return null;
+          return { label: short, value: formatForSchema(it.value) };
+        })
+        .filter(Boolean);
+
+      const rows = [...filteredRows, ...customRows].map(({ label, value }) =>
         new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
       );
 

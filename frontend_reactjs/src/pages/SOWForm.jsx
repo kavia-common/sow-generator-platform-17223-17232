@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import tmParsed from "../templates/parsed/tm_template_parsed.json";
 import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
 import SowPreamble from "../components/SowPreamble.jsx";
+import AIChatWidget from "../components/AIChatWidget.jsx";
 /**
  * Apply the previous black theme styling for the SOW form only.
  * Ensure no 'elegant' or ocean pastel theme classes are used here.
@@ -31,6 +32,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         signatureNames: {},
         signatureFiles: {},
         fileErrors: {}, // { logo?: string, [signatureKey]: string }
+        customFields: [], // [{label, value}]
       },
       templateMeta: value?.templateMeta || null,
       templateData: value?.templateData || {}
@@ -68,7 +70,8 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           signaturePreview: value.meta?.signaturePreview || {},
           signatureNames: value.meta?.signatureNames || {},
           signatureFiles: value.meta?.signatureFiles || {},
-          fileErrors: value.meta?.fileErrors || {}
+          fileErrors: value.meta?.fileErrors || {},
+          customFields: Array.isArray(value.meta?.customFields) ? value.meta.customFields : [],
         }
       });
     }
@@ -454,6 +457,11 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   // Renderer
   return (
     <div className="panel sow-form sow-dark">
+      <AIChatWidget />
+      {/* AI Assistant floating widget */}
+      <div aria-hidden="true">
+        {/* Imported lazily to avoid SSR issues if any; use dynamic import pattern */}
+      </div>
       {/* Header with top-left logo preview */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -612,6 +620,30 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           })}
         </div>
       )}
+
+      {/* Dynamic custom fields UI */}
+      <div className="panel" style={{ marginTop: 12 }}>
+        <div className="panel-title">Custom Fields</div>
+        <div className="sow-table" style={{ borderTop: "1px solid var(--sow-border-strong)" }}>
+          <CustomFieldsEditor
+            fields={Array.isArray(data?.meta?.customFields) ? data.meta.customFields : []}
+            onChange={(nextFields) => {
+              setData((prev) => {
+                const next = structuredClone(prev || {});
+                next.meta = next.meta || {};
+                next.meta.customFields = nextFields;
+                // Mirror to templateData for DOCX builder inclusion
+                next.templateData = next.templateData || {};
+                next.templateData.customFields = nextFields;
+                return next;
+              });
+            }}
+          />
+        </div>
+        <div className="sow-helper" style={{ marginTop: 8 }}>
+          Add ad-hoc fields that will appear in All Entered Fields and the exported DOCX.
+        </div>
+      </div>
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -793,4 +825,102 @@ function setByKey(root, dottedKey, v) {
   }
   const parts = String(dottedKey).split(".");
   setPath(root, parts, v);
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * CustomFieldsEditor
+ * Inline editor for adding/removing dynamic label+value pairs.
+ */
+function CustomFieldsEditor({ fields = [], onChange }) {
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+  const [err, setErr] = useState("");
+
+  const rows = Array.isArray(fields) ? fields : [];
+
+  function addField() {
+    const l = String(label || "").trim();
+    if (!l) {
+      setErr("Label is required");
+      return;
+    }
+    setErr("");
+    const v = String(value ?? "");
+    const next = [...rows, { label: l, value: v }];
+    onChange?.(next);
+    setLabel("");
+    setValue("");
+  }
+
+  function removeAt(i) {
+    const next = rows.slice();
+    next.splice(i, 1);
+    onChange?.(next);
+  }
+
+  return (
+    <>
+      {/* Input row */}
+      <div className="sow-row">
+        <div className="sow-cell sow-label">
+          <label htmlFor="cf-label">New Field Label</label>
+        </div>
+        <div className="sow-cell sow-input">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8 }}>
+            <input
+              id="cf-label"
+              className="input"
+              type="text"
+              placeholder="e.g., Project Code"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              aria-invalid={!!err}
+            />
+            <input
+              className="input"
+              type="text"
+              placeholder="Enter value"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            <button type="button" className="btn btn-primary" onClick={addField} title="Add field">
+              Add
+            </button>
+          </div>
+          {err ? (
+            <div className="field-error" role="alert" style={{ marginTop: 6 }}>
+              {err}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Existing fields list */}
+      {rows.map((r, i) => (
+        <div className="sow-row" key={`${r.label}-${i}`}>
+          <div className="sow-cell sow-label">
+            {r.label}
+          </div>
+          <div className="sow-cell sow-input" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <input
+                className="input"
+                type="text"
+                value={r.value ?? ""}
+                onChange={(e) => {
+                  const next = rows.slice();
+                  next[i] = { ...next[i], value: e.target.value };
+                  onChange?.(next);
+                }}
+              />
+            </div>
+            <button type="button" className="btn" onClick={() => removeAt(i)} title="Remove">
+              Remove
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  );
 }

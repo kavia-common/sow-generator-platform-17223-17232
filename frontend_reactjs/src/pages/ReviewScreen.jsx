@@ -3,6 +3,7 @@ import "../theme.css";
 import "../styles.css";
 import DocxPreviewAndGenerate from "./DocxPreviewAndGenerate";
 import { makeTranscriptPreviewHtml } from "../services/docxTemplateService";
+import ReviewTable from "../components/ReviewTable.jsx";
 
 /**
  * PUBLIC_INTERFACE
@@ -56,6 +57,20 @@ export default function ReviewScreen({ transcriptText, data, templateSchema }) {
     <div className="preview review-surface" style={{ padding: 16 }}>
       {/* Existing transcript-based preview */}
       <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+
+      {/* All Entered Fields: Custom Fields */}
+      {Array.isArray(td?.customFields) && td.customFields.length > 0 && (
+        <section style={{ marginTop: 16 }}>
+          <h2 style={{ margin: "6px 0 10px" }}>Additional Fields</h2>
+          <ReviewTable
+            rows={td.customFields.map((it, idx) => ({
+              key: `cf-${idx}`,
+              label: it?.label || "",
+              value: it?.value ?? "",
+            }))}
+          />
+        </section>
+      )}
 
       {/* Authorized Signatures section appended at the very end */}
       <section
