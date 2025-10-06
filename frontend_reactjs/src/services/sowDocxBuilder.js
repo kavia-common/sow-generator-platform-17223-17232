@@ -831,214 +831,35 @@ export async function buildSowDocx(data, templateSchema) {
   const templateData = data?.templateData || {};
   const children = [];
 
-  // Top titles and intro paragraph
+  // Top: Keep only the main heading styling
   children.push(...buildTopIntro({ meta, templateData }));
 
-  // Preamble: only a centered "[Start Date to End Date]" line after agreement title.
+  // Preamble sentence only (no labels, no inputs, no additional sections)
   {
-    const startDate = formatDate(
-      get(templateData, "start_date") || get(templateData, "agreement_start_date") || ""
-    );
-    const endDate = formatDate(get(templateData, "end_date") || "");
-    const bracketText = `[${(startDate || "Start Date")} to ${(endDate || "End Date")}]`;
+    // Gather values from stored meta/templateData; fallback to blanks
+    const sRaw = get(meta, "preambleStartDate") || get(templateData, "start_date") || get(templateData, "agreement_start_date") || "";
+    const eRaw = get(meta, "preambleEndDate") || get(templateData, "end_date") || "";
+    const supplier = (get(meta, "preambleSupplier") || get(templateData, "supplier_name") || get(meta, "supplier") || "").trim();
+
+    const s = formatDate(sRaw);
+    const e = formatDate(eRaw);
+    const range = s && e ? `${s} - ${e}` : (s || e || "");
+    const rangePart = range ? `[${range}]` : '[]';
+    const supplierPart = supplier ? `[${supplier}]` : '[]';
+
+    const sentence =
+      `The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between ${rangePart}, and ${supplierPart} (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.`;
 
     children.push(
       new Paragraph({
-        alignment: AlignmentType.CENTER,
+        alignment: AlignmentType.LEFT,
         spacing: { after: 200 },
-        children: [new TextRun({ text: bracketText, size: 22 })],
+        children: [new TextRun({ text: sentence, size: 22 })],
       })
     );
   }
 
-  // Work Order Parameters removed (excluded from generation per requirements)
-
-  // Supplier Deliverables (skip if empty)
-  const supplierDeliverables = get(templateData, "supplier_deliverables") || "";
-  {
-    const hasContent = !!String(supplierDeliverables || "").trim();
-    if (hasContent) {
-      const t = buildTwoColDescriptionTable("Supplier Deliverables", supplierDeliverables);
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Supplier Deliverables table skipped (empty).");
-      }
-    }
-  }
-
-  // Client Deliverables (skip if empty)
-  const clientDeliverables = get(templateData, "client_deliverables") || "";
-  {
-    const hasContent = !!String(clientDeliverables || "").trim();
-    if (hasContent) {
-      const t = buildTwoColDescriptionTable("Client Deliverables", clientDeliverables);
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Client Deliverables table skipped (empty).");
-      }
-    }
-  }
-
-  // Milestones / Financials (skip if both sides empty)
-  {
-    const leftDesc = get(templateData, "milestones_description") || get(templateData, "milestones") || "";
-    const totalCost = get(templateData, "total_cost");
-    const pricingRate = get(templateData, "pricing_rate");
-    const hasAny =
-      String(leftDesc || "").trim().length > 0 ||
-      (totalCost != null && String(totalCost).trim().length > 0) ||
-      String(pricingRate || "").trim().length > 0;
-    if (hasAny) {
-      const t = buildMilestonesFinancials({ templateData });
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Milestones/Financials table skipped (empty).");
-      }
-    }
-  }
-
-  // Continuation table (11..20) - render only if any values exist
-  {
-    const keys = [
-      "client_relationship",
-      "negative_relationship_changes",
-      "change_payment_structure",
-      "rate_or_tnm",
-      "key_client_personnel",
-      "slas",
-      "communication_paths",
-      "service_locations",
-      "escalation_contact",
-      "poc_for_communications"
-    ];
-    const hasAny = keys.some((k) => {
-      const v = get(templateData, k);
-      if (Array.isArray(v)) return v.length > 0;
-      return v != null && String(v).trim().length > 0;
-    });
-    if (hasAny) {
-      const t = buildContinuationTable({ templateData });
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Continuation table skipped (empty).");
-      }
-    }
-  }
-
-  // Actions metadata table (Section A from assets/actions_section_docx_mapping.md)
-  // Per actions_section_docx_mapping.md and user request:
-  // - Only one Q/A table must appear.
-  // - Supplier/company signature details must not be duplicated in the Q/A table when images are present.
-  // - Preserve the strict order and alignment (labels left with underscores preserved; values right).
-  {
-    const t = buildActionsMetadataTable({ templateData });
-    if (t) children.push(t);
-    else if (isDev) {
-      // eslint-disable-next-line no-console
-      console.warn("buildSowDocx: Actions metadata table skipped (empty).");
-    }
-  }
-
-  // Dynamically enumerate ALL fields from the active schema and render them in schema order.
-  // This ensures no user-entered field is omitted regardless of conditionals or new fields.
-  if (templateSchema) {
-    const allRows = enumerateFieldsFromSchema(templateSchema, templateData);
-    if (allRows.length > 0) {
-      // Section header
-      children.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 120 },
-          children: [new TextRun({ text: "All Entered Fields", bold: true, size: 24 })],
-          heading: HeadingLevel.HEADING_2,
-        })
-      );
-      // Build a Q/A table in the same order as schema
-      const L = 38;
-      const V = 62;
-      const filteredRows = allRows.filter(({ label }) => {
-        const lbl = String(label || "").toLowerCase().trim();
-        if (lbl === "work order parameters") return false;
-        if (lbl.includes("work order") || lbl.includes("work_order")) return false;
-
-        // Exclude Start/End Date from the consolidated list
-        if (lbl === "start date" || lbl === "end date") return false;
-        if (lbl.includes("agreement start date")) return false;
-
-        return true;
-      });
-
-      // Build rows with async image resolution for signature fields
-      const rows = (await Promise.all(
-        filteredRows.map(async ({ label, value }) => {
-          const lblLower = String(label || "").toLowerCase().trim();
-
-          // Exclude fields 'Statement of Work', 'To', 'Master Service Agreement' from All Entered Fields
-          if (
-            lblLower === "statement of work" ||
-            lblLower === "statement of work (t&m)" ||
-            lblLower === "to" ||
-            lblLower === "master services agreement" ||
-            lblLower === "[add logo here]" // also omit transcript placeholder if present
-          ) {
-            return null;
-          }
-
-          // Also guard against Start/End Date rows slipping through via alternative schemas
-          if (
-            lblLower === "start date" ||
-            lblLower === "end date" ||
-            lblLower.includes("agreement start date")
-          ) {
-            return null;
-          }
-
-          // Render signature images
-          const isSignatureRow = lblLower.includes("signature");
-          if (isSignatureRow && value) {
-            let valueChildren = null;
-            try {
-              const loaded = await loadImageForDocx(value);
-              if (loaded && loaded.data) {
-                valueChildren = [
-                  new Paragraph({
-                    children: [new ImageRun({ data: loaded.data, transformation: { width: 220, height: 77 } })],
-                  }),
-                ];
-              }
-            } catch (e) {
-              if (isDev) console.warn("[sowDocxBuilder] All Fields signature image skipped", e);
-            }
-            if (!valueChildren) {
-              valueChildren = toParagraphs(value || "");
-            }
-            return new TableRow({
-              children: [labelCell(label, L), makeCell(valueChildren, { widthPct: V })],
-            });
-          }
-
-          return new TableRow({ children: [labelCell(label, L), valueCell(value, V)] });
-        })
-      )).filter(Boolean);
-
-      const t = tableFullWidth(rows);
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Schema-enumerated table skipped (empty).");
-      }
-    }
-  }
-
-  // Authorization preface + table (Section B)
-  // Ensure signatures (name/title/date/image) are shown only in the dedicated signature block.
-  const { preface, table } = await buildAuthorization({ meta, templateData });
-  children.push(preface);
-  children.push(table);
+  // Do not include any other sections, tables, or fields in the document per requirement.
 
   // Footer: keep minimal to allow page content to flow; page numbers intentionally omitted
   const footer = new Footer({ children: [] });

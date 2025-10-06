@@ -481,22 +481,11 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
           Statement of Work to Master Service Agreement
         </h2>
-        {/* Preamble inputs + sentence */}
-        {/* Persist values in data.meta to survive page transitions and enable downstream usage */}
+        {/* Preamble sentence only (no inputs/labels) */}
         <SowPreamble
-          startDate={data?.meta?.preambleStartDate || ''}
-          endDate={data?.meta?.preambleEndDate || ''}
-          supplier={data?.meta?.preambleSupplier || ''}
-          onChange={(patch) => {
-            setData((prev) => {
-              const next = structuredClone(prev || {});
-              next.meta = next.meta || {};
-              if ('startDate' in patch) next.meta.preambleStartDate = patch.startDate || '';
-              if ('endDate' in patch) next.meta.preambleEndDate = patch.endDate || '';
-              if ('supplier' in patch) next.meta.preambleSupplier = patch.supplier || '';
-              return next;
-            });
-          }}
+          startDate={data?.meta?.preambleStartDate || data?.templateData?.start_date || data?.templateData?.agreement_start_date || ''}
+          endDate={data?.meta?.preambleEndDate || data?.templateData?.end_date || ''}
+          supplier={data?.meta?.preambleSupplier || data?.templateData?.supplier_name || data?.meta?.supplier || ''}
         />
       </div>
 
