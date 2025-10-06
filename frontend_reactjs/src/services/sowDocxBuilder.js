@@ -952,6 +952,7 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
   // Build Supplier column
   const leftColChildren = [
     new Paragraph({
+      // Ensure clear role labeling
       children: [new TextRun({ text: "Supplier", bold: true, size: 21 })],
       alignment: AlignmentType.CENTER
     }),
@@ -994,7 +995,8 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
   // Build Client column
   const rightColChildren = [
     new Paragraph({
-      children: [new TextRun({ text: companyName, bold: true, size: 21 })],
+      // Explicitly label as Client for clarity; keep companyName shown beneath in Company row
+      children: [new TextRun({ text: "Client", bold: true, size: 21 })],
       alignment: AlignmentType.CENTER
     }),
     para("Signature", { bold: true }),
@@ -1184,12 +1186,12 @@ export async function buildSowDocx(data, templateSchema) {
 
       // Fields to explicitly remove from Work Order Parameters per requirement
       const EXCLUDE_BY_EXACT_LABEL = new Set([
-        "Contact Name",
-        "Email",
-        "Address",
-        "Supplier Date",
-        "Client Name",
-        "Client Date",
+        "contact name",
+        "email",
+        "address",
+        "supplier date",
+        "client name",
+        "client date",
       ]);
 
       const filteredRows = allRows
@@ -1198,18 +1200,26 @@ export async function buildSowDocx(data, templateSchema) {
           return { label: short, value, _raw: String(label || "") };
         })
         .filter(({ label, _raw }) => {
-          const lblLower = label.toLowerCase().trim();
-          const rawLower = _raw.toLowerCase().trim();
+          const lblLower = (label || "").toLowerCase().trim();
+          const rawLower = ( _raw || "").toLowerCase().trim();
 
           // Exclude duplicates and junk
           if (!lblLower) return false;
           if (lblLower === "description" || lblLower === "v" || lblLower === "to" || lblLower === "master services agreement") return false;
           // Centralized exclusion logic handles all variants including "Agreement Date [Start Date]"
           if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
-          // Remove explicitly excluded simple fields from Work Order Parameters
-          if (EXCLUDE_BY_EXACT_LABEL.has(label)) return false;
+
+          // Remove explicitly excluded simple fields from Work Order Parameters by normalized label or raw text
+          if (EXCLUDE_BY_EXACT_LABEL.has(lblLower)) return false;
+
+          // Common variants for excluded fields
+          const variantHit =
+            /\b(contact\s*name|primary\s*contact|email|e-mail|address|postal\s*address|supplier\s*date|client\s*name|client\s*date)\b/i.test(rawLower);
+          if (variantHit) return false;
+
           // Extra guard: exclude the explicit bracketed variant if present in raw text
           if (rawLower.includes("agreement date [start date]")) return false;
+
           // Also exclude any line that hints at signature to keep signatures only in the final section
           if (/\bsignature\b/i.test(lblLower)) return false;
 
@@ -1242,8 +1252,8 @@ export async function buildSowDocx(data, templateSchema) {
         console.warn("buildSowDocx: Schema-enumerated table skipped (empty).");
       }
 
-      // After Change Control Procedures (Fixed Price Only), insert new section "Address for Communications"
-      // Render as a dedicated section header followed by a two-column table (label/value) showing a single consolidated value.
+      // Address for Communications: dedicated section just above signatures.
+      // Only use address_for_communications object and do not source from other scattered fields to avoid duplication.
       const addrObj = get(templateData, "address_for_communications") || {};
       const addrSupplier = cleanValue(addrObj.supplier_name || "");
       const addrContact = cleanValue(addrObj.contact_name || "");
