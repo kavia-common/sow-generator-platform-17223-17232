@@ -355,7 +355,11 @@ function toParagraphs(text, { size = 21 } = {}) {
   const lines = s.split(/\r?\n/);
   if (!Array.isArray(lines)) return [para(s, { size })];
   if (lines.length === 0) return [para("", { size })];
-  return lines.map((ln) => para(ln, { size, after: 40 }));
+  return lines.map((ln) => {
+    const cleaned = cleanValue(ln);
+    const normalized = cleaned.toLowerCase() === "v" ? "" : cleaned;
+    return para(normalized, { size, after: 40 });
+  });
 }
 
 /**
@@ -392,10 +396,19 @@ function makeCell(children, { widthPct, vAlign = VerticalAlign.TOP, padding = 20
 }
 
 function labelCell(text, widthPct) {
-  return makeCell(para(text, { bold: true }), { widthPct, vAlign: VerticalAlign.CENTER });
+  // Sanitize headings to avoid duplicate 'Description' or stray values like 'v'
+  const safe = cleanValue(text || "");
+  const normalized = safe.toLowerCase() === "v" ? "" : safe;
+  return makeCell(para(normalized, { bold: true }), { widthPct, vAlign: VerticalAlign.CENTER });
 }
 function valueCell(text, widthPct) {
-  return makeCell(toParagraphs(text), { widthPct, vAlign: VerticalAlign.TOP });
+  // Sanitize values to remove stray 'v' artifacts and excessive underscores
+  let val = text;
+  if (typeof val === "string") {
+    const trimmed = cleanValue(val);
+    val = trimmed.toLowerCase() === "v" ? "" : trimmed;
+  }
+  return makeCell(toParagraphs(val), { widthPct, vAlign: VerticalAlign.TOP });
 }
 
 /**
@@ -534,6 +547,9 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
 
   const nodes = [];
 
+  // Ensure we start clean without residual nodes
+  if (nodes.length) nodes.length = 0;
+
   // Logo rendering is centralized in the header only. Do not render any logo here to avoid duplicates.
   // If future components attempt to add logos in body, they should check for header presence instead.
 
@@ -610,12 +626,13 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
 function buildTwoColDescriptionTable(titleLeft, bindLeftText, rightHeader = "", rightValue = "") {
   const rows = [];
 
-  // Header row
+  // Header row: render right header only if present to avoid empty 'v' or blank headings
+  const rightHeaderClean = cleanValue(rightHeader || "");
   rows.push(
     new TableRow({
       children: [
         makeCell(para("Description", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
-        makeCell(para(rightHeader || "", { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
+        makeCell(para(rightHeaderClean, { bold: true }), { widthPct: 50, vAlign: VerticalAlign.CENTER }),
       ],
     })
   );
@@ -655,7 +672,7 @@ function buildMilestonesFinancials({ templateData = {}, currency = "USD" }) {
     new TableRow({
       children: [
         makeCell(para("Description", { bold: true }), { widthPct: 50 }),
-        makeCell(para(""), { widthPct: 50 }),
+        makeCell(para("", { bold: true }), { widthPct: 50 }),
       ],
     })
   );
@@ -1127,31 +1144,35 @@ export async function buildSowDocx(data, templateSchema) {
     }
   }
 
-  // Continuation table (11..20) - render only if any values exist
+  // Continuation table (11..20) - render only if any values exist AND explicitly enabled via meta flag.
+  // This avoids accidental prelisting above "Work Order Parameters".
   {
-    const keys = [
-      "client_relationship",
-      "negative_relationship_changes",
-      "change_payment_structure",
-      "rate_or_tnm",
-      "key_client_personnel",
-      "slas",
-      "communication_paths",
-      "service_locations",
-      "escalation_contact",
-      "poc_for_communications"
-    ];
-    const hasAny = keys.some((k) => {
-      const v = get(templateData, k);
-      if (Array.isArray(v)) return v.length > 0;
-      return v != null && String(v).trim().length > 0;
-    });
-    if (hasAny) {
-      const t = buildContinuationTable({ templateData });
-      if (t) children.push(t);
-      else if (isDev) {
-        // eslint-disable-next-line no-console
-        console.warn("buildSowDocx: Continuation table skipped (empty).");
+    const shouldRenderContinuation = !!get(meta, "renderContinuationSections");
+    if (shouldRenderContinuation) {
+      const keys = [
+        "client_relationship",
+        "negative_relationship_changes",
+        "change_payment_structure",
+        "rate_or_tnm",
+        "key_client_personnel",
+        "slas",
+        "communication_paths",
+        "service_locations",
+        "escalation_contact",
+        "poc_for_communications"
+      ];
+      const hasAny = keys.some((k) => {
+        const v = get(templateData, k);
+        if (Array.isArray(v)) return v.length > 0;
+        return v != null && String(v).trim().length > 0;
+      });
+      if (hasAny) {
+        const t = buildContinuationTable({ templateData });
+        if (t) children.push(t);
+        else if (isDev) {
+          // eslint-disable-next-line no-console
+          console.warn("buildSowDocx: Continuation table skipped (empty).");
+        }
       }
     }
   }
@@ -1200,6 +1221,9 @@ export async function buildSowDocx(data, templateSchema) {
         .filter(({ label, _raw }) => {
           const lblLower = label.toLowerCase().trim();
           const rawLower = _raw.toLowerCase().trim();
+          // Exclude duplicates and junk
+          if (!lblLower) return false;
+          if (lblLower === "description" || lblLower === "v") return false;
           // Centralized exclusion logic handles all variants including "Agreement Date [Start Date]"
           if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
           // Extra guard: exclude the explicit bracketed variant if present in raw text
