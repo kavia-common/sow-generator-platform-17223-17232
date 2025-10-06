@@ -149,8 +149,9 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
     });
 
     // Domain-specific omission prior to All Entered Fields:
-    const shouldOmit = (label) => {
+    const shouldOmit = (label, key) => {
       const lbl = String(label || "").toLowerCase().trim();
+      const k = String(key || "").toLowerCase().trim();
       if (!lbl) return false;
       // Remove general non-All-Fields labels
       if (lbl === "description") return true;
@@ -162,13 +163,38 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       if (lbl === "to") return true;
       if (lbl === "master services agreement") return true;
       if (lbl === "[add logo here]") return true; // transcript placeholder
+
+      // Remove only duplicate/extra Preamble inputs that were introduced
+      // Keep original start_date, end_date, and supplier_name in templateData (and any meta preamble values used by SowPreamble)
+      const looksLikePreambleLabel =
+        lbl === "preamble" ||
+        lbl.includes("agreement start date") ||
+        lbl.includes("company name") ||
+        lbl.includes("supplier name") ||
+        lbl.includes("preamble start") ||
+        lbl.includes("preamble end");
+
+      const isOriginalValidKey =
+        k === "start_date" ||
+        k === "agreement_start_date" ||
+        k === "end_date" ||
+        k === "supplier_name";
+
+      // Omit if it's a preamble-like duplicate but not one of our valid keys
+      if (looksLikePreambleLabel && !isOriginalValidKey) return true;
+
       return false;
     };
 
     // Keep sections; filter fields only
     const filtered = deduped.filter((item) => {
-      if (item.kind === "section") return true;
-      return !shouldOmit(item.name);
+      if (item.kind === "section") {
+        // Remove entire duplicate 'Preamble' sections that only contain redundant inputs
+        const secLabel = String(item.label || "").toLowerCase().trim();
+        if (secLabel === "preamble") return false;
+        return true;
+      }
+      return !shouldOmit(item.name, item.key);
     });
 
     return filtered;
