@@ -981,8 +981,19 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
  * Build page header with logo in top-left
  */
 async function buildHeaderAsync({ meta = {}, templateData = {} }) {
-  // Prefer explicit meta/logoUrl or settings, then templateData.logo. If invalid/missing, skip silently.
-  const rawLogo = get(meta, "logoUrl") || get(templateData, "logo") || "";
+  // Select logo with priority:
+  // 1) templateData.logo (base64/data URL/ArrayBuffer)
+  // 2) settings.logoUrl or meta.logoUrl
+  // 3) project-wide asset under /assets or src/assets
+  // Safe checks: if invalid/missing, skip without throwing.
+  const settingsLogo = get(templateData, "settings.logoUrl") || get(meta, "settings.logoUrl");
+  const rawLogo =
+    get(templateData, "logo") ||
+    settingsLogo ||
+    get(meta, "logoUrl") ||
+    get(meta, "logo") ||
+    "";
+
   const headerChildren = [];
 
   const makeImagePara = (bytes) =>
@@ -991,24 +1002,23 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
       spacing: { after: 80 },
       children: [
         new ImageRun({
-          data: bytes, // ArrayBuffer/Uint8Array/DataURL bytes supported by docx
-          transformation: { width: 120, height: 48 }, // ~1.25" x 0.5"
+          data: bytes,
+          transformation: { width: 120, height: 48 },
         }),
       ],
     });
 
   try {
-    let tried = false;
+    // Try selected source first
     if (rawLogo) {
-      tried = true;
       const loaded = await loadImageForDocx(rawLogo);
       if (loaded && loaded.data) {
         headerChildren.push(makeImagePara(loaded.data));
       }
     }
-    // If primary rawLogo failed or missing, try known fallbacks
+    // Fallbacks only if nothing added yet
     if (headerChildren.length === 0) {
-      const fallbacks = ["/assets/logo.png", "src/assets/logo.svg"];
+      const fallbacks = ["/assets/logo.png", "/assets/logo.svg", "src/assets/logo.svg", "src/assets/logo.png"];
       for (const c of fallbacks) {
         try {
           const loaded = await loadImageForDocx(c);
@@ -1024,8 +1034,7 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
   } catch (e) {
     if (isDev) console.warn("[sowDocxBuilder] Header logo skipped due to load error", e);
   }
-  // If no image, return an empty header without any placeholder text.
-  // The top-of-document paragraph will render a left-aligned logo if available as a fallback.
+  // Always return a header; if no children, it's an empty header to avoid duplicates elsewhere.
   return new Header({ children: headerChildren });
 }
 
@@ -1158,31 +1167,6 @@ export async function buildSowDocx(data, templateSchema) {
       const V = 62;
       // Filter out specific labels/keys from "All Entered Fields"
       // Expanded exclusions to cover '[company name] (Client)' and similar variants case-insensitively.
-      const EXCLUDE_LABELS = new Set([
-        "agreement date",
-        "agreement date [start date]",
-        "company name",
-        "client",
-        "supplier",
-        "supplier name",
-        "<supplier name>",
-        "[company name] (client)",
-        "[company name](client)",
-        "company name (client)",
-        "client (company name)",
-      ]);
-      // Helper to detect variant patterns like "[company name] (Client)" with spacing/punctuation differences
-      const excludeByPattern = (lbl) => {
-        const compact = lbl.replace(/\s+/g, " ").trim();
-        if (EXCLUDE_LABELS.has(compact)) return true;
-        // Normalize brackets and spaces
-        const norm = compact.replace(/\s*\(\s*/g, " (").replace(/\s*\)\s*/g, ")");
-        // Matches like "[company name] (client)" or "company name (client)"
-        if ((/\bcompany name\b/.test(norm) || /\bclient\b/.test(norm)) && /\(client\)/.test(norm)) return true;
-        // Generic: label contains both 'company name' and 'client'
-        if (norm.includes("company name") && norm.includes("client")) return true;
-        return false;
-      };
       // Normalize and filter labels, then build rows with async image resolution
       const { normalizeLabel, shouldExcludeFromAllEnteredFields } = await import("./labelUtils.js");
 
@@ -1193,6 +1177,7 @@ export async function buildSowDocx(data, templateSchema) {
         })
         .filter(({ label }) => {
           const lblLower = label.toLowerCase().trim();
+          // Centralized exclusion logic handles all variants including "Agreement Date [Start Date]"
           if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
           // Also exclude any line that hints at signature to keep signatures only in the final section
           if (/\bsignature\b/i.test(lblLower)) return false;

@@ -52,12 +52,17 @@ export function normalizeLabel(label) {
     "address": "Address",
     "client": "Client",
     "company name": "Company Name",
+    // Canonicalize Agreement Date variants including bracketed hints
     "agreement date": "Agreement Date",
     "agreement date [start date]": "Agreement Date",
+    "agreement date [ start date ]": "Agreement Date",
+    "agreement date [start]": "Agreement Date",
+    "agreement date (start date)": "Agreement Date",
     "agreement date [start date] (start date)": "Agreement Date",
     "agreement date [start date] (agreement date)": "Agreement Date",
     "agreement date [start date] (agreement start date)": "Agreement Date",
     "agreement date [start date] (start)": "Agreement Date",
+    "agreement start date": "Agreement Date",
     "start date": "Start Date",
     "end date": "End Date",
     "supplier signature": "Supplier Signature",
@@ -100,12 +105,18 @@ export function shouldExcludeFromAllEnteredFields(label) {
 
   // Explicit exclusions provided by task
   const EXCLUDE_LABELS = new Set([
+    // Agreement Date variants
     "agreement date",
     "agreement date [start date]",
+    "agreement date [ start date ]",
+    "agreement date [start]",
+    "agreement date (start date)",
     "agreement date [start date] (start date)",
     "agreement date [start date] (agreement date)",
     "agreement date [start date] (agreement start date)",
+    "agreement date [start date] (start)",
     "agreement start date",
+    // Common global removals
     "company name",
     "client",
     "supplier",

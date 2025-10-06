@@ -100,13 +100,22 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
             maxHeight: 600
           }}
         >
-          {data?.meta?.logoUrl ? (
-            <img
-              alt="Logo"
-              src={data.meta.logoUrl}
-              style={{ position: "absolute", left: 8, top: 8, maxHeight: 56, background: "transparent" }}
-            />
-          ) : null}
+          {(() => {
+            const settingsLogo = data?.templateData?.settings?.logoUrl || data?.meta?.settings?.logoUrl;
+            const chosenLogo = data?.templateData?.logo || settingsLogo || data?.meta?.logoUrl || data?.meta?.logo;
+            if (!chosenLogo || typeof chosenLogo !== "string") return null;
+            return (
+              <img
+                alt="Logo"
+                src={chosenLogo}
+                style={{ position: "absolute", left: 8, top: 8, maxHeight: 56, background: "transparent" }}
+                onError={(e) => {
+                  // Safe guard: hide broken image if source invalid
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            );
+          })()}
 
           <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
 
