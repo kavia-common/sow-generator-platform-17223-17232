@@ -534,17 +534,18 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
   // - templateData.logo
   // - static asset fallback: src/assets/logo.svg -> convert to PNG if needed; else try /assets/logo.png if available
   try {
-    let logoSrc =
-      get(meta, "logoUrl") ||
-      get(templateData, "logo") ||
-      "src/assets/logo.svg";
+    const raw1 = get(meta, "logoUrl");
+    const raw2 = get(templateData, "logo");
+    const candidates = [raw1, raw2, "src/assets/logo.svg", "/assets/logo.png"].filter(Boolean);
 
-    // Try load (with svg->png fallback inside loader)
-    let loaded = await loadImageForDocx(logoSrc);
-
-    // If not resolved and a PNG fallback exists at public path, try it
-    if (!loaded || !loaded.data) {
-      loaded = await loadImageForDocx("/assets/logo.png");
+    let loaded = null;
+    for (const c of candidates) {
+      try {
+        loaded = await loadImageForDocx(c);
+        if (loaded && loaded.data) break;
+      } catch (e) {
+        if (isDev) console.warn("[sowDocxBuilder] logo candidate failed", c, e);
+      }
     }
 
     if (loaded && loaded.data) {
@@ -560,7 +561,7 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
           ],
         })
       );
-    }
+    } // else: no logo available; continue quietly
   } catch (e) {
     if (isDev) console.warn("[sowDocxBuilder] Top logo skipped", e);
   }
@@ -1033,12 +1034,27 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
     });
 
   try {
+    let tried = false;
     if (rawLogo) {
+      tried = true;
       const loaded = await loadImageForDocx(rawLogo);
       if (loaded && loaded.data) {
         headerChildren.push(makeImagePara(loaded.data));
-      } else if (isDev) {
-        console.warn("[sowDocxBuilder] No header logo data after loadImageForDocx, skipping image.");
+      }
+    }
+    // If primary rawLogo failed or missing, try known fallbacks
+    if (headerChildren.length === 0) {
+      const fallbacks = ["/assets/logo.png", "src/assets/logo.svg"];
+      for (const c of fallbacks) {
+        try {
+          const loaded = await loadImageForDocx(c);
+          if (loaded && loaded.data) {
+            headerChildren.push(makeImagePara(loaded.data));
+            break;
+          }
+        } catch (e) {
+          if (isDev) console.warn("[sowDocxBuilder] Header fallback logo failed", c, e);
+        }
       }
     }
   } catch (e) {
@@ -1177,6 +1193,7 @@ export async function buildSowDocx(data, templateSchema) {
       const L = 38;
       const V = 62;
       // Filter out specific labels/keys from "All Entered Fields"
+      // Expanded exclusions to cover '[company name] (Client)' and similar variants case-insensitively.
       const EXCLUDE_LABELS = new Set([
         "agreement date",
         "agreement date [start date]",
@@ -1185,7 +1202,23 @@ export async function buildSowDocx(data, templateSchema) {
         "supplier",
         "supplier name",
         "<supplier name>",
+        "[company name] (client)",
+        "[company name](client)",
+        "company name (client)",
+        "client (company name)",
       ]);
+      // Helper to detect variant patterns like "[company name] (Client)" with spacing/punctuation differences
+      const excludeByPattern = (lbl) => {
+        const compact = lbl.replace(/\s+/g, " ").trim();
+        if (EXCLUDE_LABELS.has(compact)) return true;
+        // Normalize brackets and spaces
+        const norm = compact.replace(/\s*\(\s*/g, " (").replace(/\s*\)\s*/g, ")");
+        // Matches like "[company name] (client)" or "company name (client)"
+        if ((/\bcompany name\b/.test(norm) || /\bclient\b/.test(norm)) && /\(client\)/.test(norm)) return true;
+        // Generic: label contains both 'company name' and 'client'
+        if (norm.includes("company name") && norm.includes("client")) return true;
+        return false;
+      };
       const filteredRows = allRows.filter(({ label }) => {
         const raw = String(label || "");
         const lbl = raw.toLowerCase().trim();
@@ -1194,8 +1227,8 @@ export async function buildSowDocx(data, templateSchema) {
         if (lbl === "work order parameters") return false;
         if (lbl.includes("work order") || lbl.includes("work_order")) return false;
 
-        // Explicit exclusions provided in task
-        if (EXCLUDE_LABELS.has(lbl)) return false;
+        // Explicit exclusions provided in task and variants
+        if (EXCLUDE_LABELS.has(lbl) || excludeByPattern(lbl)) return false;
 
         // Also exclude generic start/end date so preamble remains sole source
         if (lbl === "start date" || lbl === "end date") return false;

@@ -54,7 +54,19 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       "supplier",
       "supplier name",
       "<supplier name>",
+      "[company name] (client)",
+      "[company name](client)",
+      "company name (client)",
+      "client (company name)",
     ]);
+    const excludeByPattern = (lbl) => {
+      const compact = lbl.replace(/\s+/g, " ").trim();
+      if (EXCLUDE_LABELS.has(compact)) return true;
+      const norm = compact.replace(/\s*\(\s*/g, " (").replace(/\s*\)\s*/g, ")");
+      if ((/\bcompany name\b/.test(norm) || /\bclient\b/.test(norm)) && /\(client\)/.test(norm)) return true;
+      if (norm.includes("company name") && norm.includes("client")) return true;
+      return false;
+    };
     const filtered = (normalizedFields || []).filter((f) => {
       const lbl = String(f.label || f.key || "").toLowerCase().trim();
       if (shouldOmit(lbl)) return false;
@@ -66,8 +78,8 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       if (lbl === "master services agreement") return false;
       if (lbl === "add logo here" || lbl === "[add logo here]") return false;
 
-      // Explicit exclusions to align with DOCX export "All Entered Fields"
-      if (EXCLUDE_LABELS.has(lbl)) return false;
+      // Explicit exclusions to align with DOCX export "All Entered Fields" including variants
+      if (EXCLUDE_LABELS.has(lbl) || excludeByPattern(lbl)) return false;
 
       // Keep actual project Start/End Date inside later sections visible; do not blanket remove generic "start date"/"end date".
       return true;
