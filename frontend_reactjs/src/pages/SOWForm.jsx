@@ -675,36 +675,9 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           Save
         </button>
 
-        <button
-          className="btn btn-primary"
-          type="button"
-          onClick={async () => {
-            if (!validate()) return;
-            const { logoPublicUrl, signaturePublicUrls } = await uploadAssetsIfConfigured(data?.meta?.userId);
-            if (logoPublicUrl || (signaturePublicUrls && Object.keys(signaturePublicUrls).length)) {
-              setData((prev) => {
-                const next = structuredClone(prev || {});
-                if (logoPublicUrl) {
-                  next.meta = next.meta || {};
-                  next.meta.logoUrl = logoPublicUrl;
-                }
-                Object.entries(signaturePublicUrls || {}).forEach(([k, url]) => {
-                  if (!next.templateData) next.templateData = {};
-                  setByKey(next.templateData, k, url);
-                  next.meta = next.meta || {};
-                  next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [k]: url };
-                });
-                return next;
-              });
-            }
-            const evt = new CustomEvent("sow:request-generate-docx", { detail: { source: "SOWForm" } });
-            window.dispatchEvent(evt);
-          }}
-          title="Generate your SOW as a DOCX"
-          disabled={!selectedTemplate || !sections.length}
-        >
-          Generate DOCX
-        </button>
+        {/* Generate DOCX action removed from here to avoid duplicates.
+            The single authoritative Generate button is rendered in the Review/Preview area
+            via the DocxPreviewAndGenerate component. */}
 
         <button
           className="btn btn-primary"

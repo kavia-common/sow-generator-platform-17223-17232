@@ -112,16 +112,28 @@ body {
   border: 1px solid var(--input-border);
   border-radius: 10px;
   padding: 10px 12px;
-  background: var(--input-bg) !important;
-  color: var(--input-text) !important;
+  background: var(--input-bg) !important;      /* keep dark always */
+  color: var(--input-text) !important;         /* keep text readable */
   outline: none;
+  box-shadow: none !important;
+  -webkit-text-fill-color: var(--input-text);  /* ensure Safari/Chrome consistency */
 }
 .input:focus, .textarea:focus, .select:focus,
-input:focus, textarea:focus, select:focus {
-  background: var(--input-bg-focus) !important;
+input:focus, textarea:focus, select:focus,
+.input:active, .textarea:active, .select:active,
+input:active, textarea:active, select:active,
+.input:disabled, .textarea:disabled, .select:disabled,
+input:disabled, textarea:disabled, select:disabled {
+  background: var(--input-bg-focus) !important;     /* slightly darker, never white */
+  color: var(--input-text) !important;
   border-color: var(--input-border-focus) !important;
   outline: var(--focus-ring) !important;
   outline-offset: 2px;
+  box-shadow: none !important;
+}
+/* Keep placeholder a softer gray across states */
+input::placeholder, textarea::placeholder, .input::placeholder, .textarea::placeholder {
+  color: var(--input-placeholder) !important;
 }
 
 /* SOW strict two-column table styles */
