@@ -512,6 +512,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           startDate={data?.meta?.preambleStartDate || data?.templateData?.start_date || data?.templateData?.agreement_start_date || ''}
           endDate={data?.meta?.preambleEndDate || data?.templateData?.end_date || ''}
           supplier={data?.meta?.preambleSupplier || data?.templateData?.supplier_name || data?.meta?.supplier || ''}
+          showSummary={true}
         />
       </div>
 
