@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import tmParsed from "../templates/parsed/tm_template_parsed.json";
 import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
 import SowPreamble from "../components/SowPreamble.jsx";
-import AIChatWidget from "../components/AIChatWidget.jsx";
 /**
  * Apply the previous black theme styling for the SOW form only.
  * Ensure no 'elegant' or ocean pastel theme classes are used here.
@@ -457,11 +456,6 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   // Renderer
   return (
     <div className="panel sow-form sow-dark">
-      <AIChatWidget />
-      {/* AI Assistant floating widget */}
-      <div aria-hidden="true">
-        {/* Imported lazily to avoid SSR issues if any; use dynamic import pattern */}
-      </div>
       {/* Header with top-left logo preview */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

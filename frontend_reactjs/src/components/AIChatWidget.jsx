@@ -1,7 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../theme.css";
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * AIChatWidget
+ * Floating FAB-style assistant that opens an accessible dialog panel with an interactive prompt.
+ * Props:
+ * - title?: string
+ * - initialSuggestions?: string[]
+ * - onSend?: (message: string) => Promise<{ ok: boolean, content?: string, error?: string }>
+ * - fabPosition?: { right?: number, left?: number, bottom?: number, top?: number }  // defaults to { right: 16, bottom: 16 }
+ * - zIndex?: number                                                                  // defaults to 1000
+ * - className?: string
+ */
 export default function AIChatWidget({
   title = "SOW Assistant",
   initialSuggestions = [
@@ -9,29 +20,77 @@ export default function AIChatWidget({
     "List client deliverables",
     "Suggest milestones and payment terms",
   ],
-  onSend, // optional hook: (message) => Promise<{ok, content}>
+  onSend,
+  fabPosition,
+  zIndex = 1000,
   className = "",
 }) {
-  /**
-   * Interactive, AI-like assistant panel.
-   * - Shows conversation bubbles
-   * - Input box with suggestion chips
-   * - Calls aiClient.generateSOWFromPrompt by default, unless onSend is provided
-   * - Dark theme compliant with pink CTA focus for send button
-   */
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Hi! I can help you outline a strong SOW. Ask me to draft sections or refine your wording." },
   ]);
-  const endRef = useRef(null);
 
-  const suggestions = useMemo(() => Array.from(new Set(initialSuggestions || [])).slice(0, 6), [initialSuggestions]);
+  const endRef = useRef(null);
+  const dialogRef = useRef(null);
+  const previouslyFocusedRef = useRef(null);
+
+  const suggestions = useMemo(
+    () => Array.from(new Set(initialSuggestions || [])).slice(0, 6),
+    [initialSuggestions]
+  );
 
   useEffect(() => {
     if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, open]);
+
+  // Focus management and focus trap
+  useEffect(() => {
+    function handleKey(e) {
+      if (!open) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+      } else if (e.key === "Tab") {
+        // simple focus trap
+        const container = dialogRef.current;
+        if (!container) return;
+        const focusable = container.querySelectorAll(
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    }
+    if (open) {
+      previouslyFocusedRef.current = document.activeElement;
+      setTimeout(() => {
+        const inputEl = dialogRef.current?.querySelector("input, textarea, button");
+        inputEl?.focus();
+      }, 0);
+      document.addEventListener("keydown", handleKey);
+    }
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      // restore focus
+      if (previouslyFocusedRef.current && typeof previouslyFocusedRef.current.focus === "function") {
+        try { previouslyFocusedRef.current.focus(); } catch {}
+      }
+    };
+  }, [open]);
 
   async function defaultSend(text) {
     const { generateSOWFromPrompt } = await import("../services/aiClient.js");
@@ -65,28 +124,51 @@ export default function AIChatWidget({
     }
   }
 
+  const fabStyle = {
+    position: "fixed",
+    right: fabPosition?.right ?? (fabPosition?.left == null ? 16 : undefined),
+    left: fabPosition?.left ?? undefined,
+    bottom: fabPosition?.bottom ?? (fabPosition?.top == null ? 16 : undefined),
+    top: fabPosition?.top ?? undefined,
+    zIndex,
+    fontWeight: 800,
+    borderRadius: 999,
+  };
+
   return (
     <>
+      {/* Floating FAB */}
       <button
         type="button"
         className="btn btn-primary"
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          position: "fixed",
-          right: 16,
-          bottom: 16,
-          zIndex: 50,
-          fontWeight: 800,
-        }}
+        onClick={() => setOpen(true)}
+        style={fabStyle}
         aria-expanded={open}
         aria-controls="ai-chat-panel"
+        aria-haspopup="dialog"
         title="Open SOW Assistant"
       >
-        {open ? "Close Assistant" : "Ask AI"}
+        Ask AI
       </button>
 
+      {/* Backdrop */}
+      {open && (
+        <div
+          className="modal-overlay"
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: zIndex - 1 + 1, // ensure behind panel but above content
+          }}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Panel */}
       <div
         id="ai-chat-panel"
+        ref={dialogRef}
         className={className}
         style={{
           position: "fixed",
@@ -99,11 +181,12 @@ export default function AIChatWidget({
           borderRadius: 14,
           boxShadow: "var(--shadow-lg)",
           overflow: "hidden",
-          zIndex: 40,
+          zIndex,
         }}
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         aria-label="SOW Assistant"
+        onClick={(e) => e.stopPropagation()} // prevent backdrop close from inner clicks
       >
         <div
           style={{
@@ -148,7 +231,7 @@ export default function AIChatWidget({
                 key={idx}
                 style={{
                   justifySelf: m.role === "user" ? "end" : "start",
-                  background: m.role === "user" ? "var(--color-primary-ghost)" : "var(--color-surface-2)",
+                  background: m.role === "user" ? "rgba(244, 114, 182, 0.15)" : "var(--color-surface-2)",
                   color: "var(--color-text)",
                   border: "1px solid var(--color-border)",
                   borderRadius: 12,

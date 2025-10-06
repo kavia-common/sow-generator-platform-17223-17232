@@ -8,7 +8,7 @@ import SideNav from "./components/SideNav";
 import TemplateSelect from "./pages/TemplateSelect";
 import TemplatePreview from "./pages/TemplatePreview";
 import { applyThemeToRoot, oceanTheme } from "./theme";
-import AIChatWidget from "./components/AIChatWizard";
+import AIChatWidget from "./components/AIChatWidget";
 import LandingLogin from "./pages/LandingLogin";
 import SOWForm from "./pages/SOWForm";
 
@@ -170,11 +170,8 @@ function App() {
       </div>
 
       <AIChatWidget
-        projectTitle={currentProjectName}
-        position="right"
-        onPackage={(payload) => {
-          setSowData(payload);
-        }}
+        title="SOW Assistant"
+        fabPosition={{ right: 16, bottom: 16 }}
       />
     </>
   );
