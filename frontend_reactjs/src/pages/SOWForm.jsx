@@ -109,7 +109,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   }, [sectionsRaw]);
 
   // Build single-source field configuration for two-column renderer
-  // Apply filter to exclude fields from "Description" through "20. Point of Contact" (pre-All Entered Fields)
+  // Remove the unwanted preamble/table fields that appear above "Client Portfolio"
   const fieldConfig = useMemo(() => {
     const cfg = [];
     (sections || []).forEach((sec) => {
@@ -148,20 +148,30 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       return true;
     });
 
-    // Domain-specific omission prior to All Entered Fields:
+    // Omit preamble/table fields above "Client Portfolio" but keep the top sentence (SowPreamble remains separate)
     const shouldOmit = (label) => {
       const lbl = String(label || "").toLowerCase().trim();
       if (!lbl) return false;
-      // Remove general non-All-Fields labels
+
+      // Generic removals (keep UX clean)
       if (lbl === "description") return true;
       if (lbl.includes("point of contact")) return true;
       if (lbl === "work order parameters") return true;
 
-      // Explicitly remove the three fields as per requirement from the form UI
+      // Explicit preamble/table fields to remove
+      // Titles/headers/inline bits before Client Portfolio
       if (lbl === "statement of work" || lbl === "statement of work (t&m)") return true;
       if (lbl === "to") return true;
       if (lbl === "master services agreement") return true;
-      if (lbl === "[add logo here]") return true; // transcript placeholder
+      if (lbl === "add logo here" || lbl === "[add logo here]") return true;
+
+      // Date/company name rows in the preamble table
+      if (lbl.includes("agreement date")) return true; // Agreement Date [start date]
+      if (lbl.includes("client name")) return true;
+      if (lbl.includes("company name")) return true;
+      if (lbl.includes("(client)")) return true;
+      if (lbl.includes("supplier name")) return true;
+
       return false;
     };
 
@@ -171,7 +181,19 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       return !shouldOmit(item.name);
     });
 
-    return filtered;
+    // After filtering, if a section becomes empty (e.g., Preamble), drop it from render
+    const compact = [];
+    for (let i = 0; i < filtered.length; i++) {
+      const it = filtered[i];
+      if (it.kind === "section") {
+        // look ahead: if next element is a section or end, skip this empty section
+        const hasNextFieldInSection = filtered.slice(i + 1).some((n) => n.kind !== "section");
+        if (!hasNextFieldInSection) continue;
+      }
+      compact.push(it);
+    }
+
+    return compact;
   }, [sections]);
 
   // Provide bundled template URL hint
@@ -420,7 +442,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
   const validate = () => {
     const err = {};
     // Keep core template fields only; preamble fields were removed from UI
-    const requiredKeys = ["client_name", "supplier_name", "scope_of_work"];
+    const requiredKeys = ["scope_of_work"];
     requiredKeys.forEach((k) => {
       const val = getValue(data?.templateData, k);
       if (!val) err[k] = "Required";

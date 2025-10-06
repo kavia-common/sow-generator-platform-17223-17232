@@ -51,16 +51,20 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       if (shouldOmit(lbl)) return false;
       if (lbl.includes("work order") || lbl.includes("work_order")) return false;
 
-      // Explicitly remove 'Statement of Work', 'To', 'Master Service Agreement'
+      // Remove same preamble/table fields that were stripped from the form UI
       if (lbl === "statement of work" || lbl === "statement of work (t&m)") return false;
       if (lbl === "to") return false;
       if (lbl === "master services agreement") return false;
       if (lbl === "add logo here" || lbl === "[add logo here]") return false;
 
-      // Also exclude date fields per requirement
-      if (lbl === "start date" || lbl === "end date") return false;
-      if (lbl.includes("agreement start date")) return false;
+      // Preamble date/company/supplier rows
+      if (lbl.includes("agreement date")) return false;
+      if (lbl.includes("client name")) return false;
+      if (lbl.includes("company name")) return false;
+      if (lbl.includes("(client)")) return false;
+      if (lbl.includes("supplier name")) return false;
 
+      // Keep actual project Start/End Date inside later sections visible; do not blanket remove generic "start date"/"end date".
       return true;
     });
     return filtered.map((f) => {
