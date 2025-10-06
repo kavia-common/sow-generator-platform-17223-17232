@@ -1252,36 +1252,17 @@ export async function buildSowDocx(data, templateSchema) {
         console.warn("buildSowDocx: Schema-enumerated table skipped (empty).");
       }
 
-      // Address for Communications: dedicated section just above signatures.
-      // Only use address_for_communications object and do not source from other scattered fields to avoid duplication.
-      const addrObj = get(templateData, "address_for_communications") || {};
-      const addrSupplier = cleanValue(addrObj.supplier_name || "");
-      const addrContact = cleanValue(addrObj.contact_name || "");
-      const addrEmail = cleanValue(addrObj.email || "");
-      const addrAddress = cleanValue(addrObj.address || "");
-
-      // Build consolidated multi-line block, skipping empty lines
-      const addressLines = [addrSupplier, addrContact, addrEmail, addrAddress].filter((x) => x && x.trim());
-      const addressBlockParas = addressLines.length ? addressLines.map((ln) => para(ln)) : [para("")];
-
-      // Insert section header
-      children.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 120 },
-          children: [new TextRun({ text: "Address for Communications", bold: true, size: 24 })],
-          heading: HeadingLevel.HEADING_2,
-        })
-      );
-
-      // Insert single-row table with consolidated parameter
-      const addrTableRows = [
-        new TableRow({
-          children: [labelCell("Address for Communications", L), makeCell(addressBlockParas, { widthPct: V })],
-        }),
-      ];
-      const addrTable = tableFullWidth(addrTableRows);
-      if (addrTable) children.push(addrTable);
+      // Address for Communications: include as a single row inside Work Order Parameters table using a single field value
+      const addrRaw = get(templateData, "address_for_communications") || "";
+      const addrClean = String(addrRaw || "");
+      if (addrClean || addrClean === "") {
+        const addrLines = addrClean.split(/\r?\n/).map((s) => cleanValue(s)).filter((s) => s.length > 0);
+        const addrParas = (addrLines.length ? addrLines : [""]).map((ln) => para(ln));
+        const addrRow = new TableRow({
+          children: [labelCell("Address for Communications", L), makeCell(addrParas, { widthPct: V })],
+        });
+        rows.push(addrRow);
+      }
     }
   }
 

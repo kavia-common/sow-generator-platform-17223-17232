@@ -615,6 +615,34 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         </div>
       )}
 
+      {/* Address for Communications: single multiline input, horizontal layout */}
+      <div className="panel" style={{ marginTop: 12 }}>
+        <div className="panel-title">Address for Communications</div>
+        <div className="sow-table" style={{ borderTop: "1px solid var(--sow-border-strong)" }}>
+          <div className="sow-row" aria-label="Address for Communications">
+            <div className="sow-cell sow-label">
+              <label htmlFor="f-address_for_communications">Address for Communications</label>
+            </div>
+            <div className="sow-cell sow-input">
+              <textarea
+                id="f-address_for_communications"
+                className="textarea sow-textarea"
+                placeholder="Enter the Address for Communications block (e.g., Supplier, Contact, Email, Address)"
+                value={getValue(data?.templateData, "address_for_communications") || ""}
+                onChange={(e) => setTemplateField("address_for_communications", e.target.value)}
+                aria-invalid={false}
+              />
+              {/* Optional minimal validation: warn if user types only whitespace */}
+              {(() => {
+                const v = (getValue(data?.templateData, "address_for_communications") || "").trim();
+                if (v.length === 0) return null;
+                return null;
+              })()}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Dynamic custom fields UI */}
       <div className="panel" style={{ marginTop: 12 }}>
         <div className="panel-title">Custom Fields</div>
