@@ -1180,7 +1180,7 @@ export async function buildSowDocx(data, templateSchema) {
         new Paragraph({
           alignment: AlignmentType.LEFT,
           spacing: { after: 120 },
-          children: [new TextRun({ text: "All Entered Fields", bold: true, size: 24 })],
+          children: [new TextRun({ text: "Work Order Parameters", bold: true, size: 24 })],
           heading: HeadingLevel.HEADING_2,
         })
       );

@@ -635,7 +635,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           />
         </div>
         <div className="sow-helper" style={{ marginTop: 8 }}>
-          Add ad-hoc fields that will appear in All Entered Fields and the exported DOCX.
+          Add ad-hoc fields that will appear in Work Order Parameters and the exported DOCX.
         </div>
       </div>
 
