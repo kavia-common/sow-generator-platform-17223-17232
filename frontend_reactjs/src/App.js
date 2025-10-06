@@ -3,6 +3,7 @@ import "./styles.css";
 import "./theme.css";
 import BackgroundWaves from "./components/BackgroundWaves";
 import GlassHeader from "./components/GlassHeader";
+import Header from "./components/Header";
 import SideNav from "./components/SideNav";
 import TemplateSelect from "./pages/TemplateSelect";
 import TemplatePreview from "./pages/TemplatePreview";
@@ -158,7 +159,8 @@ function App() {
             alert("Draft saved locally.");
           }}
         />
-        <div className="body-grid" style={{ position: "relative", zIndex: 2 }}>
+        <Header />
+        <div className="body-grid" style={{ position: "relative", zIndex: 2, paddingTop: 8 }}>
           <SideNav current={current} onNavigate={setCurrent} />
           <main className="workspace" role="main" aria-live="polite">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import tmParsed from "../templates/parsed/tm_template_parsed.json";
 import fpParsed from "../templates/parsed/fixed_price_template_parsed.json";
+import SowPreamble from "../components/SowPreamble.jsx";
 /**
  * Apply the previous black theme styling for the SOW form only.
  * Ensure no 'elegant' or ocean pastel theme classes are used here.
@@ -473,6 +474,30 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
             <div id="err-logo" className="field-error" role="alert">{data.meta.fileErrors.logo}</div>
           ) : null}
         </div>
+      </div>
+
+      {/* SOW heading and inline preamble inputs with sentence directly beneath */}
+      <div style={{ marginBottom: 10 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
+          Statement of Work to Master Service Agreement
+        </h2>
+        {/* Preamble inputs + sentence */}
+        {/* Persist values in data.meta to survive page transitions and enable downstream usage */}
+        <SowPreamble
+          startDate={data?.meta?.preambleStartDate || ''}
+          endDate={data?.meta?.preambleEndDate || ''}
+          supplier={data?.meta?.preambleSupplier || ''}
+          onChange={(patch) => {
+            setData((prev) => {
+              const next = structuredClone(prev || {});
+              next.meta = next.meta || {};
+              if ('startDate' in patch) next.meta.preambleStartDate = patch.startDate || '';
+              if ('endDate' in patch) next.meta.preambleEndDate = patch.endDate || '';
+              if ('supplier' in patch) next.meta.preambleSupplier = patch.supplier || '';
+              return next;
+            });
+          }}
+        />
       </div>
 
       {!sections.length ? (
