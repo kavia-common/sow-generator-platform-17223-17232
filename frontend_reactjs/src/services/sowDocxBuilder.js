@@ -528,43 +528,7 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
 
   const nodes = [];
 
-  // 0) Optional logo at the very top (aligned left to satisfy requirement if header image is absent)
-  // Priority order for logo:
-  // - meta.logoUrl (could be data:, blob:, http(s):, or app asset path)
-  // - templateData.logo
-  // - static asset fallback: src/assets/logo.svg -> convert to PNG if needed; else try /assets/logo.png if available
-  try {
-    const raw1 = get(meta, "logoUrl");
-    const raw2 = get(templateData, "logo");
-    const candidates = [raw1, raw2, "src/assets/logo.svg", "/assets/logo.png"].filter(Boolean);
-
-    let loaded = null;
-    for (const c of candidates) {
-      try {
-        loaded = await loadImageForDocx(c);
-        if (loaded && loaded.data) break;
-      } catch (e) {
-        if (isDev) console.warn("[sowDocxBuilder] logo candidate failed", c, e);
-      }
-    }
-
-    if (loaded && loaded.data) {
-      nodes.push(
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing: { after: 160 },
-          children: [
-            new ImageRun({
-              data: loaded.data,
-              transformation: { width: 160, height: 60 },
-            }),
-          ],
-        })
-      );
-    } // else: no logo available; continue quietly
-  } catch (e) {
-    if (isDev) console.warn("[sowDocxBuilder] Top logo skipped", e);
-  }
+  // Logo rendering is centralized in the header only. Do not render any logo here to avoid duplicates.
 
   // Titles
   nodes.push(
@@ -1017,7 +981,7 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
  * Build page header with logo in top-left
  */
 async function buildHeaderAsync({ meta = {}, templateData = {} }) {
-  // Prefer explicit meta.logoUrl (could be blob:, http, data:) then templateData.logo
+  // Prefer explicit meta/logoUrl or settings, then templateData.logo. If invalid/missing, skip silently.
   const rawLogo = get(meta, "logoUrl") || get(templateData, "logo") || "";
   const headerChildren = [];
 
@@ -1227,39 +1191,17 @@ export async function buildSowDocx(data, templateSchema) {
           const short = normalizeLabel(label);
           return { label: short, value, _raw: label };
         })
-        .filter(({ label }) => !shouldExcludeFromAllEnteredFields(label.toLowerCase().trim()));
+        .filter(({ label }) => {
+          const lblLower = label.toLowerCase().trim();
+          if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
+          // Also exclude any line that hints at signature to keep signatures only in the final section
+          if (/\bsignature\b/i.test(lblLower)) return false;
+          return true;
+        });
 
-      const rows = (await Promise.all(
-        filteredRows.map(async ({ label, value }) => {
-          const lblLower = String(label || "").toLowerCase().trim();
-
-          // Render signature images inline if value is an image-like source
-          const isSignatureRow = lblLower.includes("signature");
-          if (isSignatureRow && value) {
-            let valueChildren = null;
-            try {
-              const loaded = await loadImageForDocx(value);
-              if (loaded && loaded.data) {
-                valueChildren = [
-                  new Paragraph({
-                    children: [new ImageRun({ data: loaded.data, transformation: { width: 220, height: 77 } })],
-                  }),
-                ];
-              }
-            } catch (e) {
-              if (isDev) console.warn("[sowDocxBuilder] All Fields signature image skipped", e);
-            }
-            if (!valueChildren) {
-              valueChildren = toParagraphs(value || "");
-            }
-            return new TableRow({
-              children: [labelCell(label, L), makeCell(valueChildren, { widthPct: V })],
-            });
-          }
-
-          return new TableRow({ children: [labelCell(label, L), valueCell(value, V)] });
-        })
-      )).filter(Boolean);
+      const rows = filteredRows.map(({ label, value }) =>
+        new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
+      );
 
       const t = tableFullWidth(rows);
       if (t) children.push(t);
@@ -1274,6 +1216,7 @@ export async function buildSowDocx(data, templateSchema) {
   // Ensure signatures (name/title/date/image) are shown only in the dedicated signature block.
   const { preface, table } = await buildAuthorization({ meta, templateData });
   children.push(preface);
+  // Authorized Signatures table appended at end
   children.push(table);
 
   // Footer: keep minimal to allow page content to flow; page numbers intentionally omitted

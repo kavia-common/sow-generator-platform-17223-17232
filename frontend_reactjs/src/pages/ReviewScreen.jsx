@@ -45,6 +45,8 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
       const lblNorm = normalizeLabel(f.label || f.key || "");
       const lblLower = String(lblNorm || "").toLowerCase().trim();
       if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
+      // additionally exclude any key that clearly belongs to signatures
+      if (String(f.key || "").toLowerCase().includes("signature")) return false;
       return true;
     });
 
@@ -108,7 +110,7 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
 
           <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
 
-          {/* All Entered Fields: Signature previews (if images) should be represented as values here */}
+          {/* All Entered Fields: filtered to exclude start/end/supplier and any signatures */}
           <div style={{ borderTop: "1px solid #eee", marginTop: 12, paddingTop: 8 }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>All Entered Fields</div>
             <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", rowGap: 6, columnGap: 8 }}>
@@ -116,16 +118,58 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
                 <React.Fragment key={i}>
                   <div style={{ color: "#444" }}>{row.label}</div>
                   <div style={{ color: "#111" }}>
-                    {(() => {
-                      const v = row.value;
-                      if (typeof v === "string" && /^data:image\\//.test(v)) {
-                        return <img alt={`${row.label} preview`} src={v} style={{ maxHeight: 80, maxWidth: 180 }} />;
-                      }
-                      return v || "—";
-                    })()}
+                    {row.value || "—"}
                   </div>
                 </React.Fragment>
               ))}
+            </div>
+          </div>
+
+          {/* Authorized Signatures - dedicated end section */}
+          <div style={{ borderTop: "1px solid #eee", marginTop: 16, paddingTop: 8 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Authorized Signatures</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Supplier</div>
+                {(() => {
+                  const sig = data?.templateData?.authorization_signatures?.supplier_signature || data?.templateData?.supplier_signature;
+                  const name = data?.templateData?.authorization_signatures?.supplier_signature_name || data?.templateData?.supplier_signature_name || data?.templateData?.supplier_signer_name;
+                  const title = data?.templateData?.authorization_signatures?.supplier_signature_title || data?.templateData?.supplier_signature_title || data?.templateData?.supplier_signer_title;
+                  const date = data?.templateData?.authorization_signatures?.supplier_signature_date || data?.templateData?.supplier_signature_date || data?.templateData?.supplier_sign_date;
+                  return (
+                    <>
+                      {sig && typeof sig === "string" && /^data:image\//.test(sig) ? (
+                        <img alt="Supplier Signature" src={sig} style={{ maxHeight: 80 }} />
+                      ) : <div style={{ height: 24 }} />}
+                      <div><strong>Supplier:</strong> {data?.templateData?.supplier_name || data?.templateData?.supplier_company_name || "—"}</div>
+                      <div><strong>Name:</strong> {name || "—"}</div>
+                      <div><strong>Title:</strong> {title || "—"}</div>
+                      <div><strong>Date:</strong> {date || "—"}</div>
+                    </>
+                  );
+                })()}
+              </div>
+              <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6, textAlign: "center" }}>Client</div>
+                {(() => {
+                  const sig = data?.templateData?.authorization_signatures?.client_signature || data?.templateData?.client_signature || data?.templateData?.company_signature;
+                  const companyName = data?.templateData?.client_company_name_signature_block || data?.templateData?.client_company_name || data?.templateData?.client_name || data?.meta?.client;
+                  const name = data?.templateData?.authorization_signatures?.client_signature_name || data?.templateData?.client_signature_name || data?.templateData?.company_signer_name;
+                  const title = data?.templateData?.authorization_signatures?.client_signature_title || data?.templateData?.client_signature_title || data?.templateData?.company_signer_title;
+                  const date = data?.templateData?.authorization_signatures?.client_signature_date || data?.templateData?.client_signature_date || data?.templateData?.company_sign_date;
+                  return (
+                    <>
+                      {sig && typeof sig === "string" && /^data:image\//.test(sig) ? (
+                        <img alt="Client Signature" src={sig} style={{ maxHeight: 80 }} />
+                      ) : <div style={{ height: 24 }} />}
+                      <div><strong>Company:</strong> {companyName || "—"}</div>
+                      <div><strong>Name:</strong> {name || "—"}</div>
+                      <div><strong>Title:</strong> {title || "—"}</div>
+                      <div><strong>Date:</strong> {date || "—"}</div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
           </div>
         </div>

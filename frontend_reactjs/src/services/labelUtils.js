@@ -6,7 +6,7 @@
  */
 //
 
-// PUBLIC_INTERFACE
+ // PUBLIC_INTERFACE
 export function normalizeLabel(label) {
   /** Normalize composite labels to concise canonical labels.
    * Examples:
@@ -19,7 +19,7 @@ export function normalizeLabel(label) {
 
   // Split on separators "—", "-", ":" and commas to detect sublabels
   // Prefer the last segment after em dash/colon when structured like "Group — Field"
-  const dashSplit = raw.split(/—|-/).map(s => s.trim()).filter(Boolean);
+  const dashSplit = raw.split(/—|-/).map((s) => s.trim()).filter(Boolean);
   let candidate = raw;
   if (dashSplit.length > 1) {
     // If pattern "Group — Field", take the last segment
@@ -28,7 +28,7 @@ export function normalizeLabel(label) {
 
   // Further strip list-like composites like "A, B, C and D — D"
   // If suffix appears in the prefix list, keep suffix only
-  const parts = candidate.split(/,| and /i).map(s => s.trim()).filter(Boolean);
+  const parts = candidate.split(/,| and /i).map((s) => s.trim()).filter(Boolean);
   if (parts.length > 1) {
     // Heuristic: single-word items like "Email", "Address", "Supplier Name"
     // Keep the last if it seems a field name and appears in the string
@@ -42,7 +42,7 @@ export function normalizeLabel(label) {
   candidate = candidate.replace(/^\[+|\]+$/g, "").trim();
   candidate = candidate.replace(/^"+|"+$/g, "").trim();
 
-  // Canonical mapping for known verbose patterns
+  // Canonical mapping for known verbose patterns and variants
   const CANONICAL = {
     "supplier": "Supplier",
     "supplier name": "Supplier Name",
@@ -54,8 +54,16 @@ export function normalizeLabel(label) {
     "company name": "Company Name",
     "agreement date": "Agreement Date",
     "agreement date [start date]": "Agreement Date",
+    "agreement date [start date] (start date)": "Agreement Date",
+    "agreement date [start date] (agreement date)": "Agreement Date",
+    "agreement date [start date] (agreement start date)": "Agreement Date",
+    "agreement date [start date] (start)": "Agreement Date",
     "start date": "Start Date",
     "end date": "End Date",
+    "supplier signature": "Supplier Signature",
+    "client signature": "Client Signature",
+    "supplier signature name": "Supplier Signature Name",
+    "client signature name": "Client Signature Name",
   };
   const lc = candidate.toLowerCase();
   if (CANONICAL[lc]) return CANONICAL[lc];
@@ -70,7 +78,7 @@ export function normalizeLabel(label) {
   return candidate;
 }
 
-// PUBLIC_INTERFACE
+ // PUBLIC_INTERFACE
 export function shouldExcludeFromAllEnteredFields(label) {
   /** Exclude specific labels from "All Entered Fields" per requirements and variants. */
   const raw = String(label || "");
@@ -94,6 +102,10 @@ export function shouldExcludeFromAllEnteredFields(label) {
   const EXCLUDE_LABELS = new Set([
     "agreement date",
     "agreement date [start date]",
+    "agreement date [start date] (start date)",
+    "agreement date [start date] (agreement date)",
+    "agreement date [start date] (agreement start date)",
+    "agreement start date",
     "company name",
     "client",
     "supplier",
@@ -103,6 +115,15 @@ export function shouldExcludeFromAllEnteredFields(label) {
     "[company name](client)",
     "company name (client)",
     "client (company name)",
+    // Signatures to be excluded from All Entered Fields
+    "supplier signature",
+    "client signature",
+    "supplier signature name",
+    "client signature name",
+    "supplier signature title",
+    "client signature title",
+    "supplier signature date",
+    "client signature date",
   ]);
 
   if (EXCLUDE_LABELS.has(lbl)) return true;
@@ -116,5 +137,20 @@ export function shouldExcludeFromAllEnteredFields(label) {
   // Exclude generic Start/End Date to keep preamble as the sole place
   if (lbl === "start date" || lbl === "end date" || lbl.includes("agreement start date")) return true;
 
+  // Generic signature keyword-based catch-all
+  if (/\bsignature\b/.test(lbl)) return true;
+
+  return false;
+}
+
+// PUBLIC_INTERFACE
+export function shouldExcludeKey(key) {
+  /** Heuristic dotted-key or snake-case key filter aligned to shouldExcludeFromAllEnteredFields */
+  const k = String(key || "").toLowerCase();
+  if (!k) return false;
+  if (k.includes("signature")) return true;
+  if (k.includes("agreement_date") || k.includes("agreement start date")) return true;
+  if (k.includes("start_date") || k.includes("end_date")) return true;
+  if (k.includes("logo")) return true;
   return false;
 }
