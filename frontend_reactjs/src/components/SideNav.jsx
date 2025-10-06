@@ -20,14 +20,14 @@ export default function SideNav({ current, onNavigate }) {
             <button
               key={item.id}
               onClick={() => onNavigate?.(item.id)}
-              className="nav-item"
+              className={`nav-item outline`}
               aria-current={active ? "page" : undefined}
               style={
                 active
                   ? {
-                      borderColor: "var(--color-border)",
-                      background: "var(--hover-surface)",
-                      boxShadow: "0 0 0 3px rgba(96,165,250,0.15)",
+                      borderColor: "rgba(244, 114, 182, 0.8)",
+                      background: "rgba(244, 114, 182, 0.10)",
+                      boxShadow: "0 0 0 3px rgba(244,114,182,0.18)",
                       color: "var(--color-text)"
                     }
                   : undefined

@@ -21,7 +21,7 @@ import fpParsed from "./templates/parsed/fixed_price_template_parsed.json";
 function App() {
   // Stage and step
   const [stage, setStage] = useState("landing"); // landing | builder
-  const [current, setCurrent] = useState("template"); // template | sowform | preview | preview_auto
+  const [current, setCurrent] = useState("template"); // template | sowform | preview
 
   // Selected SOW type: "FP" | "TM"
   const [selectedTemplate, setSelectedTemplate] = useState("");
@@ -95,10 +95,10 @@ function App() {
                 }}
               />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button className="btn" type="button" onClick={() => setCurrent("sowform")} disabled={!selectedTemplate}>
+                <button className="btn btn-primary" type="button" onClick={() => setCurrent("sowform")} disabled={!selectedTemplate}>
                   Continue to SOW Form
                 </button>
-                <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">
+                <button className="btn outline" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">
                   Refresh / Clear
                 </button>
               </div>
@@ -123,24 +123,19 @@ function App() {
             templateSchema={selectedTemplateSchema}
           />
         );
-      case "preview_auto":
-        return (
-          <DocxPreviewAndGenerate
-            data={sowData}
-            templateSchema={selectedTemplateSchema}
-            autoGenerate={true}
-          />
-        );
+
       default:
         return null;
     }
   };
 
-  // Listen for a single action from SOWForm to trigger auto-generate navigation
+  // Remove any auto-generate listeners to ensure generation only occurs on explicit button click
   useEffect(() => {
-    const handler = () => setCurrent("preview_auto");
-    window.addEventListener("sow:request-generate-docx", handler);
-    return () => window.removeEventListener("sow:request-generate-docx", handler);
+    const navToPreview = () => setCurrent("preview");
+    window.addEventListener("sow:navigate-preview", navToPreview);
+    return () => {
+      window.removeEventListener("sow:navigate-preview", navToPreview);
+    };
   }, []);
 
   if (stage === "landing") {
@@ -164,10 +159,10 @@ function App() {
           <SideNav current={current} onNavigate={setCurrent} />
           <main className="workspace" role="main" aria-live="polite">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-              <button className="btn" type="button" onClick={() => setCurrent("template")}>Template</button>
-              <button className="btn" type="button" onClick={() => setCurrent("sowform")}>Form</button>
-              <button className="btn" type="button" onClick={() => setCurrent("preview_auto")}>Generate DOCX</button>
-              <button className="btn" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Reset</button>
+              <button className="btn outline" type="button" onClick={() => setCurrent("template")}>Template</button>
+              <button className="btn outline" type="button" onClick={() => setCurrent("sowform")}>Form</button>
+              <button className="btn btn-primary" type="button" onClick={() => setCurrent("preview")}>Generate DOCX</button>
+              <button className="btn ghost" type="button" onClick={onRefreshAll} aria-label="Refresh and clear all fields">Reset</button>
             </div>
             {renderStep()}
           </main>

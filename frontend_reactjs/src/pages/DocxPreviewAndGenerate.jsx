@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import "../theme.css";
 import "../styles.css";
 
@@ -6,8 +6,9 @@ import "../styles.css";
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
  * Builds a fresh, valid DOCX directly from SOW form values without using external templates.
+ * Generation happens only when the user clicks the button.
  */
-export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
+export default function DocxPreviewAndGenerate({ data, templateSchema }) {
   const [generating, setGenerating] = useState(false);
   const rafRevokeRef = useRef(null);
 
@@ -23,11 +24,6 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
       setTimeout(() => setGenerating(false), 300);
     }
   }, [data, templateSchema, generating]);
-
-  useEffect(() => {
-    if (autoGenerate) onGenerate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoGenerate]);
 
   function triggerDownload(blob, filename) {
     if (rafRevokeRef.current) {
@@ -58,7 +54,6 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
           title="Generate a new DOCX directly from your entries"
           disabled={generating}
           aria-busy={generating}
-          style={{}}
         >
           {generating ? "Generating..." : "Generate DOCX"}
         </button>

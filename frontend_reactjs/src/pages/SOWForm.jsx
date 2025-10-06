@@ -476,7 +476,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           aria-label="Logo upload area"
         >
           <button
-            className="btn"
+            className="btn outline"
             type="button"
             onClick={() => document.getElementById("logo-upload-input")?.click()}
             title="Choose a company logo image"
@@ -564,7 +564,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
                       onDrop={(e)=>{ e.preventDefault(); e.stopPropagation(); handleFile(e, entry.key); }}
                     >
                       <button
-                        className="btn"
+                        className="btn outline"
                         type="button"
                         onClick={() => document.getElementById(`f-${entry.key}`)?.click()}
                         aria-label={`Choose image for ${entry.name}`}
@@ -616,7 +616,7 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
         <button
-          className="btn"
+          className="btn outline"
           type="button"
           onClick={async () => {
             if (!validate()) return;
@@ -684,9 +684,9 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           className="btn btn-primary"
           type="button"
           onClick={() => {
-            // Save draft locally and continue to preview
+            // Save draft locally and navigate to preview (no auto-download)
             try { localStorage.setItem("sow-data", JSON.stringify(data)); } catch {}
-            const evt = new CustomEvent("sow:request-generate-docx", { detail: { source: "SOWForm-continue" } });
+            const evt = new CustomEvent("sow:navigate-preview", { detail: { source: "SOWForm-continue" } });
             window.dispatchEvent(evt);
           }}
           title="Save and move to the next step"

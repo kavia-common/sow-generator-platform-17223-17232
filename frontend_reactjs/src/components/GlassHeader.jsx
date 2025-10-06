@@ -21,7 +21,7 @@ export default function GlassHeader({ onSaveDraft }) {
           <a href="#generate">Generate</a>
         </div>
         <div className="header-actions">
-          <button className="btn" type="button" onClick={onSaveDraft}>Save Draft</button>
+          <button className="btn btn-primary" type="button" onClick={onSaveDraft}>Save Draft</button>
         </div>
       </div>
     </div>
