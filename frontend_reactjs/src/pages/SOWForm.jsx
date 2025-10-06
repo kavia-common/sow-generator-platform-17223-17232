@@ -141,21 +141,6 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
       });
     });
 
-    // Inject a dedicated section for Supplier/Client signature metadata and Address for Communications entries
-    // These are single-entry fields and must appear once.
-    cfg.push({ kind: "section", id: "Signatories", label: "Signatories" });
-    cfg.push({ kind: "field", key: "supplier.addressForCommunications", name: "Supplier — Address for Communications", type: "textarea" });
-    cfg.push({ kind: "field", key: "supplier.companyName", name: "Supplier — Company Name", type: "text" });
-    cfg.push({ kind: "field", key: "supplier.signatoryName", name: "Supplier — Name", type: "text" });
-    cfg.push({ kind: "field", key: "supplier.signDate", name: "Supplier — Date", type: "date" });
-    cfg.push({ kind: "field", key: "authorization_signatures.supplier_signature", name: "Supplier — Signature", type: "signature" });
-
-    cfg.push({ kind: "field", key: "client.addressForCommunications", name: "Client — Address for Communications", type: "textarea" });
-    cfg.push({ kind: "field", key: "client.companyName", name: "Client — Company Name", type: "text" });
-    cfg.push({ kind: "field", key: "client.signatoryName", name: "Client — Name", type: "text" });
-    cfg.push({ kind: "field", key: "client.signDate", name: "Client — Date", type: "date" });
-    cfg.push({ kind: "field", key: "authorization_signatures.client_signature", name: "Client — Signature", type: "signature" });
-
     // Deduplicate by key
     const seen = new Set();
     const deduped = cfg.filter((c) => {
