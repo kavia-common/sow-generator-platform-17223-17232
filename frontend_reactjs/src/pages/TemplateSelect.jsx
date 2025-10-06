@@ -13,8 +13,8 @@ export default function TemplateSelect({ selected, onChange }) {
   ];
 
   return (
-    <div className="panel sow-dark" style={{ background: "#0b0b0b", borderColor: "var(--ui-border-strong)" }}>
-      <div className="panel-title" style={{ color: "#f5f7fa", borderLeftColor: "#60a5fa" }}>SOW Type</div>
+    <div className="panel">
+      <div className="panel-title">SOW Type</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {opts.map((o) => {
           const active = selected === o.id;
@@ -25,17 +25,16 @@ export default function TemplateSelect({ selected, onChange }) {
               className="panel"
               style={{
                 borderStyle: "solid",
-                borderColor: active ? "#60a5fa" : "var(--ui-border)",
-                background: active ? "rgba(96,165,250,0.14)" : "rgba(255,255,255,0.03)",
-                boxShadow: active ? "0 0 24px rgba(96,165,250,0.35)" : "none",
+                borderColor: active ? "var(--accent-purple)" : "var(--ui-border)",
+                background: "#FFFFFF",
+                boxShadow: active ? "0 0 0 3px rgba(139,92,246,0.15)" : "var(--shadow-sm)",
                 textAlign: "left",
-                color: "var(--text-primary)",
-                backdropFilter: "blur(4px)"
+                color: "var(--text-primary)"
               }}
               aria-pressed={active}
             >
-              <div style={{ fontWeight: 800, marginBottom: 6, color: "var(--text-primary)" }}>{o.title}</div>
-              <div style={{ color: "var(--text-secondary)" }}>{o.desc}</div>
+              <div style={{ fontWeight: 800, marginBottom: 6, color: "#111827" }}>{o.title}</div>
+              <div style={{ color: "var(--text-muted)" }}>{o.desc}</div>
             </button>
           );
         })}

@@ -9,9 +9,9 @@ import React from "react";
 export default function TemplatePreview() {
   return (
     <div className="panel">
-      <div className="panel-title">Templates</div>
+      <div className="panel-title">Actions</div>
       <div style={{ color: "var(--text-secondary)" }}>
-        The app automatically selects an internal SOW template based on your choice: Fixed Price or T&M.
+        Select your SOW type and proceed to fill the form or generate the document.
       </div>
     </div>
   );

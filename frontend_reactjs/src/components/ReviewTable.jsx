@@ -38,7 +38,7 @@ export default function ReviewTable({ rows, placeholder = "—" }) {
                 borderBottom: "1px solid var(--ui-border)",
                 position: "sticky",
                 top: 0,
-                background: "var(--bg-elevated)",
+                background: "#FFFFFF",
                 zIndex: 1,
               }}
             >

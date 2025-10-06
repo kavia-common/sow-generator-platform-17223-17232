@@ -619,15 +619,13 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
           className="btn"
           type="button"
           onClick={async () => {
-            // Runs validation and optionally uploads to Supabase. Non-blocking on upload errors.
             if (!validate()) return;
-            // Optional: replace local preview URLs with public URLs if available
             const { logoPublicUrl, signaturePublicUrls } = await uploadAssetsIfConfigured(data?.meta?.userId);
             if (logoPublicUrl) {
               setData((prev) => {
                 const next = structuredClone(prev || {});
                 next.meta = next.meta || {};
-                next.meta.logoUrl = logoPublicUrl; // keep public URL
+                next.meta.logoUrl = logoPublicUrl;
                 return next;
               });
             }
@@ -636,14 +634,13 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
                 const next = structuredClone(prev || {});
                 Object.entries(signaturePublicUrls).forEach(([k, url]) => {
                   if (!next.templateData) next.templateData = {};
-                  setByKey(next.templateData, k, url); // store URL instead of File for downstream usage
+                  setByKey(next.templateData, k, url);
                   next.meta = next.meta || {};
                   next.meta.signaturePreview = { ...(next.meta.signaturePreview || {}), [k]: url };
                 });
                 return next;
               });
             }
-            // Dispatch save event (other parts of app might listen)
             const evt = new CustomEvent("sow:save", { detail: { source: "SOWForm" } });
             window.dispatchEvent(evt);
           }}
@@ -651,12 +648,12 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         >
           Save
         </button>
+
         <button
           className="btn btn-primary"
           type="button"
           onClick={async () => {
             if (!validate()) return;
-            // On submit/generate, attempt upload if configured but do not block generation if it fails.
             const { logoPublicUrl, signaturePublicUrls } = await uploadAssetsIfConfigured(data?.meta?.userId);
             if (logoPublicUrl || (signaturePublicUrls && Object.keys(signaturePublicUrls).length)) {
               setData((prev) => {
@@ -682,6 +679,22 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         >
           Generate DOCX
         </button>
+
+        <button
+          className="btn"
+          type="button"
+          onClick={() => {
+            // Save draft locally and continue to preview
+            try { localStorage.setItem("sow-data", JSON.stringify(data)); } catch {}
+            const evt = new CustomEvent("sow:request-generate-docx", { detail: { source: "SOWForm-continue" } });
+            window.dispatchEvent(evt);
+          }}
+          title="Save and move to the next step"
+          style={{ marginLeft: "auto", fontWeight: 700 }}
+        >
+          Save and Continue
+        </button>
+
         <div style={{ color: "var(--text-secondary)" }}>
           Creates a Word document directly from your entries.
         </div>

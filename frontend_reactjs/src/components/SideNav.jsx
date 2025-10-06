@@ -25,8 +25,8 @@ export default function SideNav({ current, onNavigate }) {
                 active
                   ? {
                       borderColor: "var(--accent-purple)",
-                      background: "rgba(111,63,255,0.15)",
-                      boxShadow: "var(--glow-purple)"
+                      background: "#F9FAFB",
+                      boxShadow: "0 0 0 3px rgba(139,92,246,0.15)"
                     }
                   : undefined
               }
@@ -35,13 +35,6 @@ export default function SideNav({ current, onNavigate }) {
             </button>
           );
         })}
-      </div>
-      <div className="nav-group">
-        <div className="nav-title">Templates</div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <span className="btn" style={{ cursor: "default" }}>FP</span>
-          <span className="btn" style={{ cursor: "default" }}>T&M</span>
-        </div>
       </div>
     </aside>
   );

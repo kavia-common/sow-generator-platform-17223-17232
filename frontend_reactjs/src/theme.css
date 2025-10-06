@@ -1,43 +1,42 @@
 :root {
-  /* Dark Canvas and Surfaces */
-  --bg-canvas: #0b0b10;
-  --bg-elevated: #12121a;
-  --bg-glass: rgba(255,255,255,0.06);
+  /* Light Canvas and Surfaces */
+  --bg-canvas: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-glass: rgba(255,255,255,0.7);
 
   /* Text */
-  --text-primary: #F3F5F7;
-  --text-secondary: #C9CDD2;
-  --text-muted: #9AA0A6;
+  --text-primary: #111827; /* gray-900 */
+  --text-secondary: #374151; /* gray-700 */
+  --text-muted: #6B7280; /* gray-500 */
 
-  /* Accents (neon) */
-  --accent-purple: #6F3FFF;
-  --accent-magenta: #C026D3;
-  --accent-pink: #FF3FA4;
-  --accent-blue: #14B8FF;
+  /* Accents aligned with Ocean Professional + screenshot */
+  --accent-purple: #8B5CF6; /* violet-500 for focus ring */
+  --accent-magenta: #F472B6; /* rose-400 (style guide primary) */
+  --accent-pink: #FB7185; /* rose-400/500 blend */
+  --accent-blue: #3B82F6; /* blue-500 for accessible links/focus */
 
   /* UI neutrals */
-  --ui-border: rgba(255,255,255,0.12);
-  --ui-border-strong: rgba(255,255,255,0.2);
-  /* Compatibility alias for components that read --ui-border-strong via var() fallback */
-  --ui-fill: rgba(255,255,255,0.04);
-  --ui-fill-hover: rgba(255,255,255,0.08);
+  --ui-border: #E5E7EB;           /* border-subtle */
+  --ui-border-strong: #D1D5DB;    /* stronger separation */
+  --ui-fill: #FFFFFF;
+  --ui-fill-hover: #F9FAFB;
 
   /* Buttons */
-  --btn-primary-bg: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
-  --btn-primary-text: #111217;
-  --btn-ghost-text: #E7E9EC;
-  --btn-ghost-bg: rgba(255,255,255,0.06);
-  --btn-ghost-hover: rgba(255,255,255,0.1);
+  --btn-primary-bg: linear-gradient(135deg, #F9A8D4, #F472B6); /* soft rose gradient */
+  --btn-primary-text: #111827;
+  --btn-ghost-text: #374151;
+  --btn-ghost-bg: #FFFFFF;
+  --btn-ghost-hover: #F3F4F6;
 
   /* Glow & Shadows */
-  --glow-purple: 0 0 24px rgba(111,63,255,0.45);
-  --glow-pink: 0 0 28px rgba(255,63,164,0.35);
-  --shadow-elev-1: 0 6px 20px rgba(0,0,0,0.35);
-  --shadow-elev-2: 0 12px 36px rgba(0,0,0,0.45);
+  --glow-purple: 0 0 0 rgba(0,0,0,0); /* avoid neon glow in white theme */
+  --glow-pink: 0 0 0 rgba(0,0,0,0);
+  --shadow-elev-1: 0 2px 8px rgba(17,24,39,0.06);
+  --shadow-elev-2: 0 8px 24px rgba(17,24,39,0.08);
 
   /* Radii */
-  --radius-card: 18px;
-  --radius-input: 14px;
+  --radius-card: 14px;
+  --radius-input: 10px;
 }
 
 html, body, #root {
@@ -56,19 +55,19 @@ html, body, #root {
   color: var(--text-primary);
   background: var(--ui-fill);
   padding: 10px 14px;
-  transition: all .2s ease;
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .06s ease;
 }
 .btn:hover { background: var(--ui-fill-hover); }
-.btn:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
+.btn:focus-visible { outline: 2px solid var(--accent-purple); outline-offset: 2px; }
 
 .btn-primary {
   background: var(--btn-primary-bg);
-  color: var(--text-primary);
-  box-shadow: var(--glow-purple), var(--shadow-elev-1);
+  color: var(--btn-primary-text);
+  box-shadow: var(--shadow-elev-1);
   border-color: var(--ui-border);
 }
 .btn-primary:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.02);
   transform: translateY(-1px);
 }
 .btn-ghost {
@@ -81,13 +80,26 @@ html, body, #root {
   border-color: var(--ui-border-strong);
 }
 
-/* Form elements, rounded and dark */
+/* Form elements, rounded and light */
 .input, .textarea, .select {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+  background: #FFFFFF;
+  color: #111827;
   border: 1px solid var(--ui-border);
   border-radius: var(--radius-input);
   padding: 10px 12px;
   outline: none;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.input::placeholder, .textarea::placeholder {
+  color: #9CA3AF; /* gray-400 */
+  opacity: 1;
+}
+.input:hover, .textarea:hover, .select:hover {
+  background: #FFFFFF;
+  border-color: var(--ui-border-strong);
+}
+.input:focus, .textarea:focus, .select:focus {
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 0 3px rgba(139,92,246,0.25);
 }
 .label { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
