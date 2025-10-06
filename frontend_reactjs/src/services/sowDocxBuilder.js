@@ -981,18 +981,17 @@ async function buildAuthorization({ meta = {}, templateData = {} }) {
  * Build page header with logo in top-left
  */
 async function buildHeaderAsync({ meta = {}, templateData = {} }) {
-  // Select logo with priority:
-  // 1) templateData.logo (base64/data URL/ArrayBuffer)
-  // 2) settings.logoUrl or meta.logoUrl
-  // 3) project-wide asset under /assets or src/assets
-  // Safe checks: if invalid/missing, skip without throwing.
-  const settingsLogo = get(templateData, "settings.logoUrl") || get(meta, "settings.logoUrl");
+  // Select logo with strict priority per requirements:
+  // 1) templateData.logo (expected data URL/base64 or bytes)
+  // 2) settings.logoUrl (from templateData.settings.logoUrl) then meta.logoUrl
+  // 3) fallback to public assets only if nothing else resolves
+  const settingsLogo =
+    get(templateData, "settings.logoUrl") ||
+    get(meta, "settings.logoUrl");
   const rawLogo =
-    get(templateData, "logo") ||
-    settingsLogo ||
-    get(meta, "logoUrl") ||
-    get(meta, "logo") ||
-    "";
+    get(templateData, "logo") ? get(templateData, "logo") :
+    (settingsLogo ? settingsLogo :
+      (get(meta, "logoUrl") || get(meta, "logo") || ""));
 
   const headerChildren = [];
 
@@ -1012,7 +1011,7 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
     // Try selected source first
     if (rawLogo) {
       const loaded = await loadImageForDocx(rawLogo);
-      if (loaded && loaded.data) {
+      if (loaded && loaded.data && headerChildren.length === 0) {
         headerChildren.push(makeImagePara(loaded.data));
       }
     }
@@ -1022,7 +1021,7 @@ async function buildHeaderAsync({ meta = {}, templateData = {} }) {
       for (const c of fallbacks) {
         try {
           const loaded = await loadImageForDocx(c);
-          if (loaded && loaded.data) {
+          if (loaded && loaded.data && headerChildren.length === 0) {
             headerChildren.push(makeImagePara(loaded.data));
             break;
           }

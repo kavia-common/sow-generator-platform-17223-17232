@@ -58,6 +58,7 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
           title="Generate a new DOCX directly from your entries"
           disabled={generating}
           aria-busy={generating}
+          style={{}}
         >
           {generating ? "Generating..." : "Generate DOCX"}
         </button>

@@ -82,21 +82,33 @@ a:hover, a:focus {
 }
 
 /* Buttons */
+/* Base button (non-primary) keeps neutral/dark styles unless specifically marked as primary) */
 button, .btn {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
   border: 1px solid transparent;
   padding: 10px 14px;
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, transform 0.05s ease, border-color 0.15s ease, filter 0.15s ease;
 }
-button:hover, .btn:hover {
-  background: #fb79bd;
+
+/* Primary/CTA: use pink theme */
+button.btn-primary, .btn.btn-primary, button.primary, .btn.primary {
+  background: var(--color-primary);         /* #F472B6 */
+  color: #ffffff;                           /* ensure contrast on dark */
+  border-color: transparent;
+  box-shadow: 0 6px 18px rgba(244, 114, 182, 0.25);
 }
-button:active, .btn:active {
+button.btn-primary:hover, .btn.btn-primary:hover,
+button.primary:hover, .btn.primary:hover {
+  background: #e966a8;                      /* slight darken for hover */
+  filter: brightness(1.02);
+}
+button.btn-primary:active, .btn.btn-primary:active,
+button.primary:active, .btn.primary:active {
   transform: translateY(1px);
 }
+
+/* Secondary: outlined neutral */
 button.secondary, .btn.secondary {
   background: transparent;
   color: var(--color-text);
@@ -105,6 +117,8 @@ button.secondary, .btn.secondary {
 button.secondary:hover, .btn.secondary:hover {
   background: var(--hover-surface);
 }
+
+/* Status variants (leave colors as-is) */
 button.success, .btn.success { background: var(--color-success); color: #07120f; }
 button.error, .btn.error { background: var(--color-error); color: #26090a; }
 
