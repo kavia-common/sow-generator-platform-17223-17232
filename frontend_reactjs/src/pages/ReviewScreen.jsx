@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { makeTranscriptPreviewHtml } from "../services/docxTemplateService";
+import { normalizeLabel, shouldExcludeFromAllEnteredFields } from "../services/labelUtils.js";
 
 /**
  * PUBLIC_INTERFACE
@@ -38,55 +39,19 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
   // Build a simple key:value list for quick review to keep UX simple and free of overlays/prompts.
   const kvList = useMemo(() => {
     const templateData = data?.templateData || {};
-    const shouldOmit = (label) => {
-      const lbl = String(label || "").toLowerCase().trim();
-      if (!lbl) return false;
-      if (lbl === "description") return true;
-      if (lbl.includes("point of contact")) return true;
-      if (lbl === "work order parameters") return true;
-      return false;
-    };
-    const EXCLUDE_LABELS = new Set([
-      "agreement date",
-      "agreement date [start date]",
-      "company name",
-      "client",
-      "supplier",
-      "supplier name",
-      "<supplier name>",
-      "[company name] (client)",
-      "[company name](client)",
-      "company name (client)",
-      "client (company name)",
-    ]);
-    const excludeByPattern = (lbl) => {
-      const compact = lbl.replace(/\s+/g, " ").trim();
-      if (EXCLUDE_LABELS.has(compact)) return true;
-      const norm = compact.replace(/\s*\(\s*/g, " (").replace(/\s*\)\s*/g, ")");
-      if ((/\bcompany name\b/.test(norm) || /\bclient\b/.test(norm)) && /\(client\)/.test(norm)) return true;
-      if (norm.includes("company name") && norm.includes("client")) return true;
-      return false;
-    };
+    const { normalizeLabel, shouldExcludeFromAllEnteredFields } = require("../services/labelUtils.js");
+
     const filtered = (normalizedFields || []).filter((f) => {
-      const lbl = String(f.label || f.key || "").toLowerCase().trim();
-      if (shouldOmit(lbl)) return false;
-      if (lbl.includes("work order") || lbl.includes("work_order")) return false;
-
-      // Remove same preamble/table fields that were stripped from the form UI
-      if (lbl === "statement of work" || lbl === "statement of work (t&m)") return false;
-      if (lbl === "to") return false;
-      if (lbl === "master services agreement") return false;
-      if (lbl === "add logo here" || lbl === "[add logo here]") return false;
-
-      // Explicit exclusions to align with DOCX export "All Entered Fields" including variants
-      if (EXCLUDE_LABELS.has(lbl) || excludeByPattern(lbl)) return false;
-
-      // Keep actual project Start/End Date inside later sections visible; do not blanket remove generic "start date"/"end date".
+      const lblNorm = normalizeLabel(f.label || f.key || "");
+      const lblLower = String(lblNorm || "").toLowerCase().trim();
+      if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
       return true;
     });
+
     return filtered.map((f) => {
+      const shortLabel = normalizeLabel(f.label || f.key);
       const rawVal = resolveValueByKey(templateData, f.key);
-      return { key: f.key, label: f.label || f.key, value: formatValue(rawVal) };
+      return { key: f.key, label: shortLabel, value: formatValue(rawVal) };
     });
   }, [normalizedFields, data]);
 
@@ -151,11 +116,13 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
                 <React.Fragment key={i}>
                   <div style={{ color: "#444" }}>{row.label}</div>
                   <div style={{ color: "#111" }}>
-                    {typeof row.value === "string" && /^data:image\\//.test(row.value) ? (
-                      <img alt={`${row.label} preview`} src={row.value} style={{ maxHeight: 80, maxWidth: 180 }} />
-                    ) : (
-                      row.value || "—"
-                    )}
+                    {(() => {
+                      const v = row.value;
+                      if (typeof v === "string" && /^data:image\\//.test(v)) {
+                        return <img alt={`${row.label} preview`} src={v} style={{ maxHeight: 80, maxWidth: 180 }} />;
+                      }
+                      return v || "—";
+                    })()}
                   </div>
                 </React.Fragment>
               ))}

@@ -1219,56 +1219,21 @@ export async function buildSowDocx(data, templateSchema) {
         if (norm.includes("company name") && norm.includes("client")) return true;
         return false;
       };
-      const filteredRows = allRows.filter(({ label }) => {
-        const raw = String(label || "");
-        const lbl = raw.toLowerCase().trim();
+      // Normalize and filter labels, then build rows with async image resolution
+      const { normalizeLabel, shouldExcludeFromAllEnteredFields } = await import("./labelUtils.js");
 
-        // Existing removals
-        if (lbl === "work order parameters") return false;
-        if (lbl.includes("work order") || lbl.includes("work_order")) return false;
+      const filteredRows = allRows
+        .map(({ label, value }) => {
+          const short = normalizeLabel(label);
+          return { label: short, value, _raw: label };
+        })
+        .filter(({ label }) => !shouldExcludeFromAllEnteredFields(label.toLowerCase().trim()));
 
-        // Explicit exclusions provided in task and variants
-        if (EXCLUDE_LABELS.has(lbl) || excludeByPattern(lbl)) return false;
-
-        // Also exclude generic start/end date so preamble remains sole source
-        if (lbl === "start date" || lbl === "end date") return false;
-        if (lbl.includes("agreement start date")) return false;
-
-        // Common transcript artifacts to omit
-        if (lbl === "statement of work" || lbl === "statement of work (t&m)") return false;
-        if (lbl === "to") return false;
-        if (lbl === "master services agreement") return false;
-        if (lbl === "[add logo here]" || lbl === "add logo here") return false;
-
-        return true;
-      });
-
-      // Build rows with async image resolution for signature fields
       const rows = (await Promise.all(
         filteredRows.map(async ({ label, value }) => {
           const lblLower = String(label || "").toLowerCase().trim();
 
-          // Exclude fields 'Statement of Work', 'To', 'Master Service Agreement' from All Entered Fields
-          if (
-            lblLower === "statement of work" ||
-            lblLower === "statement of work (t&m)" ||
-            lblLower === "to" ||
-            lblLower === "master services agreement" ||
-            lblLower === "[add logo here]" // also omit transcript placeholder if present
-          ) {
-            return null;
-          }
-
-          // Also guard against Start/End Date rows slipping through via alternative schemas
-          if (
-            lblLower === "start date" ||
-            lblLower === "end date" ||
-            lblLower.includes("agreement start date")
-          ) {
-            return null;
-          }
-
-          // Render signature images
+          // Render signature images inline if value is an image-like source
           const isSignatureRow = lblLower.includes("signature");
           if (isSignatureRow && value) {
             let valueChildren = null;
