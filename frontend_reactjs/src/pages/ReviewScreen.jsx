@@ -61,6 +61,7 @@ export default function ReviewScreen({ transcriptText, data, templateSchema }) {
       {/* All Entered Fields: Custom Fields */}
       {Array.isArray(td?.customFields) && td.customFields.length > 0 && (
         <section style={{ marginTop: 16 }}>
+          {/* Title is kept concise; any descriptive paragraph above the table has been removed */}
           <h2 style={{ margin: "6px 0 10px" }}>Additional Fields</h2>
           <ReviewTable
             rows={td.customFields.map((it, idx) => ({
