@@ -144,6 +144,11 @@ function tryResolveAltKey(key, templateData) {
     supplier_name: 'supplier_name',
     engagement_number: 'engagement_number',
     scope_of_work: 'scope_of_work',
+
+    // new preamble normalized variants
+    startdate: 'preamble.startDate',
+    enddate: 'preamble.endDate',
+    supplier: 'preamble.supplier',
   };
   if (map[key]) return map[key];
   const auth = templateData.authorization_signatures || {};

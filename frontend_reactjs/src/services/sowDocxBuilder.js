@@ -584,9 +584,28 @@ async function buildTopIntro({ meta = {}, templateData = {} }) {
 
   // 1) Preamble sentence placed directly below titles
   // Builds "[start - end]" and "[supplier]" parts from entries; keeps placeholders if empty.
-  const startDate = formatDate(get(templateData, "start_date") || get(templateData, "agreement_start_date") || "");
-  const endDate = formatDate(get(templateData, "end_date") || "");
-  const supplier = cleanValue(get(templateData, "supplier_name") || get(meta, "supplier") || "");
+  const startDate = formatDate(
+    // new preamble storage
+    get(meta, "preamble.startDate") ||
+    get(templateData, "preamble.startDate") ||
+    // legacy/aliases
+    get(templateData, "start_date") ||
+    get(templateData, "agreement_start_date") ||
+    ""
+  );
+  const endDate = formatDate(
+    get(meta, "preamble.endDate") ||
+    get(templateData, "preamble.endDate") ||
+    get(templateData, "end_date") ||
+    ""
+  );
+  const supplier = cleanValue(
+    get(meta, "preamble.supplier") ||
+    get(templateData, "preamble.supplier") ||
+    get(templateData, "supplier_name") ||
+    get(meta, "supplier") ||
+    ""
+  );
 
   const rangeText = startDate || endDate ? `[${(startDate || "")}${startDate && endDate ? " - " : ""}${endDate || ""}]` : "[startdate - enddate]";
   const supplierText = supplier ? `[${supplier}]` : "[supplier]";

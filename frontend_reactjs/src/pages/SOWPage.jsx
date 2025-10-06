@@ -15,7 +15,7 @@ export default function SOWPage() {
         </h1>
       </header>
 
-      <SowPreamble />
+      <SowPreamble value={{ preamble: {} }} onChange={() => {}} />
 
       {/* ...rest of SOW form/content... */}
     </div>

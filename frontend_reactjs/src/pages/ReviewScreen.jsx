@@ -73,12 +73,32 @@ export default function ReviewScreen({ data, templateSchema, transcriptText, onE
     });
   }, [normalizedFields, data]);
 
+  // Pull preamble values from stored state
+  const preStart = data?.preamble?.startDate || "";
+  const preEnd = data?.preamble?.endDate || "";
+  const preSupplier = data?.preamble?.supplier || "";
+  const preRange = preStart || preEnd ? `[${preStart}${preStart && preEnd ? " - " : ""}${preEnd}]` : "[startdate - enddate]";
+  const preSupplierText = preSupplier ? `[${preSupplier}]` : "[supplier]";
+
   return (
     <div className="panel">
       <div className="panel-title">Review Your SOW</div>
 
       <div style={{ color: "var(--text-secondary)", marginBottom: 8 }}>
         Please review your entries as they will appear in the final document. Use Edit to make corrections. Click Confirm to generate the DOCX.
+      </div>
+
+      {/* Preamble context */}
+      <div className="panel" style={{ marginBottom: 8 }}>
+        <div className="panel-title">Preamble</div>
+        <div style={{ color: "#111" }}>
+          The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between {preRange}, and {preSupplierText} (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", rowGap: 6, columnGap: 8, marginTop: 8 }}>
+          <div style={{ color: "#444" }}>Start Date</div><div>{preStart || "—"}</div>
+          <div style={{ color: "#444" }}>End Date</div><div>{preEnd || "—"}</div>
+          <div style={{ color: "#444" }}>Supplier</div><div>{preSupplier || "—"}</div>
+        </div>
       </div>
 
       <div style={{ display: "grid", placeItems: "center", padding: 8 }}>

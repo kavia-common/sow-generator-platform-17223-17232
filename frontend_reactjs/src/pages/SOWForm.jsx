@@ -504,8 +504,33 @@ export default function SOWForm({ value, onChange, selectedTemplate, templateSch
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#374151', margin: '6px 0 8px' }}>
           Statement of Work to Master Service Agreement
         </h2>
-        {/* Sentence under heading (without inline inputs) */}
-        <SowPreamble />
+        {/* Preamble inputs + sentence, values stored in data.preamble */}
+        <SowPreamble
+          value={data}
+          onChange={(next) => {
+            // Merge back into our root data, and also mirror useful aliases into templateData for export
+            setData((prev) => {
+              const merged = { ...(prev || {}), ...(next || {}) };
+              // Mirror to templateData for export builder compatibility
+              const s = merged?.preamble?.startDate || "";
+              const e = merged?.preamble?.endDate || "";
+              const sup = merged?.preamble?.supplier || "";
+              merged.templateData = merged.templateData || {};
+              // keep explicit preamble names
+              merged.templateData.preamble = {
+                ...(merged.templateData.preamble || {}),
+                startDate: s,
+                endDate: e,
+                supplier: sup,
+              };
+              // also set export-friendly flattened aliases the builder already looks for
+              merged.templateData.start_date = merged.templateData.start_date || s;
+              merged.templateData.end_date = merged.templateData.end_date || e;
+              merged.templateData.supplier_name = merged.templateData.supplier_name || sup;
+              return merged;
+            });
+          }}
+        />
       </div>
 
       {!sections.length ? (
