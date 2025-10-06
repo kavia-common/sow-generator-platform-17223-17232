@@ -1144,6 +1144,16 @@ export async function buildSowDocx(data, templateSchema) {
       // Normalize and filter labels, then build rows with async image resolution
       const { normalizeLabel, shouldExcludeFromAllEnteredFields } = await import("./labelUtils.js");
 
+      // Fields to explicitly remove from Work Order Parameters per requirement
+      const EXCLUDE_BY_EXACT_LABEL = new Set([
+        "Contact Name",
+        "Email",
+        "Address",
+        "Supplier Date",
+        "Client Name",
+        "Client Date",
+      ]);
+
       const filteredRows = allRows
         .map(({ label, value }) => {
           const short = normalizeLabel(label);
@@ -1152,15 +1162,19 @@ export async function buildSowDocx(data, templateSchema) {
         .filter(({ label, _raw }) => {
           const lblLower = label.toLowerCase().trim();
           const rawLower = _raw.toLowerCase().trim();
+
           // Exclude duplicates and junk
           if (!lblLower) return false;
           if (lblLower === "description" || lblLower === "v" || lblLower === "to" || lblLower === "master services agreement") return false;
           // Centralized exclusion logic handles all variants including "Agreement Date [Start Date]"
           if (shouldExcludeFromAllEnteredFields(lblLower)) return false;
+          // Remove explicitly excluded simple fields from Work Order Parameters
+          if (EXCLUDE_BY_EXACT_LABEL.has(label)) return false;
           // Extra guard: exclude the explicit bracketed variant if present in raw text
           if (rawLower.includes("agreement date [start date]")) return false;
           // Also exclude any line that hints at signature to keep signatures only in the final section
           if (/\bsignature\b/i.test(lblLower)) return false;
+
           return true;
         });
 
@@ -1172,10 +1186,13 @@ export async function buildSowDocx(data, templateSchema) {
           const short = normalizeLabel(it.label);
           // Respect exclusion logic
           if (shouldExcludeFromAllEnteredFields(short.toLowerCase().trim())) return null;
+          // Also apply simple-label exclusions
+          if (EXCLUDE_BY_EXACT_LABEL.has(short)) return null;
           return { label: short, value: formatForSchema(it.value) };
         })
         .filter(Boolean);
 
+      // Build Work Order Parameters table
       const rows = [...filteredRows, ...customRows].map(({ label, value }) =>
         new TableRow({ children: [labelCell(label, L), valueCell(value, V)] })
       );
@@ -1186,6 +1203,37 @@ export async function buildSowDocx(data, templateSchema) {
         // eslint-disable-next-line no-console
         console.warn("buildSowDocx: Schema-enumerated table skipped (empty).");
       }
+
+      // After Change Control Procedures (Fixed Price Only), insert new section "Address for Communications"
+      // Render as a dedicated section header followed by a two-column table (label/value) showing a single consolidated value.
+      const addrObj = get(templateData, "address_for_communications") || {};
+      const addrSupplier = cleanValue(addrObj.supplier_name || "");
+      const addrContact = cleanValue(addrObj.contact_name || "");
+      const addrEmail = cleanValue(addrObj.email || "");
+      const addrAddress = cleanValue(addrObj.address || "");
+
+      // Build consolidated multi-line block, skipping empty lines
+      const addressLines = [addrSupplier, addrContact, addrEmail, addrAddress].filter((x) => x && x.trim());
+      const addressBlockParas = addressLines.length ? addressLines.map((ln) => para(ln)) : [para("")];
+
+      // Insert section header
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          spacing: { after: 120 },
+          children: [new TextRun({ text: "Address for Communications", bold: true, size: 24 })],
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      // Insert single-row table with consolidated parameter
+      const addrTableRows = [
+        new TableRow({
+          children: [labelCell("Address for Communications", L), makeCell(addressBlockParas, { widthPct: V })],
+        }),
+      ];
+      const addrTable = tableFullWidth(addrTableRows);
+      if (addrTable) children.push(addrTable);
     }
   }
 
