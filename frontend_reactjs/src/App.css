@@ -1,10 +1,17 @@
-/* Keep minimal app-level styles; rely on theme.css + styles.css for visuals */
+@import './theme.css';
+
+/* Root app container aligns to dark theme */
 .App {
   text-align: center;
-  background-color: var(--bg-canvas);
-  color: var(--text-primary);
+  background: var(--color-bg);
+  color: var(--color-text);
   min-height: 100vh;
-  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Remove any residual white surfaces from older styles */
+.App-header, .container, .content, .main {
+  background: var(--color-bg) !important;
+  color: var(--color-text) !important;
 }
 
 .App-logo {
@@ -18,57 +25,36 @@
   }
 }
 
-.App-header {
-  background-color: transparent;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: var(--text-primary);
-  transition: background-color 0.2s ease;
-  position: relative;
-}
-
 .App-link {
-  color: var(--text-secondary);
+  color: var(--link);
   transition: color 0.3s ease;
 }
+.App-link:hover {
+  color: var(--link-hover);
+}
 
+/* Optional theme toggle (kept invisible unless reintroduced) */
 .theme-toggle {
   position: absolute;
   top: 20px;
   right: 20px;
-  background-color: var(--button-bg);
-  color: var(--button-text);
-  border: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
 }
-
-.theme-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  opacity: 0.9;
-}
-
-.theme-toggle:active {
-  transform: translateY(0);
-}
+.theme-toggle:hover { background: var(--hover-surface); }
+.theme-toggle:active { transform: translateY(0.5px); }
 
 @keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Responsive design for mobile */

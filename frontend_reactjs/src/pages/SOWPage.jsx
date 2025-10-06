@@ -1,4 +1,6 @@
 import React from 'react';
+import '../theme.css';
+import '../styles.css';
 import SowPreamble from '../components/SowPreamble';
 
 /**
@@ -8,16 +10,13 @@ import SowPreamble from '../components/SowPreamble';
  */
 export default function SOWPage() {
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6" style={{ maxWidth: 960, margin: '0 auto', padding: '16px' }}>
-      <header className="mb-4" style={{ marginBottom: 12 }}>
-        <h1 className="text-2xl font-semibold text-gray-800" style={{ fontSize: 22, fontWeight: 700, color: '#374151' }}>
+    <div className="workspace" style={{ maxWidth: 960, margin: '0 auto', padding: '16px', minHeight: '100vh', background: 'var(--color-bg)', color: 'var(--color-text)' }}>
+      <header style={{ marginBottom: 12 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)' }}>
           Statement of Work to Master Service Agreement
         </h1>
       </header>
-
       <SowPreamble value={{ preamble: {} }} onChange={() => {}} />
-
-      {/* ...rest of SOW form/content... */}
     </div>
   );
 }

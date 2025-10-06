@@ -1,8 +1,9 @@
 import React from "react";
+import "../theme.css";
+import "../styles.css";
 
 // PUBLIC_INTERFACE
 export default function ProjectDetails({ data, onChange }) {
-  /** Project details: overview, scope, deliverables, roles, acceptance criteria */
   return (
     <div className="panel">
       <div className="panel-title">Project Details</div>

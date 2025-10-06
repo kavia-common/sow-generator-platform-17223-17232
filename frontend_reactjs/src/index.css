@@ -1,9 +1,13 @@
-/* Base reset kept minimal, detailed theme in styles.css */
+@import './theme.css';
+
+/* Base reset */
 html, body, #root {
   height: 100%;
 }
 body {
   margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;

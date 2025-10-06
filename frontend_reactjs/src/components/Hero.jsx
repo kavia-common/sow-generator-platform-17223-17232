@@ -1,10 +1,10 @@
 import React from "react";
 import "./Hero.css";
+import "../theme.css";
 
 /**
  * PUBLIC_INTERFACE
  * Hero section: center-focused layout with headline and subheadline.
- * CTAs removed to comply with requirement to disable add-new actions.
  */
 export default function Hero() {
   return (

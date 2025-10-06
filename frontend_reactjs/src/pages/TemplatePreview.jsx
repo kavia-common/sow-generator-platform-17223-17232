@@ -1,16 +1,17 @@
 import React from "react";
+import "../theme.css";
+import "../styles.css";
 
 /**
  * PUBLIC_INTERFACE
  * TemplatePreview
- * Deprecated interactive preview. Upload/selection has been removed.
- * This component now renders a small hint; the app auto-selects internal templates by SOW type.
+ * Helper card with instructions.
  */
 export default function TemplatePreview() {
   return (
     <div className="panel">
       <div className="panel-title">Actions</div>
-      <div style={{ color: "var(--text-secondary)" }}>
+      <div className="text-muted">
         Select your SOW type and proceed to fill the form or generate the document.
       </div>
     </div>

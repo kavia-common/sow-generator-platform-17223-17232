@@ -1,14 +1,11 @@
 import React from "react";
+import "../theme.css";
 
 /**
  * PUBLIC_INTERFACE
  * Legacy TopNav component (kept for compatibility).
- * Prefer using GlassHeader for the new glassmorphic header.
+ * Prefer using GlassHeader for the new header.
  */
-export default function TopNav({ projects, templates, selectedProject, selectedTemplate, onProjectChange, onTemplateChange, onNewProject, onSaveDraft }) {
-  return (
-    <div style={{ display: "none" }}>
-      {/* Deprecated visual in favor of GlassHeader; still exported to avoid import errors elsewhere */}
-    </div>
-  );
+export default function TopNav() {
+  return <div style={{ display: "none" }} />;
 }

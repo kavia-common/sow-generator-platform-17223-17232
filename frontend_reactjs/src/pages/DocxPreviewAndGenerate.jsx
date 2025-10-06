@@ -1,43 +1,35 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import "../theme.css";
+import "../styles.css";
 
 /**
  * PUBLIC_INTERFACE
  * DocxPreviewAndGenerate
- * Builds a fresh, valid DOCX directly from SOW form values without using any external .docx templates.
- *
- * Props:
- * - data: { meta?: { client?: string, title?: string, sowType?: "TM"|"FP", logoUrl?: string }, templateData?: Record<string, any> }
- * - templateSchema?: sectioned or flat schema describing fields to list in the output
- * - autoGenerate?: boolean  If true, immediately trigger generation on mount/update (used for one-click submit).
+ * Builds a fresh, valid DOCX directly from SOW form values without using external templates.
  */
 export default function DocxPreviewAndGenerate({ data, templateSchema, autoGenerate = false }) {
   const [generating, setGenerating] = useState(false);
   const rafRevokeRef = useRef(null);
 
   const onGenerate = useCallback(async () => {
-    if (generating) return; // prevent duplicate clicks
+    if (generating) return;
     setGenerating(true);
     try {
       const { buildSowDocx, makeSowDocxFilename } = await import("../services/sowDocxBuilder.js");
-      // Always pass templateSchema so the builder can enumerate all fields in schema order
       const blob = await buildSowDocx(data || {}, templateSchema || { fields: [] });
       const name = makeSowDocxFilename(data || {});
       triggerDownload(blob, name);
     } finally {
-      // small delay to avoid immediate re-press while browser processes download
       setTimeout(() => setGenerating(false), 300);
     }
   }, [data, templateSchema, generating]);
 
   useEffect(() => {
-    if (autoGenerate) {
-      onGenerate();
-    }
+    if (autoGenerate) onGenerate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoGenerate]);
 
   function triggerDownload(blob, filename) {
-    // Ensure any prior URL is revoked before creating a new one
     if (rafRevokeRef.current) {
       cancelAnimationFrame(rafRevokeRef.current);
       rafRevokeRef.current = null;
@@ -56,8 +48,8 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
   }
 
   return (
-    <div className="panel sow-dark" style={{ background: "#0b0b0b", borderColor: "var(--ui-border-strong)" }}>
-      <div className="panel-title" style={{ color: "#f5f7fa", borderLeftColor: "#60a5fa" }}>Generate DOCX</div>
+    <div className="panel sow-dark" style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}>
+      <div className="panel-title" style={{ color: "var(--color-text)", borderLeftColor: "var(--color-primary)" }}>Generate DOCX</div>
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
         <button
           className="btn btn-primary"
@@ -69,7 +61,7 @@ export default function DocxPreviewAndGenerate({ data, templateSchema, autoGener
         >
           {generating ? "Generating..." : "Generate DOCX"}
         </button>
-        <div style={{ color: "var(--text-secondary)" }}>
+        <div className="text-muted">
           Generates a clean DOCX from your SOW entries. No templates are used.
         </div>
       </div>

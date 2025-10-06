@@ -1,10 +1,11 @@
 import React from "react";
+import "../theme.css";
+import "../styles.css";
 
 /**
  * PUBLIC_INTERFACE
  * TemplateSelect
  * Minimal chooser for Statement of Work type: Fixed Price (FP) or Time & Materials (TM).
- * No upload or external selection is supported; the app uses internal templates.
  */
 export default function TemplateSelect({ selected, onChange }) {
   const opts = [
@@ -25,16 +26,16 @@ export default function TemplateSelect({ selected, onChange }) {
               className="panel"
               style={{
                 borderStyle: "solid",
-                borderColor: active ? "var(--accent-purple)" : "var(--ui-border)",
-                background: "#FFFFFF",
-                boxShadow: active ? "0 0 0 3px rgba(139,92,246,0.15)" : "var(--shadow-sm)",
+                borderColor: active ? "var(--color-border)" : "var(--color-border)",
+                background: "var(--color-surface-2)",
+                boxShadow: active ? "0 0 0 3px rgba(96,165,250,0.15)" : "var(--shadow-sm)",
                 textAlign: "left",
-                color: "var(--text-primary)"
+                color: "var(--color-text)"
               }}
               aria-pressed={active}
             >
-              <div style={{ fontWeight: 800, marginBottom: 6, color: "#111827" }}>{o.title}</div>
-              <div style={{ color: "var(--text-muted)" }}>{o.desc}</div>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>{o.title}</div>
+              <div className="text-muted">{o.desc}</div>
             </button>
           );
         })}

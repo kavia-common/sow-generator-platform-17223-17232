@@ -1,12 +1,13 @@
 import React from "react";
+import "../theme.css";
 
 // PUBLIC_INTERFACE
 export default function SideNav({ current, onNavigate }) {
-  /** Side navigation with SOW actions and steps */
+  /** Side navigation with SOW actions only (Templates removed) */
   const items = [
     { id: "template", label: "Template Select" },
     { id: "sowform", label: "SOW Form" },
-    { id: "preview", label: "Generate DOCX" },
+    { id: "preview_auto", label: "Generate DOCX" },
   ];
 
   return (
@@ -24,9 +25,10 @@ export default function SideNav({ current, onNavigate }) {
               style={
                 active
                   ? {
-                      borderColor: "var(--accent-purple)",
-                      background: "#F9FAFB",
-                      boxShadow: "0 0 0 3px rgba(139,92,246,0.15)"
+                      borderColor: "var(--color-border)",
+                      background: "var(--hover-surface)",
+                      boxShadow: "0 0 0 3px rgba(96,165,250,0.15)",
+                      color: "var(--color-text)"
                     }
                   : undefined
               }

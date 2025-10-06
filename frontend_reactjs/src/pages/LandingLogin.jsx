@@ -7,8 +7,7 @@ import { applyThemeToRoot, oceanTheme } from "../theme";
 /**
  * PUBLIC_INTERFACE
  * LandingLogin
- * Elegant landing page hero with a centered login card.
- * Matches the neon gradient/dark theme and provides email/password (local) or magic link email.
+ * Dark landing with a centered login card.
  */
 export default function LandingLogin({ onContinue }) {
   const [email, setEmail] = useState("");
@@ -21,7 +20,6 @@ export default function LandingLogin({ onContinue }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // MVP: no actual auth; simply continue
     setStatus("Signing in...");
     setTimeout(() => {
       setStatus("");
@@ -30,7 +28,7 @@ export default function LandingLogin({ onContinue }) {
   };
 
   return (
-    <div style={{ position: "relative", minHeight: "100vh", display: "grid", placeItems: "center" }}>
+    <div style={{ position: "relative", minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--color-bg)", color: "var(--color-text)" }}>
       <BackgroundWaves />
       <header className="site-header" role="banner" aria-label="Main navigation">
         <div className="nav-pill">
@@ -47,9 +45,7 @@ export default function LandingLogin({ onContinue }) {
       <main role="main" style={{ position: "relative", zIndex: 2, width: "100%" }}>
         <section className="hero" role="region" aria-label="Intro" style={{ paddingTop: 120, paddingBottom: 40 }}>
           <div className="hero-inner">
-            <h1 className="hero-title" style={{ WebkitTextFillColor: "transparent", backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,255,255,0.72))", WebkitBackgroundClip: "text" }}>
-              Welcome to your Statement of Work generator
-            </h1>
+            <h1 className="hero-title">Welcome to your Statement of Work generator</h1>
             <p className="hero-subtitle">Create professional SOWs with guided steps, friendly prompts, and effortless export.</p>
           </div>
         </section>
@@ -67,11 +63,11 @@ export default function LandingLogin({ onContinue }) {
               borderRadius: 16,
               boxShadow: "0 10px 28px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.03)",
               padding: 24,
-              color: "var(--text-primary)",
+              color: "var(--color-text)",
             }}
           >
             <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Welcome back</div>
-            <div style={{ color: "var(--text-secondary)", marginBottom: 16, fontSize: 14 }}>
+            <div className="text-muted" style={{ marginBottom: 16, fontSize: 14 }}>
               Sign in to continue to the SOW workspace.
             </div>
 
@@ -84,12 +80,7 @@ export default function LandingLogin({ onContinue }) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{
-                  height: 44,
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  borderRadius: 12,
-                }}
+                style={{ height: 44 }}
               />
             </div>
             <div className="form-control" style={{ marginBottom: 16 }}>
@@ -100,19 +91,14 @@ export default function LandingLogin({ onContinue }) {
                 placeholder="••••••••"
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
-                style={{
-                  height: 44,
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  borderRadius: 12,
-                }}
+                style={{ height: 44 }}
               />
             </div>
 
             <button className="btn btn-primary" type="submit" style={{ width: "100%", height: 46 }}>
               Sign In
             </button>
-            <div style={{ marginTop: 10, color: "var(--text-secondary)", fontSize: 12 }}>
+            <div className="text-muted" style={{ marginTop: 10, fontSize: 12 }}>
               {status || "By continuing, you agree to our terms."}
             </div>
           </form>

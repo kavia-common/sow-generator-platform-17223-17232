@@ -1,18 +1,17 @@
+@import '../theme.css';
+
 :root {
-  /* Local tokens tuned to screenshot accents while aligned with global theme variables */
-  --wiz-surface: var(--bg-elevated);
-  --wiz-text: var(--text-primary);
-  --wiz-text-muted: var(--text-secondary);
-  --wiz-border: var(--ui-border);
-  --wiz-border-strong: var(--ui-border-strong, rgba(255,255,255,0.18));
-  --wiz-glow: var(--glow-purple);
-  --wiz-shadow: 0 16px 36px rgba(0,0,0,0.5);
+  --wiz-surface: var(--color-surface);
+  --wiz-text: var(--color-text);
+  --wiz-text-muted: var(--color-text-muted);
+  --wiz-border: var(--color-border);
+  --wiz-shadow: var(--shadow-md);
   --wiz-radius-lg: 18px;
   --wiz-radius-md: 14px;
 
-  --wiz-gradient-header: linear-gradient(135deg, #FFE4E6 0%, #F3E8FF 100%);
-  --wiz-gradient-user: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
-  --wiz-fab-gradient: radial-gradient(120% 120% at 30% 20%, var(--accent-pink), var(--accent-magenta));
+  --wiz-gradient-header: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%);
+  --wiz-gradient-user: linear-gradient(135deg, var(--color-primary), #c026d3);
+  --wiz-fab-gradient: radial-gradient(120% 120% at 30% 20%, #fb79bd, #a21caf);
 }
 
 /* Floating action button (open wizard) */
@@ -24,28 +23,20 @@
   width: 56px;
   height: 56px;
   border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid var(--wiz-border);
   background: var(--wiz-fab-gradient);
   color: #fff;
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(159,66,255,0.45), 0 10px 30px rgba(31,41,55,.35);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.45), 0 10px 30px rgba(0,0,0,.35);
   transition: transform 120ms ease, filter 150ms ease, box-shadow 150ms ease;
 }
-.wiz-fab:hover {
-  transform: translateY(-1px) scale(1.03);
-  filter: brightness(1.06);
-}
-.wiz-fab:active {
-  transform: scale(0.98);
-}
-.wiz-fab:focus-visible {
-  outline: 4px solid rgba(159,66,255,0.35);
-  outline-offset: 2px;
-}
+.wiz-fab:hover { transform: translateY(-1px) scale(1.03); filter: brightness(1.06); }
+.wiz-fab:active { transform: scale(0.98); }
+.wiz-fab:focus-visible { outline: 4px solid rgba(96,165,250,0.35); outline-offset: 2px; }
 
-/* Slide-over panel */
+/* Panel */
 .wiz-panel {
   position: fixed;
   top: 0;
@@ -55,7 +46,7 @@
   transform: translateX(105%);
   transition: transform .25s ease;
   z-index: 55;
-  background: rgba(16, 14, 20, 0.86);
+  background: rgba(16, 14, 20, 0.9);
   color: var(--wiz-text);
   border-left: 1px solid var(--wiz-border);
   box-shadow: var(--wiz-shadow);
@@ -65,105 +56,58 @@
   border-top-left-radius: var(--wiz-radius-lg);
   border-bottom-left-radius: var(--wiz-radius-lg);
 }
-.wiz-panel.open {
-  transform: translateX(0%);
-}
+.wiz-panel.open { transform: translateX(0%); }
 
 /* Header */
 .wiz-header {
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid var(--wiz-border);
   background: var(--wiz-gradient-header);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #374151;
+  color: var(--wiz-text);
 }
-.wiz-header-title {
-  display: grid;
-  gap: 2px;
-}
+.wiz-header-title { display: grid; gap: 2px; }
 .wiz-overline {
-  font-size: 12px;
-  color: #6B7280;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font-size: 12px; color: var(--wiz-text-muted); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
 }
-.wiz-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: #374151;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.wiz-title { font-size: 16px; font-weight: 800; color: var(--wiz-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Body */
-.wiz-body {
-  padding: 14px;
-  overflow: auto;
-  display: grid;
-  gap: 10px;
-}
+.wiz-body { padding: 14px; overflow: auto; display: grid; gap: 10px; }
 
 /* Transcript bubbles */
-.wiz-log {
-  display: grid;
-  gap: 8px;
-}
+.wiz-log { display: grid; gap: 8px; }
 .wiz-bubble {
   display: inline-block;
   max-width: 92%;
   border-radius: 16px;
-  border: 1px solid rgba(55,65,81,0.18);
+  border: 1px solid var(--wiz-border);
   padding: 10px 12px;
 }
-.wiz-bubble.user {
-  justify-self: end;
-  background: var(--wiz-gradient-user);
-  color: #fff;
-  box-shadow: var(--wiz-glow);
-}
-.wiz-bubble.bot {
-  justify-self: start;
-  background: #FFFFFF;
-  color: #374151;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-}
+.wiz-bubble.user { justify-self: end; background: var(--wiz-gradient-user); color: #fff; }
+.wiz-bubble.bot { justify-self: start; background: var(--color-surface-2); color: var(--wiz-text); }
 
 /* Upload card */
 .wiz-upload {
-  border: 1px solid rgba(55,65,81,0.18);
+  border: 1px solid var(--wiz-border);
   border-radius: 12px;
   padding: 12px;
-  background: #FFFFFF;
-  color: #374151;
+  background: var(--color-surface);
+  color: var(--wiz-text);
 }
-.wiz-previews {
-  margin-top: 10px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.wiz-preview-img {
-  border-radius: 8px;
-  border: 1px solid var(--ui-border);
-}
+.wiz-previews { margin-top: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.wiz-preview-img { border-radius: 8px; border: 1px solid var(--wiz-border); }
 
 /* Input row */
-.wiz-input-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
+.wiz-input-row { display: flex; gap: 8px; align-items: center; }
 .wiz-input {
   flex: 1;
-  background: #FFFFFF;
-  color: #374151;
+  background: var(--input-bg) !important;
+  color: var(--input-text) !important;
   border-radius: 12px;
-  border: 1px solid rgba(55,65,81,0.18);
+  border: 1px solid var(--input-border) !important;
   height: 44px;
   padding: 10px 12px;
 }
@@ -171,18 +115,13 @@
 /* Footer hint */
 .wiz-footer {
   padding: 10px 14px;
-  border-top: 1px solid rgba(55,65,81,0.08);
-  color: #6B7280;
+  border-top: 1px solid var(--wiz-border);
+  color: var(--wiz-text-muted);
   font-size: 12px;
 }
 
 /* Small utility alignment for left-position variant if needed */
-.wiz-fab.left {
-  right: auto;
-  left: 16px;
-}
+.wiz-fab.left { right: auto; left: 16px; }
 
 /* SVG icon alignment */
-.wiz-fab svg {
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
-}
+.wiz-fab svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25)); }

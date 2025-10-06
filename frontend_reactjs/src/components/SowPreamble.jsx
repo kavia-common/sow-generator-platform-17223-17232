@@ -1,88 +1,35 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import '../theme.css';
 
 /**
  * PUBLIC_INTERFACE
  * SowPreamble
- * Render the required preamble sentence with live interpolation from form state.
- *
- * Props:
- * - value: object containing at least { preamble?: { startDate?: string, endDate?: string, supplier?: string } }
- * - onChange: (nextPartial) => void to update fields under value.preamble
- * - sentenceTemplate?: string optional template that may contain {{startDate}}, {{endDate}}, {{supplier}}
- *
- * The component also renders three inputs (Start Date, End Date, Supplier) outside of any table.
+ * Inline preamble inputs and shows the required sentence preview (no logo rendering here).
  */
-export default function SowPreamble({ value, onChange, sentenceTemplate }) {
+export default function SowPreamble({ value, onChange }) {
   const preamble = value?.preamble || {};
-  const startDate = preamble.startDate || "";
-  const endDate = preamble.endDate || "";
-  const supplier = preamble.supplier || "";
-
-  const interpolated = useMemo(() => {
-    const template =
-      typeof sentenceTemplate === "string" && sentenceTemplate.trim()
-        ? sentenceTemplate
-        : "The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between [{{startDate}} - {{endDate}}], and [{{supplier}}] (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.";
-    const range =
-      startDate || endDate
-        ? `[${startDate || ""}${startDate && endDate ? " - " : ""}${endDate || ""}]`
-        : "[startdate - enddate]";
-    const sup = supplier ? `[${supplier}]` : "[supplier]";
-    return template
-      .replaceAll("{{startDate}}", startDate || "startdate")
-      .replaceAll("{{endDate}}", endDate || "enddate")
-      .replaceAll("{{supplier}}", supplier || "supplier")
-      .replaceAll("[{{startDate}} - {{endDate}}]", range)
-      .replaceAll("[{{supplier}}]", sup);
-  }, [sentenceTemplate, startDate, endDate, supplier]);
-
-  const update = (patch) => {
-    onChange?.({
-      ...value,
-      preamble: { ...(value?.preamble || {}), ...patch },
-    });
-  };
+  const set = (k, v) => onChange?.({ ...value, preamble: { ...(value?.preamble || {}), [k]: v } });
 
   return (
-    <div className="w-full" style={{ color: '#374151' }}>
-      {/* Metadata inputs controlling the sentence */}
-      <div className="panel" style={{ padding: 8, marginBottom: 8 }}>
-        <div className="panel-title" style={{ marginBottom: 6 }}>Preamble Details</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', rowGap: 8, columnGap: 10 }}>
-          <label htmlFor="pre-start" style={{ alignSelf: 'center' }}>Start Date</label>
-          <input
-            id="pre-start"
-            className="input"
-            type="text"
-            placeholder="dd-mm-yyyy"
-            value={startDate}
-            onChange={(e) => update({ startDate: e.target.value })}
-          />
-          <label htmlFor="pre-end" style={{ alignSelf: 'center' }}>End Date</label>
-          <input
-            id="pre-end"
-            className="input"
-            type="text"
-            placeholder="dd-mm-yyyy"
-            value={endDate}
-            onChange={(e) => update({ endDate: e.target.value })}
-          />
-          <label htmlFor="pre-supplier" style={{ alignSelf: 'center' }}>Supplier</label>
-          <input
-            id="pre-supplier"
-            className="input"
-            type="text"
-            placeholder="Supplier name"
-            value={supplier}
-            onChange={(e) => update({ supplier: e.target.value })}
-          />
+    <div className="panel" style={{ marginBottom: 8 }}>
+      <div className="panel-title">Preamble</div>
+      <div className="form-grid">
+        <div className="form-control">
+          <label className="label">Start Date</label>
+          <input className="input" type="date" value={preamble.startDate || ''} onChange={(e) => set('startDate', e.target.value)} />
+        </div>
+        <div className="form-control">
+          <label className="label">End Date</label>
+          <input className="input" type="date" value={preamble.endDate || ''} onChange={(e) => set('endDate', e.target.value)} />
+        </div>
+        <div className="form-control">
+          <label className="label">Supplier</label>
+          <input className="input" type="text" value={preamble.supplier || ''} onChange={(e) => set('supplier', e.target.value)} />
         </div>
       </div>
-
-      {/* Interpolated sentence */}
-      <p className="text-gray-700 leading-relaxed" style={{ color: '#374151', lineHeight: 1.6, marginTop: 4, marginBottom: 8 }}>
-        {interpolated}
-      </p>
+      <div style={{ marginTop: 10 }} className="text-muted">
+        The Statement of Work references and is executed subject to and in accordance with the terms and conditions contained in the Master Services Agreement entered between [{preamble.startDate || 'startdate'}{preamble.startDate || preamble.endDate ? ' - ' : ''}{preamble.endDate || 'enddate'}], and [{preamble.supplier || 'supplier'}] (the “Supplier”), as amended from time to time (the “Agreement”). Capitalized terms not defined in this Statement of Work have the meaning given in the Agreement. This Statement of Work becomes effective when signed by Supplier where indicated below in the Section headed ‘Authorization’.
+      </div>
     </div>
   );
 }

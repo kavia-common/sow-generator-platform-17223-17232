@@ -1,8 +1,9 @@
 import React from "react";
+import "../theme.css";
+import "../styles.css";
 
 // PUBLIC_INTERFACE
 export default function CompanyDetails({ data, onChange }) {
-  /** Company details capture: name, logo URL, contact */
   return (
     <div className="panel">
       <div className="panel-title">Company Details</div>

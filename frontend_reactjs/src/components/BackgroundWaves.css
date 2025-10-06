@@ -1,11 +1,15 @@
+@import '../theme.css';
+
 .bg-waves {
   position: fixed;
   inset: 0;
   overflow: hidden;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(1200px 600px at 50% -10%, rgba(111,63,255,0.15), transparent 60%),
-              radial-gradient(1000px 500px at 110% 10%, rgba(255,63,164,0.12), transparent 60%);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(111,63,255,0.15), transparent 60%),
+    radial-gradient(1000px 500px at 110% 10%, rgba(255,63,164,0.12), transparent 60%),
+    linear-gradient(180deg, #0c0c12, #0b0b0d);
 }
 
 .bg-waves .bg-radial {
@@ -20,12 +24,12 @@
 .bg-waves .bg-radial.left {
   left: -20vmax;
   top: -10vmax;
-  background: radial-gradient(circle at 50% 50%, var(--accent-purple), transparent 60%);
+  background: radial-gradient(circle at 50% 50%, var(--color-primary), transparent 60%);
 }
 .bg-waves .bg-radial.right {
   right: -18vmax;
   top: 10vmax;
-  background: radial-gradient(circle at 50% 50%, var(--accent-pink), transparent 60%);
+  background: radial-gradient(circle at 50% 50%, #a21caf, transparent 60%);
 }
 
 .bg-waves .bg-ribbon {
@@ -39,26 +43,11 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .bg-waves .bg-ribbon {
-    animation: subtleDrift 28s ease-in-out infinite alternate;
-  }
-  .bg-waves .bg-radial.left {
-    animation: floatLeft 36s ease-in-out infinite alternate;
-  }
-  .bg-waves .bg-radial.right {
-    animation: floatRight 40s ease-in-out infinite alternate;
-  }
+  .bg-waves .bg-ribbon { animation: subtleDrift 28s ease-in-out infinite alternate; }
+  .bg-waves .bg-radial.left { animation: floatLeft 36s ease-in-out infinite alternate; }
+  .bg-waves .bg-radial.right { animation: floatRight 40s ease-in-out infinite alternate; }
 }
 
-@keyframes subtleDrift {
-  from { transform: translateY(0) translateX(0) scale(1); }
-  to   { transform: translateY(-2%) translateX(1%) scale(1.03); }
-}
-@keyframes floatLeft {
-  from { transform: translate(-2%, 0); }
-  to   { transform: translate(2%, -1%); }
-}
-@keyframes floatRight {
-  from { transform: translate(1%, 0); }
-  to   { transform: translate(-1%, 2%); }
-}
+@keyframes subtleDrift { from { transform: translateY(0) translateX(0) scale(1); } to { transform: translateY(-2%) translateX(1%) scale(1.03); } }
+@keyframes floatLeft { from { transform: translate(-2%, 0); } to { transform: translate(2%, -1%); } }
+@keyframes floatRight { from { transform: translate(1%, 0); } to { transform: translate(-1%, 2%); } }
